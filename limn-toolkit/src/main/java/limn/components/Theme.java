@@ -1066,6 +1066,10 @@ public final class Theme {
      * this for one restores the toolkit's own face rather than leaving the previous palette's
      * choice in place. Both directions are therefore safe to call unconditionally.
      *
+     * <p>A screen that would rather keep that read off the frame hands {@link #fontFamily()} to
+     * {@link Fonts#setDefaultFamilyWhenResident} instead, which reads the faces on a worker and
+     * makes the same switch once they are resident.
+     *
      * <p>UI thread.
      */
     public void applyFontFamily() {

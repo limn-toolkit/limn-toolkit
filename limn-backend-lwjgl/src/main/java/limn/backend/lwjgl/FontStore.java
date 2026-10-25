@@ -48,7 +48,9 @@ import java.util.TreeSet;
  * {@link #resolve}, which runs on the UI thread inside a measure or a paint, and
  * an OS font file is unbounded in size. {@link #preloadFamily} moves it to a
  * worker: warm the family, then select it, and the frame that switches never
- * touches the disk.
+ * touches the disk. Applications reach it through {@link Fonts#preload} and
+ * {@link Fonts#setDefaultFamilyWhenResident}, by way of the {@link #loader()} the
+ * backend installs.
  */
 final class FontStore implements AutoCloseable {
 
@@ -722,7 +724,8 @@ final class FontStore implements AutoCloseable {
      * shared face cache, where it is worth the same whether or not whoever
      * asked still wants it. A caller that can change its mind (a font picker
      * moving through a list) must therefore check, inside {@code whenResident},
-     * that the family it asked for is still the one it wants.
+     * that the family it asked for is still the one it wants, as
+     * {@link Fonts#setDefaultFamilyWhenResident} does.
      *
      * <p>Italic faces are deliberately not preloaded: at most
      * {@link #MAX_SYSTEM_FACES} system faces stay resident, and regular plus
@@ -740,6 +743,14 @@ final class FontStore implements AutoCloseable {
         if (closed || key.isEmpty() || !limn.concurrent.Ui.isInstalled()) {
             return;
         }
+        if (byFamily.containsKey(key)) {
+            // Bundled: resolve takes the bundled face before any system face of the same name, so
+            // reading the system's copy (Roboto is installed on many Linux desktops) would fill
+            // the resident set with faces nothing draws, and waiting for the enumeration to learn
+            // that would kick it for nothing.
+            limn.concurrent.Ui.post(done);
+            return;
+        }
         List<Runnable> waiting = preloading.get(key);
         if (waiting != null) {
             waiting.add(done); // one file read serves both callers
@@ -754,6 +765,29 @@ final class FontStore implements AutoCloseable {
         }
         startFamilyPreload(key, new ArrayList<>(List.of(done)));
     }
+
+    /**
+     * The loader the backend installs through {@link Fonts#installLoader}: {@link #loadFile} for
+     * a file the application ships, and {@link #preloadFamily} for
+     * {@link limn.graphics.FontLoader#preload}, which is how {@link Fonts#preload} and
+     * {@link Fonts#setDefaultFamilyWhenResident} reach this store. The same instance each call,
+     * because the backend uninstalls by identity.
+     */
+    limn.graphics.FontLoader loader() {
+        return loader;
+    }
+
+    private final limn.graphics.FontLoader loader = new limn.graphics.FontLoader() {
+        @Override
+        public String load(Path file) {
+            return loadFile(file);
+        }
+
+        @Override
+        public void preload(String family, Runnable whenResident) {
+            preloadFamily(family, whenResident);
+        }
+    };
 
     /** Starts (or skips) the background read for {@code key}. UI thread. */
     private void startFamilyPreload(String key, List<Runnable> waiting) {

@@ -1,7 +1,10 @@
 package limn.backend.lwjgl;
 
+import limn.concurrent.Subscription;
 import limn.concurrent.UiRuntime;
 import limn.graphics.Font;
+import limn.graphics.FontLoader;
+import limn.graphics.Fonts;
 import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +18,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -131,14 +135,109 @@ class FontStorePreloadTest {
         }
     }
 
+    @Test
+    void aBundledFamilyIsAnsweredWithoutWaitingForTheEnumeration() {
+        try (FontStore store = new FontStore()) {
+            AtomicInteger answers = new AtomicInteger();
+            store.preloadFamily("Roboto", answers::incrementAndGet);
+            assertFalse(store.systemScanRequested(),
+                    "a resolve takes the bundled face before any system one of the name, so the "
+                            + "system's copy is nothing to look for");
+            runtime.drain();
+            assertEquals(1, answers.get());
+        }
+    }
+
+    @Test
+    void thePublicPreloadReachesTheStoreAndLeavesRegularAndBoldResident() throws IOException {
+        Path regularFile = copyOfBundled("Roboto-Regular.ttf", "probe-regular.ttf");
+        Path boldFile = copyOfBundled("Roboto-Bold.ttf", "probe-bold.ttf");
+        try (FontStore store = new FontStore()) {
+            store.setSystemFaces(List.of(
+                    new SystemFonts.Face(PROBE_FAMILY, "Regular", regularFile, 0, false, false),
+                    new SystemFonts.Face(PROBE_FAMILY, "Bold", boldFile, 0, true, false)));
+            FontLoader loader = store.loader();
+            Fonts.installLoader(loader); // what the backend installs
+            try {
+                AtomicBoolean resident = new AtomicBoolean();
+                Fonts.preload(PROBE_FAMILY).thenRun(() -> resident.set(true));
+                assertFalse(resident.get(), "never inside the call");
+                pumpUntil(resident::get);
+
+                // Gone from the disk: a resolve that still had to read would fail and stand in
+                // with the fallback, so the names below prove both faces were already in memory.
+                Files.delete(regularFile);
+                Files.delete(boldFile);
+                assertEquals(PROBE_FAMILY + " Regular",
+                        store.resolve(new Font(PROBE_FAMILY, 14)).name());
+                assertEquals(PROBE_FAMILY + " Bold",
+                        store.resolve(new Font(PROBE_FAMILY, 14).bold()).name());
+            } finally {
+                Fonts.uninstallLoader(loader);
+            }
+        }
+    }
+
+    @Test
+    void theFrameAfterTheSwitchFindsTheNewDefaultFamilyResident() throws IOException {
+        Path regularFile = copyOfBundled("Roboto-Regular.ttf", "probe-regular.ttf");
+        Path boldFile = copyOfBundled("Roboto-Bold.ttf", "probe-bold.ttf");
+        try (FontStore store = new FontStore()) {
+            store.setSystemFaces(List.of(
+                    new SystemFonts.Face(PROBE_FAMILY, "Regular", regularFile, 0, false, false),
+                    new SystemFonts.Face(PROBE_FAMILY, "Bold", boldFile, 0, true, false)));
+            FontLoader loader = store.loader();
+            Fonts.installLoader(loader);
+            AtomicReference<String> regularAtSwitch = new AtomicReference<>();
+            AtomicReference<String> boldAtSwitch = new AtomicReference<>();
+            // Subscribed after the store, as a scene is: the store has dropped its memo by the
+            // time this runs, so what it resolves here is what the next frame's layout resolves.
+            Subscription relayout = Fonts.observeChanges(() -> {
+                if (regularAtSwitch.get() != null || !PROBE_FAMILY.equals(Fonts.defaultFamily())) {
+                    return;
+                }
+                try {
+                    Files.delete(regularFile); // a read now would fail and fall back
+                    Files.delete(boldFile);
+                } catch (IOException error) {
+                    throw new java.io.UncheckedIOException(error);
+                }
+                regularAtSwitch.set(store.resolve(Font.of(14)).name());
+                boldAtSwitch.set(store.resolve(Font.of(14).bold()).name());
+            });
+            try {
+                AtomicReference<Boolean> switched = new AtomicReference<>();
+                Fonts.setDefaultFamilyWhenResident(PROBE_FAMILY).thenAccept(switched::set);
+                assertEquals(Font.DEFAULT_FAMILY, Fonts.defaultFamily(),
+                        "not before the faces are read");
+                assertEquals("Roboto", store.resolve(Font.of(14)).name(),
+                        "and the frames until then draw in the family in force");
+
+                pumpUntil(() -> switched.get() != null);
+                assertTrue(switched.get());
+                assertEquals(PROBE_FAMILY + " Regular", regularAtSwitch.get());
+                assertEquals(PROBE_FAMILY + " Bold", boldAtSwitch.get());
+            } finally {
+                relayout.cancel();
+                Fonts.setDefaultFamily(null);
+                Fonts.uninstallLoader(loader);
+            }
+        }
+    }
+
     /** A bundled face copied to disk, described the way the OS enumeration would. */
     private SystemFonts.Face probeFace() throws IOException {
-        Path file = tempDir.resolve("probe.ttf");
-        try (InputStream in = FontStore.class.getResourceAsStream(
-                "/limn/fonts/Roboto-Regular.ttf")) {
+        return new SystemFonts.Face(PROBE_FAMILY, "Regular",
+                copyOfBundled("Roboto-Regular.ttf", "probe.ttf"), 0, false, false);
+    }
+
+    /** One of the bundled faces, written to a file of this test's own. */
+    private Path copyOfBundled(String face, String name) throws IOException {
+        Path file = tempDir.resolve(name);
+        try (InputStream in = FontStore.openBundled(FontStore.bundledPath(face))) {
             Files.write(file, in.readAllBytes());
         }
-        return new SystemFonts.Face(PROBE_FAMILY, "Regular", file, 0, false, false);
+        return file;
     }
 
     /** Runs frames until {@code condition} holds: the delivery lands on one. */

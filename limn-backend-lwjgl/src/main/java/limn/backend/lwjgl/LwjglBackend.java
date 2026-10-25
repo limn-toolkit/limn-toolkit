@@ -425,7 +425,9 @@ public final class LwjglBackend implements BackendPeer {
         // this notifier, so Fonts listeners (relayout, pickers) observe it.
         fontCatalog = fontStore::families;
         fontStore.setCatalogChangedNotifier(() -> limn.graphics.Fonts.installCatalog(fontCatalog));
-        fontLoader = fontStore::loadFile;
+        // A file the application ships, and the preload behind Fonts.preload and
+        // Fonts.setDefaultFamilyWhenResident.
+        fontLoader = fontStore.loader();
         imageDecoder = new StbImageDecoder();
         glyphOutlines = new FontOutlines(fontStore);
         // Every service at once, through the one call the SPI names (ADR 046 §5).

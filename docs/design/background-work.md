@@ -158,11 +158,16 @@ lifecycle:
 > until it is unpinned as many times as it was pinned (`Images.loadPinned`,
 > `Images.fromResourcePinned`, and the `Sounds` pair).
 
-There is no other shape and no facade-by-facade exception, because the failure mode of getting it
-wrong is silent in one direction: a `Work` whose `start()` was forgotten does nothing and says
-nothing until it is collected. A reader who has just written `Images.decodeAsync(bytes).start()`
-must not find that `Images.loadShared(path)` needed the same call, or that `GltfLoader.loadAsync`
-and a same-shaped `load...` next to it disagree.
+A call that is not a loader and answers with a stage it has already started takes neither suffix:
+a dialog's `show`, the file dialogs, `Fonts.setDefaultFamilyWhenResident`, whose name says when it
+takes effect instead. Nothing about such a call needs a `start()`, which is what the suffix exists
+to warn of.
+
+Among loaders there is no other shape and no facade-by-facade exception, because the failure mode
+of getting it wrong is silent in one direction: a `Work` whose `start()` was forgotten does nothing
+and says nothing until it is collected. A reader who has just written
+`Images.decodeAsync(bytes).start()` must not find that `Images.loadShared(path)` needed the same
+call, or that `GltfLoader.loadAsync` and a same-shaped `load...` next to it disagree.
 
 Which of the two a loader gets is not a taste question either. **A de-duplicated result cannot be
 a `Work`**: two callers waiting on one load must not be able to cancel each other, and a shared
@@ -218,10 +223,11 @@ because a gap that reads as compliant is the one nobody fixes.
 
 | Member | What the calling thread pays | Asynchronous form, or why none |
 | --- | --- | --- |
-| `TextRuler.measure` | May resolve a face on first use, which reads and parses a font file (tens of megabytes for a CJK face) | **Excused**: measurement cannot leave the UI thread, so the read it triggers cannot either. The only lever is *when* a family is first measured |
-| `Fonts.setDefaultFamily` | Nothing itself; it stores a name and runs listeners | **Excused**, and the excuse names what it schedules: the next measure or paint resolves the new family, and an unresident face is read inside that frame. Hence the placement rule: a settings action, never an animation |
+| `TextRuler.measure` | May resolve a face on first use, which reads and parses a font file (tens of megabytes for a CJK face) | **Excused**: measurement cannot leave the UI thread, so the read it triggers cannot either. The lever is to have the faces resident before a family is first measured: `Fonts.preload` |
+| `Fonts.setDefaultFamily` | Nothing itself; it stores a name and runs listeners, and the next measure or paint resolves the new family, reading a face that is not resident inside that frame | `Fonts.setDefaultFamilyWhenResident`, which reads the regular and bold faces on the pool and switches on the UI thread once they are in, answering a stage there; a later choice overtakes it, so a picker ends on its last entry. Not `...Async`, which names an unstarted `Work`: this starts at once, and what withdraws it is the next choice rather than a cancel. The immediate form stays for a switch that must have happened when it returns |
+| `Fonts.preload` | Nothing on the calling thread; the read is on the pool | **Compliant**: the stage completes on the UI thread, never inside the call, once the faces are resident or when there is nothing to read. Shared per family and not withdrawn, as a `...Shared` load is, though it hands back no value to share |
 | `Fonts.available`, `FontCatalog.families` | Nothing; the catalog's current answer, which may be partial | **Excused**: contractually must not block and must not read. A fuller catalog arrives by installing again and notifying listeners |
-| `FontStore.resolve` | The first resolve of a system family reads that family's font file, inside whatever measure or paint asked | `FontStore.preloadFamily`, which reads on a worker and calls back on the UI thread, but the backend routes to it internally and the class is not public, so this is **not** a lever an application can pull. Everything a caller has is the placement rule on the two rows above, which is a residual cost, not a solved one |
+| `FontStore.resolve` | The first resolve of a system family reads that family's font file, inside whatever measure or paint asked | `FontStore.preloadFamily`, which reads on a worker and calls back on the UI thread. The class is not public; the backend installs it as its `FontLoader`, whose `preload` is what `Fonts.preload` and `Fonts.setDefaultFamilyWhenResident` reach. An italic face is not read ahead and is still read on first use |
 | `StbFont.loadResource` | A bundled face: a few hundred kilobytes plus an sfnt directory walk | **Excused**: less than a frame, and the first frame's first measure needs *some* face, so there is no earlier moment to move it to |
 | `StbFont.loadResourceIfPresent` | The whole resource: small for a UI face, tens of megabytes for a broad-coverage fallback | **Excused** by naming the thread as the caller's choice: anything but a small bundled face belongs on a worker |
 | `ColorEmojiFont.loadResourceIfPresent` | Tens of megabytes of bitmap strikes | **Excused** the same way: documented as a worker-thread call |

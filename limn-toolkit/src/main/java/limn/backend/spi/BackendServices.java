@@ -39,7 +39,8 @@ import org.jspecify.annotations.Nullable;
  * @param ui            the user-interface thread's runtime, bound to the thread that will run the loop
  * @param textRuler     measures and shapes text
  * @param fontCatalog   the font families the platform offers
- * @param fontLoader    reads a font file the application names
+ * @param fontLoader    reads a font file the application names, and a family's faces ahead of
+ *                      their first use
  * @param imageDecoder  decodes image files
  * @param svgRenderer   draws SVG
  * @param graphics3d    the 3D viewport's renderer, or {@code null} for none

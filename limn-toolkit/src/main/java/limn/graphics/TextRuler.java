@@ -51,10 +51,10 @@ public interface TextRuler {
      * <p>There is deliberately no asynchronous form, and one consequence has to be stated rather
      * than discovered. An implementation is allowed to resolve a face on first use, so the first
      * measurement in a family it has not yet loaded may read and parse a font file (tens of
-     * megabytes for a CJK face) on this thread, inside whatever frame asked. Since measurement
-     * cannot leave the UI thread, that cost cannot be moved off it either; the only lever a caller
-     * has is <em>when</em> a new family is first measured, which is why
-     * {@link Fonts#setDefaultFamily} belongs on a settings action and not in an animation.
+     * megabytes for a CJK face) on this thread, inside whatever frame asked. Measurement cannot
+     * leave the UI thread, so the lever is to have the faces resident before a family is first
+     * measured: {@link Fonts#preload} reads a family's regular and bold faces on a worker, and
+     * {@link Fonts#setDefaultFamilyWhenResident} switches the UI font only once they are in.
      *
      * <p><b>An implementation that shapes should answer here what {@link #shape} answers</b>, and
      * the backend's does &mdash; its {@code measure} <em>is</em> {@code shape(…).metrics()}. A
