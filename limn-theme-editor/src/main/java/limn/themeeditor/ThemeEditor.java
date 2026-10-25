@@ -419,11 +419,6 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
         return this;
     }
 
-    /** @return the presentation the wells will raise their next picker in. */
-    public DisplayMode pickerDisplayMode() {
-        return pickerDisplayMode;
-    }
-
     /** Whether edits are installed process-wide as they are made. */
     public boolean isApplyLive() {
         return applyLive;
@@ -441,13 +436,6 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
             // the palette back without this leaves the application wearing a font it never chose.
             themeAtStart.applyFontFamily();
         }
-    }
-
-    // --- the report ----------------------------------------------------------
-
-    /** What is illegible in the palette as it stands, the same list the panel shows. */
-    public List<ThemeAudit.Finding> audit() {
-        return ThemeAudit.of(theme());
     }
 
     // --- the clipboard -------------------------------------------------------

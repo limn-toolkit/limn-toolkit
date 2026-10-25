@@ -42,11 +42,6 @@ public final class ThemePreview extends Widget<ThemePreview> {
         this.theme = Objects.requireNonNull(theme, "theme");
     }
 
-    /** The palette being previewed. */
-    public Theme theme() {
-        return theme;
-    }
-
     /** Shows another palette. Repaints; never re-lays out, since the geometry is fixed. */
     public ThemePreview setTheme(Theme value) {
         Ui.checkUiThread();

@@ -508,18 +508,6 @@ class ThemeEditorTest extends EditorTestBase {
         }
     }
 
-    @Test
-    void theReportFollowsTheEdit() {
-        assertNotNull(editor.audit());
-        // Text the same colour as the surface it sits on is the plainest failure there is.
-        editor.setToken(Theme.Token.TEXT, Theme.dark().surface());
-        boolean flagged = editor.audit().stream()
-                .anyMatch(f -> f.subject() == Theme.Token.TEXT
-                        && f.against() == Theme.Token.SURFACE
-                        && f.level() == ThemeAudit.Level.ERROR);
-        assertTrue(flagged, "invisible body text has to be reported");
-    }
-
     // --- layout -------------------------------------------------------------
 
     @Test

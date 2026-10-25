@@ -298,7 +298,7 @@ class ThemeAuditTest {
                 .disabledText(Theme.dark().disabledFill())
                 .build();
         List<ThemeAudit.Finding> findings = ThemeAudit.of(theme);
-        assertEquals(ThemeAudit.Level.ERROR, ThemeAudit.worst(findings));
+        assertEquals(ThemeAudit.Level.ERROR, findings.get(0).level());
         for (int i = 1; i < findings.size(); i++) {
             assertTrue(findings.get(i - 1).level().compareTo(findings.get(i).level()) <= 0,
                     "an editor reads this top to bottom; the errors have to be at the top");
@@ -313,11 +313,6 @@ class ThemeAuditTest {
         assertTrue(line.startsWith("text on surface"), line);
         assertTrue(line.contains("1.00:1"), line);
         assertTrue(line.contains("4.50:1"), line);
-    }
-
-    @Test
-    void worstOfNothingIsNothing() {
-        assertNull(ThemeAudit.worst(List.of()));
     }
 
     private static String describe(List<ThemeAudit.Finding> findings) {

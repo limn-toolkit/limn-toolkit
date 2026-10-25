@@ -254,17 +254,6 @@ public final class ThemeAudit {
         return List.copyOf(findings);
     }
 
-    /** @return the worst level in {@code findings}, or {@code null} when there are none */
-    public static Level worst(List<Finding> findings) {
-        Level worst = null;
-        for (Finding finding : findings) {
-            if (worst == null || finding.level().compareTo(worst) < 0) {
-                worst = finding.level();
-            }
-        }
-        return worst;
-    }
-
     /** The three surfaces an ink can land on, in the order they stack. */
     private static List<Theme.Token> surfaces() {
         return List.of(Theme.Token.BACKGROUND, Theme.Token.SURFACE, Theme.Token.SURFACE_RAISED);
