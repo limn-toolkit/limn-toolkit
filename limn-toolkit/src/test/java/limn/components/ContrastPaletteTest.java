@@ -5,6 +5,7 @@ import limn.scene.SystemPreferences;
 import limn.scene.SystemPreferences.ColorScheme;
 import limn.scene.internal.SystemPreferencesAccess;
 import limn.testing.HeadlessUi;
+import limn.testing.TestPreferences;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -126,5 +127,58 @@ class ContrastPaletteTest {
         Theme.followSystemContrast(true);
         SystemPreferences.report(SystemPreferences.NONE);
         assertSame(before, Theme.of(widget), "the request withdrawn: the application's palette again");
+    }
+
+    /**
+     * A listener of the palette hears the contrast palette come, go and change, once each time,
+     * and nothing when the system changes something that leaves the palette a widget paints with
+     * as it was. Only {@code setCurrent} and {@code followSystemContrast} told it, so a colour an
+     * application read out of the palette and kept stayed in the old one when the user turned
+     * contrast on.
+     */
+    @Test
+    void aListenerHearsThePaletteAWidgetPaintsWithChangeForTheSystemsContrastOncePerChange() {
+        ui = new HeadlessUi();
+        Theme before = Theme.current();
+        Label widget = new Label("x");
+        List<String> heard = new ArrayList<>();
+        limn.concurrent.Subscription listening = Theme.observeChanges(() -> {
+            Theme t = Theme.of(widget);
+            heard.add(!t.contrast() ? "own" : t.background().equals(Color.rgb(0x000000)) ? "hc2" : "contrast");
+        });
+        try (TestPreferences system = new TestPreferences()) {
+            system.increaseContrast(true);
+            assertEquals(List.of("contrast"), heard, "turned on: told once");
+
+            system.colorScheme(ColorScheme.DARK).reduceMotion(true).underlineAccessKeys(true);
+            assertEquals(List.of("contrast"), heard, "the rest of the system's preferences: not the palette");
+
+            SystemPreferences.report(SystemPreferencesAccess.of(ColorScheme.DARK, true, true, true,
+                    WINDOWS_THEMES.get("hc2")));
+            assertEquals(List.of("contrast", "hc2"), heard, "a Windows contrast theme's colours: told");
+            SystemPreferences.report(SystemPreferencesAccess.of(ColorScheme.LIGHT, true, true, true,
+                    WINDOWS_THEMES.get("hc2")));
+            assertEquals(List.of("contrast", "hc2"), heard, "the same colours: nothing");
+
+            system.increaseContrast(false);
+            assertEquals(List.of("contrast", "hc2", "own"), heard, "turned off: told once");
+
+            Theme.followSystemContrast(false);
+            assertEquals(4, heard.size(), "the refusal is told, as it always was");
+            system.increaseContrast(true);
+            system.increaseContrast(false);
+            assertEquals(4, heard.size(), "refused: the palette never moved, nothing told");
+            Theme.followSystemContrast(true);
+            assertEquals(5, heard.size());
+
+            Theme.setCurrent(Theme.builtins().stream().filter(Theme::contrast).findFirst().orElseThrow());
+            heard.clear();
+            system.increaseContrast(true);
+            system.increaseContrast(false);
+            assertEquals(List.of(), heard, "a palette that is a contrast one already is what a widget paints with");
+        } finally {
+            listening.cancel();
+            Theme.setCurrent(before);
+        }
     }
 }

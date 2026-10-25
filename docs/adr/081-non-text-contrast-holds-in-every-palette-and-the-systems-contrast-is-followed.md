@@ -369,6 +369,7 @@ in every palette, and the contrast palettes at §1.3's.
     - on Windows, the user's colours as given (`Theme.fromSystemColours`);
     - elsewhere, the palette strengthened (`Theme.strengthened`): text and muted text at 7:1, outline, focus ring, accent and semantic tones at 4.5:1, and an accent's text taking whichever of the canvas or the text reads better on it.
   - `SystemPreferences.report` repaints every scene when the request or the colours change.
+  - Since 2026-10-25 `Theme.observeChanges` listeners are told too, once for each change of what `Theme.of` lays over `Theme.current()`: the request turned on or off, or a contrast theme's colours changed while it is followed. Before, only `setCurrent` and `followSystemContrast` told them, so a colour read out of the palette and kept stayed in the old one. A change that leaves `Theme.of`'s answer as it was (the appearance, a refused request, a request while the shipped High Contrast is in force) tells nothing. `ContrastPaletteTest`.
   - `Theme.followSystemContrast(false)` refuses.
   - `ContrastPaletteTest` holds the strengthened copies to those bars and the Windows palette to its eight colours, and checks that a widget follows the request, the refusal and the withdrawal.
 - **§1.4's drawing rules, under `Theme.contrast()`** (true for the contrast palettes and the shipped High Contrast):

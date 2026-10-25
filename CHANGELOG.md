@@ -695,7 +695,9 @@ Maven Central say which number that was.
   `Theme.of(widget)` answers a contrast palette and `Theme.current()` is kept: on Windows the
   contrast theme's own colours, read into `SystemPreferences.contrastColors()`, and on macOS and
   GNOME the application's palette strengthened (text at 7:1, edges, rings and the accent at 4.5:1).
-  Every window repaints when it changes. `Theme.contrast()` says a palette is one; in it nothing
+  Every window repaints when it changes, and `Theme.observeChanges` listeners are told, once for
+  each change of the palette a widget paints with and not for the rest of the system's
+  preferences. `Theme.contrast()` says a palette is one; in it nothing
   casts a shadow, every button and clickable card has its edge, and a `BackdropPanel` is opaque.
   `Theme.followSystemContrast(false)` refuses it.
 - `Theme.controlBorder()`: the edge that identifies a control, the palette's outline moved toward

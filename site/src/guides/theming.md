@@ -268,7 +268,9 @@ In a contrast palette (`theme.contrast()`, true there and for the shipped High C
 casts a shadow, every button and every clickable card has its edge, and glass is drawn opaque.
 `Theme.followSystemContrast(false)` keeps your palette while more contrast is asked for; take it
 only if your application brings its own contrast mode, since following the platform's colour and
-contrast settings is what EN 301 549 clause 11.7 asks of software.
+contrast settings is what EN 301 549 clause 11.7 asks of software. Code of yours that reads a
+colour out of `Theme.of(widget)` and keeps it hears the contrast palette come and go through
+`Theme.observeChanges`, as it hears a switch of palette, once each time.
 
 Every palette, the one you build included, also draws a control's edge at 3:1 on its surfaces, as
 WCAG 2.1 1.4.11 asks: `controlBorder()` is your outline, moved toward the text colour only as far

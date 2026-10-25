@@ -551,7 +551,9 @@ public final class Theme {
      * own colours where the platform gives a palette (a Windows contrast theme), and otherwise
      * {@code current()} strengthened, with text at 7:1 and every edge, ring and accent at 4.5:1 on
      * its surfaces. {@link #current()} is unchanged, and {@link #followSystemContrast(boolean)}
-     * refuses it. A printed page keeps its document's palette.
+     * refuses it. A printed page keeps its document's palette. Whoever reads colours out of this
+     * palette to keep them hears the contrast palette come, go or change through
+     * {@link #observeChanges}, as it hears a switch of {@code current()}.
      *
      * @param widget the widget about to paint
      * @return the palette it paints with
@@ -576,7 +578,8 @@ public final class Theme {
      * contrast: {@code true} unless an application said otherwise. With {@code false} an
      * application keeps its palette while the user has asked for more contrast, which leaves it
      * to bring its own contrast mode: following the platform's colour and contrast settings is
-     * what EN 301 549 clause 11.7 asks of software. Every window repaints. UI thread.
+     * what EN 301 549 clause 11.7 asks of software. Every window repaints, and the
+     * {@link #observeChanges} listeners are told. UI thread.
      *
      * @param follow whether to follow
      */
@@ -587,7 +590,55 @@ public final class Theme {
         }
         followSystemContrast = follow;
         limn.scene.internal.SceneBackground.changed();
+        contrastTold = contrastInForce();
         LISTENERS.fire();
+    }
+
+    /**
+     * What makes {@link #of} lay a contrast palette over {@link #current()}: whether it does, and
+     * the system's colours it is made of, {@code null} for the strengthened copy.
+     */
+    private record ContrastInForce(boolean laid, SystemPreferences.@Nullable ContrastColors colours) {
+        static final ContrastInForce NONE = new ContrastInForce(false, null);
+    }
+
+    /** @return what {@link #of} lays over {@link #current()} now */
+    private static ContrastInForce contrastInForce() {
+        SystemPreferences preferences = SystemPreferences.current();
+        return followSystemContrast && preferences.increaseContrast() && !current.contrast
+                ? new ContrastInForce(true, preferences.contrastColors()) : ContrastInForce.NONE;
+    }
+
+    /**
+     * What {@link #of} laid over {@link #current()} when the listeners were last told, read
+     * against the system's next report; {@code null} until the first listener subscribes. UI thread.
+     */
+    private static @Nullable ContrastInForce contrastTold;
+
+    /** The watch on the system's preferences, made with the first listener; held for the process. */
+    private static limn.concurrent.@Nullable Subscription contrastWatch;
+
+    /**
+     * Has the system's reports reach the listeners, once the first one subscribes: a report that
+     * changes what {@link #of} lays over {@link #current()} (the request for more contrast turned
+     * on or off, a Windows contrast theme's colours changed while it is followed) tells them once;
+     * one that leaves it as it was (the appearance, less motion, a request refused or made of a
+     * palette that is already a contrast one) tells them nothing. Made here rather than as the
+     * class loads, since a palette may be made, and this class loaded, on a worker, where
+     * subscribing would throw.
+     */
+    private static void watchSystemContrast() {
+        if (contrastWatch != null) {
+            return;
+        }
+        contrastTold = contrastInForce();
+        contrastWatch = SystemPreferences.observeChanges(() -> {
+            ContrastInForce now = contrastInForce();
+            if (!now.equals(contrastTold)) {
+                contrastTold = now;
+                LISTENERS.fire();
+            }
+        });
     }
 
     /** @return whether the palette follows the system's request for more contrast */
@@ -1077,6 +1128,7 @@ public final class Theme {
     public static void setCurrent(Theme theme) {
         current = Objects.requireNonNull(theme, "theme");
         limn.scene.internal.SceneBackground.changed();
+        contrastTold = contrastInForce();
         LISTENERS.fire();
     }
 
@@ -1084,11 +1136,24 @@ public final class Theme {
      * Subscribes to palette changes: the fifth process-wide axis, with the same handle the other
      * four hand back.
      *
-     * @param listener what to run when {@link #setCurrent} switches the palette
+     * <p>A listener runs when the palette widgets paint with may have changed: when
+     * {@link #setCurrent} (or {@link #apply}) switches {@link #current()}, when
+     * {@link #followSystemContrast} changes, and when the system's request for more contrast
+     * changes the contrast palette {@link #of} lays over {@code current()}: turned on or off, or a
+     * Windows contrast theme's colours changed while it is followed. Once for each such change;
+     * a change of the system's preferences that leaves {@link #of}'s answer as it was (the
+     * appearance, less motion, a request the application refused or made while {@code current()}
+     * is itself a contrast palette) runs nothing. Until 2026-10-25 only the first two were told,
+     * so a colour read out of the palette and kept stayed in the old one when the user turned
+     * contrast on.
+     *
+     * @param listener what to run when the palette changes
      * @return a handle that unsubscribes; cancelling it twice is a no-op. UI thread
      */
     public static limn.concurrent.Subscription observeChanges(Runnable listener) {
-        return LISTENERS.observe(listener);
+        limn.concurrent.Subscription subscription = LISTENERS.observe(listener);
+        watchSystemContrast();
+        return subscription;
     }
 
     /**
