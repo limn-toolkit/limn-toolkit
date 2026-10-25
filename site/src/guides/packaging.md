@@ -32,10 +32,10 @@ every other media format keeps working.
 ## Natives for one platform
 
 The one-line install brings the natives of all six desktop platforms, so that one build runs
-anywhere. Measured at this version, that is 24.8 MB of jars, of which one machine uses 10.3 to
-11.5 MB: the rest is the other five platforms' LWJGL and SVG natives. A build that packages one
-platform at a time, an installer per target, need not carry them, and an application on the
-[module path](#on-the-module-path) must not.
+anywhere. Measured at this version, that is 34.6 MB of jars, of which one machine uses 11.9 to
+14.9 MB: the rest is the other platforms' natives, LWJGL's, the SVG renderer's and ANGLE's. A
+build that packages one platform at a time, an installer per target, need not carry them, and an
+application on the [module path](#on-the-module-path) must not.
 
 Three of the backend's dependencies come in one classifier per platform: LWJGL's natives
 (`natives-macos-arm64`, `natives-windows`, …), the SVG renderer's, `limn-lunasvg-natives`
