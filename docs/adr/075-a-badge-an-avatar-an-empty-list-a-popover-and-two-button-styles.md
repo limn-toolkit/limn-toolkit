@@ -7,8 +7,8 @@
   its recommendation except question 11, where the loading state comes in now, and he decided the
   tertiary button's ink after a print of the palettes it failed in (section 12.1). Built
   2026-10-18 and 2026-10-19 (section 12), with dated notes where the build departs from the
-  text; the input method in a popover's window measured on the macOS guest (section 12.6). Owed:
-  the reader runs of section 11 and the input method on Windows, GNOME and KDE (section 12.8).
+  text; the input method in a popover's window measured on the macOS guest (section 12.6), and on
+  Windows, GNOME and KDE on 2026-10-25 (section 12.8). Owed: the reader runs of section 11.
 - **Date:** 2026-10-18
 - **Scope:** five additions of the same size, each written as ADR 067 wrote its four: what it is,
   its API, layout and paint, tokens, right to left, what a frame repaints, what each platform's
@@ -953,12 +953,32 @@ site's component gallery three, the guides their sections from `StatusExample`, 
   and whether `BUSY` alone is spoken anywhere. The popover in a window: the orders' Filter popover
   (or `--scene popover`), Tab through its controls, type into its field, Escape, hearing the focus
   move inside the group and come back to the button.
-- **The input method on Windows, GNOME and KDE**, as section 12.6 on each: `--scene popover` with
-  `-Dlimn.demo.popover.open=true`, the system's Japanese input method on Windows, a Japanese engine
-  under IBus on GNOME and under Fcitx5 on KDE, "nihon" Space Return, a print of the underline, the candidate
-  window's place and the committed text; the control run with `-Dlimn.demo.popover.search=true`.
-  On Wayland the popover is in the scene and the route is not taken.
-- **The commit on Return on macOS** (section 12.6), for every field.
+- ~~**The input method on Windows, GNOME and KDE**~~, measured 2026-10-25 as section 12.6 on
+  each, "nihon" Space Space Return, with the system's own text editor under the same presser as
+  the control and the lab's log of the field's text as the oracle; every guest was put back after
+  its run (the Japanese engine installed for it removed, the input settings restored).
+  - **Windows 11**, the system's Japanese input method, keys by the system's input injection: the
+    composition underlined in the popover's field (にほn), the candidate window under the field,
+    and 二本 committed, in the popover's window and in the window's own field alike; the control
+    committed the same.
+  - **GNOME on X11**, a Japanese engine under the desktop's input method framework, keys by the
+    X server's test extension: 日本 committed in the popover's window (the route taken), にほん in the
+    window's own field. The composition is drawn by the input method in a window of its own at
+    the caret, not in the field: GLFW's X11 default ("over-the-spot"), which it recommends
+    keeping; its in-field style is the one it calls unstable. A program started outside the
+    desktop session's environment, without its `XMODIFIERS`, gets no input method at all, as any
+    X11 program does; one started from the desktop has it.
+  - **KDE on Wayland**, a Japanese engine under the framework the compositor starts, keys from a
+    virtual keyboard device: the popover in the scene (the route not taken), the composition
+    underlined in its field, the candidate window under the caret, 二本 committed; the window's
+    own field committed 日本. The control committed too.
+- **The commit on Return on macOS** (section 12.6), for every field: **the presser's, not the
+  toolkit's** (2026-10-25, the macOS guest, the romaji input method, the probe's field logging every
+  composition and character). Return with nothing converted commits at once (に, ほ, ん arrive 60 ms
+  after it); after a Space has converted, Return commits nothing, from the presser at the HID tap
+  and from one at the session's tap alike. The control, the system's own text editor with the
+  same keys from the same presser, keeps 日本語 underlined too. What is left is a real key's Return
+  after a conversion, which no presser on the guest gives.
 - ~~**A scene whose root or overlay another scene takes**~~ (the fourth review, 2026-10-20):
   closed the same day, refused; see the note below.
 

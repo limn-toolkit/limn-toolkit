@@ -131,7 +131,8 @@ to break at all and is cut where it stops fitting.
   ellipsis, at the end reading takes it to, whichever way the line reads.
 - **Supports IME composition.** Japanese, Chinese and Korean input methods show their
   in-progress composition inside the field, underlined, with the candidate window positioned
-  against the caret.
+  against the caret. On X11 the input method draws the composition itself, in a small window at
+  the caret, and the field receives the text when it is committed.
 
 {% shot app-ja "The same screen in Japanese: the CJK face is resolved for the run, and the application named no font." %}
 
