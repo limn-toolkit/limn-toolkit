@@ -13,16 +13,6 @@ dependencies. Each remains under its own license; the terms below govern those
 components, not Limn itself.
 
 --------------------------------------------------------------------------------
-Resolved as a dependency of limn-toolkit
---------------------------------------------------------------------------------
-
-WebP decoder (org.glavo:webp 0.2.0)
-  Copyright Glavo and contributors (https://github.com/Glavo/jwebp)
-  Apache License 2.0, as that version is published.
-  A decoder of WebP pictures written in Java, ported from the image-rs project's
-  decoder. Limn reads still and animated WebP through it.
-
---------------------------------------------------------------------------------
 Bundled in this repository
 --------------------------------------------------------------------------------
 
@@ -41,16 +31,20 @@ Mosaic display faces (limn-demo/fonts, the demo only; no library jar carries the
   limn-demo/fonts/<name>-LICENSE.txt. Every file is pinned by upstream commit and
   verified against a SHA-256 in scripts/fetch-fonts.sh before it lands.
 
-    Comic Neue (Regular, Bold): Copyright (c) 2014 Craig Rozynski
-    Inter (variable; the default instance is Regular): Copyright (c) 2016 The Inter
+    Comic Neue (Regular, Bold): Copyright 2014 The Comic Neue Project Authors
+    Inter (variable; the default instance is Regular): Copyright 2016 The Inter
       Project Authors
-    Silkscreen (Regular): Copyright (c) 2001 Jason Kottke
-    Archivo Black (Regular): Copyright (c) 2011 Omnibus-Type
+    Silkscreen (Regular): Copyright 2001 The Silkscreen Project Authors
+    Archivo Black (Regular): Copyright 2017 The Archivo Black Project Authors
+
+  Each line is the copyright the font itself states; its licence file repeats
+  it, except that Inter's says 2020.
 
   They exist for the site's mosaic, which shows one screen under several themes, size
   steps and typefaces. They are here and not in limn-backend-lwjgl because nothing
-  published should grow for a screenshot: limn-demo is a library nobody depends on, so
-  an application built on Limn ships none of these bytes. The demo loads them by path
+  published should grow for a screenshot: limn-demo is a program nobody depends on,
+  and it reads them from the checkout rather than from its jar, so neither its jar
+  nor an application built on Limn ships these bytes. The demo loads them by path
   through Fonts.load, the same public call an application would use for a typeface it
   ships itself.
 
@@ -68,6 +62,10 @@ limn-fonts-all (published from here) names the optional three at those versions.
 Roboto (limn-fonts-roboto; Regular, Bold, Italic, Bold Italic)
   Copyright Google Inc.
   Apache License 2.0: full text in the jar at limn/fonts/Roboto-LICENSE.txt
+  Roboto 2, the generation of the family Google published under the Apache
+  License (https://github.com/googlefonts/roboto-2), and not under the SIL Open
+  Font License like every other face here: Roboto 3 moved to the OFL, and none
+  of its faces is in the jar, so moving to it would be a change of licence.
   The default family and the last resort every resolve degrades to: a required
   runtime dependency of limn-backend-lwjgl, so it arrives with the backend.
 
@@ -81,28 +79,33 @@ Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari, Noto Sans Thai
   dependency of limn-backend-lwjgl, so it too arrives with the backend.
 
 Noto Sans CJK (limn-fonts-noto-cjk; the application opts in)
-  Copyright Google Inc. and contributors
+  Copyright 2014-2021 Adobe (http://www.adobe.com/), as the font itself states;
+  the licence text in the jar carries no copyright line of its own.
   SIL Open Font License 1.1: full text in the jar at limn/fonts/NotoSansCJK-LICENSE.txt
 
 Noto Color Emoji (limn-fonts-noto-emoji; the application opts in)
-  Copyright Google Inc. and contributors
+  Copyright 2022 Google Inc., as the font itself states.
   SIL Open Font License 1.1: full text in the jar at limn/fonts/NotoColorEmoji-LICENSE.txt
+
+  limn-demo and limn-theme-editor, the two programs published from here, opt in
+  to both, so their POMs name them.
 
 --------------------------------------------------------------------------------
 Icons (the limn-icons-tabler artifact; ADR 038)
 --------------------------------------------------------------------------------
 
 Tabler Icons (via limn-icons-tabler, which the demo jar attached to a release bundles)
-  MIT License, Copyright (c) 2020-2024 Paweł Kuna — https://tabler.io/icons
+  MIT License, Copyright (c) 2020-2026 Paweł Kuna — https://tabler.io/icons
   The pack is not part of this repository: it is built and released from
   https://github.com/limn-toolkit/limn-icons-tabler, versioned with Tabler, and carries the
-  licence text inside its jar (limn/icons/tabler/LICENSE.txt). Nothing published from this
-  repository depends on it; limn-demo, which is not published, takes it as an application would,
-  and so the runnable demo jar on a GitHub release contains it.
+  licence text inside its jar (limn/icons/tabler/LICENSE.txt). No library published from this
+  repository depends on it; limn-demo, a program published only so that it runs from its
+  coordinate, takes it as an application would, so its POM names it and the runnable demo jar
+  on a GitHub release contains it.
 
 --------------------------------------------------------------------------------
-Dependencies (limn-toolkit has none beyond the JDK and JSpecify's annotations;
-the rest are limn-backend-lwjgl's)
+Dependencies (limn-toolkit's two beyond the JDK, JSpecify's annotations and the
+WebP decoder, then limn-backend-lwjgl's, then the tests')
 --------------------------------------------------------------------------------
 
 JSpecify 1.0.1 (org.jspecify:jspecify), the nullness annotations of every API module
@@ -112,13 +115,37 @@ JSpecify 1.0.1 (org.jspecify:jspecify), the nullness annotations of every API mo
   run time. The runnable demo jar attached to a GitHub release carries their
   classes, under the same licence as Limn's own (LICENSE).
 
-LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -openal, -stb, -harfbuzz, -tinyfd)
+WebP decoder (org.glavo:webp 0.2.0), a runtime dependency of limn-toolkit
+  Copyright Glavo and contributors (https://github.com/Glavo/jwebp)
+  Apache License 2.0, as that version is published.
+  A decoder of WebP pictures written in Java, ported from the image-rs project's
+  decoder. Limn reads still and animated WebP through it. The runnable demo jar
+  attached to a GitHub release carries its classes, under the same licence as
+  Limn's own (LICENSE).
+
+LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -opengles, -egl, -openal, -stb,
+-harfbuzz, -tinyfd)
   Copyright Lightweight Java Game Library contributors
   BSD 3-Clause: https://github.com/LWJGL/lwjgl3/blob/master/LICENSE.md
-  LWJGL in turn bundles native libraries under their own permissive licenses,
-  notably: GLFW (zlib), OpenAL Soft (LGPL 2.1, dynamically linked native
-  library), stb (public domain / MIT), HarfBuzz (Old MIT), tinyfiledialogs
-  (zlib).
+  -opengles is the OpenGL ES the renderer speaks when its context comes from
+  ANGLE (below); -egl is classes only, binding the system's libEGL, and brings no
+  native library. Beside LWJGL's own JNI code, its natives jars carry native
+  libraries under their own licences: libffi (MIT) and, on Linux, liburing (MIT)
+  inside its core library; GLFW (zlib); stb (public domain / MIT); HarfBuzz
+  (Old MIT); tinyfiledialogs (zlib); and OpenAL Soft, which is not permissive:
+  GNU Library General Public License version 2 or, at your option, any later
+  version. LWJGL also states the Khronos Group's MIT-style licence for its
+  OpenGL, OpenGL ES and EGL modules. None of these texts is inside LWJGL's Maven
+  jars: LWJGL keeps each beside its module in its source tree, under
+  https://github.com/LWJGL/lwjgl3/tree/master/modules/lwjgl, and records beside
+  OpenAL Soft's library in each natives jar the upstream commit it was built from.
+
+  OpenAL Soft is the library the backend plays every sound through, so the
+  backend as resolved always contains LGPL code. It is a shared library of its
+  own (libopenal.so, libopenal.dylib, OpenAL.dll), opened at run time and never
+  linked into Limn's code or LWJGL's, so another build can replace it without
+  relinking anything; LWJGL's org.lwjgl.openal.libname property names one.
+  Source: https://github.com/kcat/openal-soft
 
 JLayer 1.0.1 (javazoom:jlayer), for MP3 decoding
   Copyright JavaZOOM
@@ -129,12 +156,16 @@ JLayer 1.0.1 (javazoom:jlayer), for MP3 decoding
   one bundle this repository builds that contains it — the runnable demo jar
   attached to a GitHub release — carries the same unmodified classes, which
   anyone can replace by re-packing the jar, with the licence text beside them
-  at META-INF/licenses/LGPL-2.1.txt. Applications that need to avoid
-  LGPL obligations can exclude this dependency; Limn keeps MP3 support isolated
-  behind the AudioDecoder SPI, and every other audio format (WAV, OGG) works
-  without it.
+  at META-INF/licenses/LGPL-2.1.txt.
 
-JUnit 5 / JUnit Platform (test-only, not distributed)
+  It is a required runtime dependency of limn-backend-lwjgl as built: the
+  backend's one audio decoder, which reads WAV and Ogg Vorbis as well as MP3,
+  links against JLayer's classes, and the backend constructs that decoder when
+  it starts, so a build that excludes the jar fails with NoClassDefFoundError
+  rather than losing MP3 alone. Excluding it would not leave the backend free of
+  LGPL code in any case: OpenAL Soft, above, is LGPL too.
+
+JUnit 6: JUnit Jupiter and the JUnit Platform (test-only, not distributed)
   Eclipse Public License 2.0: https://www.eclipse.org/legal/epl-2.0/
 
 --------------------------------------------------------------------------------
@@ -168,9 +199,12 @@ ANGLE, the OpenGL ES fallback
   platform's jar carries ANGLE's licence (limn/angle/native/LICENSE-angle.txt) and
   THIRD_PARTY.txt: every source compiled into its libraries, by the directory that
   states its licence, with the full text of each; that build refuses a licence it
-  does not recognise as one a library may redistribute. limn-backend-lwjgl depends
-  on the payload and on its four classifiers, and loads them only when a window's
-  own OpenGL context fails for want of a driver.
+  does not recognise as one a library may redistribute. Beside ANGLE's own code
+  those sources are xxHash (BSD 2-Clause), Abseil, the ASTC encoder and LLVM's
+  libc++ (Apache 2.0; libc++abi too on macOS), zlib (zlib) and, on Windows only,
+  volk (MIT). limn-backend-lwjgl depends on the payload and on its four
+  classifiers, and loads them only when a window's own OpenGL context fails for
+  want of a driver.
 
 --------------------------------------------------------------------------------
 Native libraries (the limn-ffmpeg-natives artifact; limn-video-ffmpeg only; ADR 037)
@@ -207,8 +241,8 @@ FFmpeg: libavcodec, libavformat, libavutil, libswresample
 
   Without the payload on the classpath the decoder reports itself unavailable
   and nothing else changes. Applications that do not play video can exclude
-  limn-video-ffmpeg entirely; it is a separate module and nothing else depends
-  on it.
+  limn-video-ffmpeg entirely; it is a separate module and no library published
+  from here depends on it (limn-demo, a program, does).
 
 --------------------------------------------------------------------------------
 Test fixtures: animated SVG (limn-toolkit/src/test/resources/limn/graphics/svg-animation/)
