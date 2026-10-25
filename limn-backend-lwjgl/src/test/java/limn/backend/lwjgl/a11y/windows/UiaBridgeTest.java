@@ -1703,6 +1703,94 @@ class UiaBridgeTest {
         }
     }
 
+    /**
+     * The empty's withdraw pumps the user-interface thread's sent messages, and so do its
+     * disconnects, so a reader's {@code WM_GETOBJECT} can be answered from inside them. On a
+     * rebind over a live window the tree is still published there, and the answer handed the root
+     * over again: the provider the empty was disconnecting, which the platform's rule for
+     * {@code UiaDisconnectProvider} says not to hand to a re-entrant ask, or it may not be fully
+     * disconnected. The window now answers that ask with no provider and hands nothing over. The
+     * ask is made here where the withdraw's pump would make it, inside the guard, after the call.
+     */
+    @Test
+    void anAskInsideTheWindowsOwnEmptyHandsNothingOver() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        try {
+            bridge.attach(new NoHost());
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.answerGetObject(0, 0);
+            UiaObject root = bridge.objectFor(1000);
+            int handedOver = root.references();
+            long[] answered = {-1};
+            int[] referencesThen = {-1};
+            Object guard = bridge.vendGuardForTests();
+            boolean[] underTheGuard = {false};
+            UiaWindow.trace = line -> {
+                if (line.equals("withdrew the window's provider") && answered[0] < 0) {
+                    underTheGuard[0] = Thread.holdsLock(guard);
+                    answered[0] = bridge.answerGetObject(0, 0);
+                    referencesThen[0] = root.references();
+                }
+            };
+
+            bridge.attach(new NoHost());
+
+            assertTrue(underTheGuard[0], "the fixture: the ask was made inside the empty");
+            assertEquals(0, answered[0], "no provider");
+            assertEquals(handedOver, referencesThen[0],
+                    "and the root being disconnected was not handed over again");
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * The other half of the same moment: the user-interface thread inside a popup's empty holds
+     * the popup's guard, a {@code WM_GETOBJECT} for the host window is let in by the withdraw, and
+     * the host's provider is handed over from an answer thread while the user-interface thread
+     * waits for it, unpumped. A hand-over that the platform's call makes from there into the popup
+     * waited for that guard, which the waiting thread holds, so the host window was held for the
+     * whole bound and then answered nothing; it now answers no element at once.
+     */
+    @Test
+    void anAnswerThreadDoesNotWaitForTheGuardOfAWindowBeingEmptied() {
+        TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
+        UiaBridge host = UiaBridge.withoutTheGate(0x1234);
+        UiaBridge popup = UiaBridge.withoutTheGate(0x5678);
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        try {
+            popup.attach(new NoHost());
+            popup.publish(windows.popupTree(), false);
+            host.publish(windows.hostTree(), false);
+            popup.answerGetObject(0, 0);
+            long[] handed = {-1};
+            long[] waitedMillis = {-1};
+            UiaWindow.trace = line -> {
+                if (line.equals("withdrew the window's provider") && handed[0] < 0) {
+                    long started = System.nanoTime();
+                    handed[0] = UiaAnswerThread.away(
+                            () -> host.contextForTests().elementInAnotherWindowFor(windows.day()),
+                            UiaAnswerThread.BOUND_MILLIS);
+                    waitedMillis[0] = (System.nanoTime() - started) / 1_000_000;
+                }
+            };
+
+            popup.attach(new NoHost());
+
+            assertEquals(0, handed[0], "no element of a registry being emptied");
+            assertTrue(waitedMillis[0] >= 0 && waitedMillis[0] < UiaAnswerThread.BOUND_MILLIS / 2,
+                    "and the waiting thread was not held to the bound: " + waitedMillis[0] + " ms");
+            assertNotEquals(0, host.contextForTests().elementInAnotherWindowFor(windows.day()),
+                    "once the empty is over, the hand-over waits and hands over as before");
+        } finally {
+            UiaWindow.trace = before;
+            host.detach();
+            popup.detach();
+        }
+    }
+
     /** @return the trace lines, copied, that satisfy {@code what} */
     private static java.util.List<String> linesOf(java.util.List<String> trace,
                                                   java.util.function.Predicate<String> what) {

@@ -79,6 +79,15 @@ public final class UiaBridge extends PlatformBridge {
     private volatile boolean closed;
 
     /**
+     * True while the whole-registry empty holds {@link #vendGuard} on the user-interface thread.
+     * Its withdraw and its disconnects pump the thread's sent messages, so a {@code WM_GETOBJECT}
+     * that arrives meanwhile is answered from inside them, and a hand-over that UI Automation
+     * makes from an answer thread while the user-interface thread waits on it can reach this
+     * bridge: both read this ({@link #answerGetObject}, {@link #handOverFromAnotherWindow}).
+     */
+    private volatile boolean emptying;
+
+    /**
      * Every bridge holding a published tree in this process, so that a cursor resolved into a
      * native popup's tree ({@link AccessibleTree#activeDescendant()} may name a node
      * another window minted) is answered and raised through the provider of the window that holds
@@ -98,7 +107,8 @@ public final class UiaBridge extends PlatformBridge {
      * bridge's own drain needs no such guard, because the empty stops and joins it first. Its own
      * RPC calls do not take it either: they arrive through its own provider, whose root the empty
      * disconnects first, and a call arriving through another window's provider, still connected,
-     * has not even that.
+     * has not even that. The one hand-over that does not wait for it is an answer thread's while
+     * the empty holds it ({@link #emptying}).
      */
     private final Object vendGuard = new Object();
 
@@ -1278,12 +1288,23 @@ public final class UiaBridge extends PlatformBridge {
      * native popup names the popup's root, and the property declares
      * {@code IRawElementProviderSimple**}.
      *
+     * <p>One caller does not wait for the guard: an answer thread ({@link UiaAnswerThread}) while
+     * this bridge empties, which the user-interface thread holding the guard may be waiting on.
+     *
      * @param nodeId a node of this bridge's tree
      * @param iface  which of the node's interfaces the caller's out parameter declares
      * @return the pointer, referenced for the caller, or {@code 0} once this bridge is closing or
-     *         the node has left
+     *         the node has left, or to an answer thread while this bridge empties
      */
     private long handOverFromAnotherWindow(long nodeId, UiaInterfaces.Vtable iface) {
+        if (emptying && UiaAnswerThread.isAnswerThread()) {
+            // The user-interface thread holds the guard, inside this bridge's empty, and may be
+            // the very thread waiting on this one: a WM_GETOBJECT for another window, let in by
+            // the empty's pumping calls and handed over from here. Waiting would hold that window
+            // to the hand-over's bound and then answer it nothing; the element is in a registry
+            // being emptied, so none is handed over now.
+            return 0;
+        }
         synchronized (vendGuard) {
             if (closed || !OPEN.contains(this)) {
                 return 0;
@@ -1826,49 +1847,56 @@ public final class UiaBridge extends PlatformBridge {
         // is freed first, on this thread, where none of its closures can be running.
         freeTheRetired();
         synchronized (vendGuard) {
-            // First, the window's own registration: UI Automation caches the provider a window
-            // answered WM_GETOBJECT with, keyed by the HWND, and the documented teardown is to
-            // hand it NULL for that window before the provider goes (what a WM_DESTROY handler
-            // does; here the scene detaches while the window is still alive, and UiaWindow does
-            // the same on WM_DESTROY for a window that dies under an attached bridge). Without
-            // it the cache kept a pointer to the root, and the popup's close crashed the process
-            // in a freed trampoline some 240 ms after the objects below were freed, with every
-            // object disconnected (readings/p5w3-windows/date-picker-native-fix-1).
-            //
-            // Only for a window that answered with a provider: there is nothing in the cache
-            // otherwise, and the call is not free. UiaReturnRawElementProvider pumps the thread's
-            // sent messages, so at the first bind -- where this runs before the scene has
-            // published the window's node -- every WM_GETOBJECT a reader had sent since the
-            // window appeared was dispatched from inside this call and answered "no provider".
-            // Measured 2026-09-23 with the Java stack of each such answer in the trace, in every
-            // run of every script; NVDA then read the window by MSAA and never subscribed to
-            // focus in 3 runs of 4 (readings of 2026-09-23, list-multi-windows).
-            if (rootProviderForDisconnect != 0) {
-                withdrawTheWindowsProvider();
-            }
-            // Then, while every closure the platform may call back through is still there.
-            long root = rootProviderForDisconnect;
-            disconnected = disconnectRootProvider();
-            distinct.addAll(objects.values());
-            others = disconnectEveryOther(distinct, root);
-            objects.clear();
-            elements.empty();
-            // Then each object is let go of, and freed now only if the platform holds no reference
-            // on it any more: the disconnects above release UI Automation's own, a client's proxies
-            // release theirs on their own threads afterwards, and an object freed under one of
-            // those is a crash (UiaObject#retire).
-            for (UiaObject object : distinct) {
-                boolean isRoot = root != 0 && object.pointers().contains(root);
-                if (object.retire()) {
-                    freedNow++;
-                } else {
-                    kept++;
-                    UiaWindow.say("kept " + (isRoot ? "the root" : "an element") + " with "
-                            + object.references() + " references left; the root was handed over "
-                            + rootsHandedOver + " times");
+            // While it holds the guard: a WM_GETOBJECT the pumping calls below let in, and a
+            // hand-over UI Automation makes for one from an answer thread, read this.
+            emptying = true;
+            try {
+                // First, the window's own registration: UI Automation caches the provider a window
+                // answered WM_GETOBJECT with, keyed by the HWND, and the documented teardown is to
+                // hand it NULL for that window before the provider goes (what a WM_DESTROY handler
+                // does; here the scene detaches while the window is still alive, and UiaWindow does
+                // the same on WM_DESTROY for a window that dies under an attached bridge). Without
+                // it the cache kept a pointer to the root, and the popup's close crashed the process
+                // in a freed trampoline some 240 ms after the objects below were freed, with every
+                // object disconnected (readings/p5w3-windows/date-picker-native-fix-1).
+                //
+                // Only for a window that answered with a provider: there is nothing in the cache
+                // otherwise, and the call is not free. UiaReturnRawElementProvider pumps the thread's
+                // sent messages, so at the first bind -- where this runs before the scene has
+                // published the window's node -- every WM_GETOBJECT a reader had sent since the
+                // window appeared was dispatched from inside this call and answered "no provider".
+                // Measured 2026-09-23 with the Java stack of each such answer in the trace, in every
+                // run of every script; NVDA then read the window by MSAA and never subscribed to
+                // focus in 3 runs of 4 (readings of 2026-09-23, list-multi-windows).
+                if (rootProviderForDisconnect != 0) {
+                    withdrawTheWindowsProvider();
                 }
+                // Then, while every closure the platform may call back through is still there.
+                long root = rootProviderForDisconnect;
+                disconnected = disconnectRootProvider();
+                distinct.addAll(objects.values());
+                others = disconnectEveryOther(distinct, root);
+                objects.clear();
+                elements.empty();
+                // Then each object is let go of, and freed now only if the platform holds no reference
+                // on it any more: the disconnects above release UI Automation's own, a client's proxies
+                // release theirs on their own threads afterwards, and an object freed under one of
+                // those is a crash (UiaObject#retire).
+                for (UiaObject object : distinct) {
+                    boolean isRoot = root != 0 && object.pointers().contains(root);
+                    if (object.retire()) {
+                        freedNow++;
+                    } else {
+                        kept++;
+                        UiaWindow.say("kept " + (isRoot ? "the root" : "an element") + " with "
+                                + object.references() + " references left; the root was handed over "
+                                + rootsHandedOver + " times");
+                    }
+                }
+                ANNOUNCED.updateAndGet(last -> last != null && last.owner() == this ? null : last);
+            } finally {
+                emptying = false;
             }
-            ANNOUNCED.updateAndGet(last -> last != null && last.owner() == this ? null : last);
         }
         sayDisconnected(disconnected);
         sayDisconnectedOthers(others);
@@ -1985,6 +2013,20 @@ public final class UiaBridge extends PlatformBridge {
         // the window's own node at the bind (AccessibilityBridge#needsRootBeforeTheFirstFrame).
         // Ten runs, four with the reader started after the first publish, are in
         // readings/phase5-windows-diagnosis/evidence-table.txt.
+        if (emptying) {
+            // Inside this bridge's own empty, let in by its withdraw or a disconnect: the root it
+            // would hand over is the provider being disconnected, and the platform's rule for
+            // UiaDisconnectProvider is not to hand that one to a re-entrant WM_GETOBJECT, or it
+            // may not be fully disconnected -- a root UI Automation still holds after its closures
+            // are freed is the crash the empty's withdraw exists for. It is also the one moment this
+            // thread holds the guard a hand-over from the answer thread could wait on
+            // (UiaAnswerThread). So the window answers as it does with no bridge. A detach changes
+            // nothing by it: the tree is dropped before its empty, and an ask there found no root
+            // already. Only a rebind over a live window empties with a tree still published, and
+            // the ask has to land inside its withdraw or its disconnects.
+            UiaWindow.say("asked for the root inside the window's own empty: answered no provider");
+            return 0;
+        }
         AccessibleTree tree = tree();
         boolean held = UiaTrace.on() && tree.nodeCount() > 0 && holdsElementFor(tree.root().id());
         long root = rootElement();

@@ -1652,7 +1652,9 @@ public final class LwjglBackend implements BackendPeer {
         }
         trays.clear();
         if (systemClipboard != null) {
-            systemClipboard.close(); // its thread and its proxies, while the display is still open
+            // Its thread, and what it holds of the display while that is still open (on Wayland,
+            // the pointer, keyboard and pinch of its own on GLFW's connection).
+            systemClipboard.close();
             systemClipboard = null;
         }
         if (Platform.current().isMacOs()) {

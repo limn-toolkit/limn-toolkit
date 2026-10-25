@@ -50,7 +50,18 @@ class UiaElementsTest {
     private final AtomicLong nextPointer = new AtomicLong(0x1000);
     private final AtomicInteger minted = new AtomicInteger();
 
-    private UiaElement mint(long nodeId) {
+    /**
+     * Makes a fake element, in the shape {@link UiaElements#forNode} takes a mint in.
+     *
+     * <p>The registry hands its mint the node's identifier because the bridge's own mint builds the
+     * element for that node. A fake needs nothing of the node, so the identifier is ignored; it is
+     * a parameter only so that {@code this::mint} is a {@code LongFunction} and stands where the
+     * bridge's mint does.
+     *
+     * @param ignoredNodeId the node the registry is minting for, unused by a fake
+     * @return a fresh fake with a pointer of its own
+     */
+    private UiaElement mint(long ignoredNodeId) {
         minted.incrementAndGet();
         return new FakeElement(nextPointer.getAndAdd(0x40));
     }
@@ -62,9 +73,12 @@ class UiaElementsTest {
      * steps still passes most runs, because eight threads released at once mostly do not interleave
      * inside three field accesses. Real minting is not free, and this is what makes the case fail
      * every time on a registry that has the defect rather than two runs in three.
+     *
+     * @param ignoredNodeId as {@link #mint}'s, unused for the same reason
+     * @return a fresh fake, made after the pause
      */
-    private UiaElement slowMint(long nodeId) {
-        UiaElement made = mint(nodeId);
+    private UiaElement slowMint(long ignoredNodeId) {
+        UiaElement made = mint(ignoredNodeId);
         try {
             Thread.sleep(5);
         } catch (InterruptedException interrupted) {

@@ -426,7 +426,9 @@ with the wheel, which section 9.1 offers as a zoom; the scene tests drive exactl
 `WaylandClipboard` binds `zwp_pointer_gestures_v1` from the registry it already reads, at version 1,
 with its interfaces described in memory, as `xdg_activation_v1` is. It binds it before the seat's
 capabilities arrive, so the pinch is made on the clipboard's own `wl_pointer`, on its queue, and
-destroyed with that pointer.
+destroyed with that pointer. Since 2026-10-25 the clipboard's close ends them too, while the display
+is still open: the pinch, then the manager's proxy (version 1 has no destructor request), then the
+pointer and the keyboard. Before, all four lived until the windowing library closed the display.
 
 - **Begin** finds the window by its surface in the registry the drags already keep.
 - **Each update** hands the window's input the ratio of the compositor's cumulative scale to the

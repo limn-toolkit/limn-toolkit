@@ -2600,6 +2600,18 @@ arrive on that thread, which the provider already serves from UI Automation's ow
 else here moved: the tree handed over is still the one published, read by the main thread before the
 call, and a withdrawal (a `NULL` provider, made under the bridge's guard) stays on the main thread.
 
+**Amended 2026-10-25: what the bound leaves.** A call that outlives it goes on, and the key it
+returns was made for a client already told no: it can be neither returned nor kept for the next ask,
+and nothing documented releases it (`ObjectFromLresult` is documented as Active Accessibility's own,
+for neither clients nor servers, and UI Automation's key is undocumented), so it is said in the log
+when it lands, and what it holds of the root is let go by the root's `UiaDisconnectProvider` at the
+next rebind or detach. A call not begun within the bound is not made. The main thread, waiting
+unpumped, holds a guard only inside a bridge's whole-registry empty, whose withdraw and disconnects
+pump sent messages: a `WM_GETOBJECT` for that bridge's own window let in there is answered with no
+provider, since the root is the provider being disconnected and the platform says not to hand that
+one to a re-entrant ask, and a hand-over that the answer thread makes into a bridge being emptied
+answers no element instead of waiting for the guard the main thread holds.
+
 **Amended again the same day: the system's dialogs have the same first answer.** A system dialog the
 process shows (a file chooser, the print dialog, a printer's prompt for a file name) answers a client
 in another process from its own thread, which the toolkit cannot move. Read before anything else of

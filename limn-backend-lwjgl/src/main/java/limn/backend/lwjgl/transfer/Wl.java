@@ -165,6 +165,14 @@ final class Wl {
         JNI.invokePI(display, displayFlush);
     }
 
+    /**
+     * Ends the client's side of a proxy whose interface, at the version it was bound with, has no
+     * destructor request: {@code wl_proxy_destroy}. The compositor's side goes with the connection.
+     */
+    void forget(long proxy) {
+        JNI.invokePV(proxy, function("wl_proxy_destroy"));
+    }
+
     /** @return the read and the write end of a new pipe */
     int[] pipe() {
         try (MemoryStack stack = MemoryStack.stackPush()) {

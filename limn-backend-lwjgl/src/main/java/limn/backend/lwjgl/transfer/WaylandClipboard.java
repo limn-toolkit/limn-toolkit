@@ -447,7 +447,7 @@ public final class WaylandClipboard implements NativeClipboard {
                 keyboard = wl.request(seat, 1, wl.function("wl_keyboard_interface"), 0, 0L);
                 wl.listen(keyboard, keyboardListener);
             } else if ((caps & CAPABILITY_KEYBOARD) == 0 && keyboard != NULL) {
-                wl.request(keyboard, 0, NULL, Wl.DESTROY);            // release
+                endInput(NULL, NULL, NULL, keyboard, ending);
                 keyboard = NULL;
             }
             if ((caps & CAPABILITY_POINTER) != 0 && pointer == NULL) {
@@ -462,13 +462,75 @@ public final class WaylandClipboard implements NativeClipboard {
                     }
                 }
             } else if ((caps & CAPABILITY_POINTER) == 0 && pointer != NULL) {
-                if (pinch != NULL) {
-                    wl.request(pinch, 0, NULL, Wl.DESTROY);           // destroy
-                    pinch = NULL;
-                }
-                wl.request(pointer, 1, NULL, Wl.DESTROY);             // release
+                // The manager stays: it is the seat's, and the next pointer's pinch is made from it.
+                endInput(pinch, NULL, pointer, NULL, ending);
+                pinch = NULL;
                 pointer = NULL;
             }
+        }
+    }
+
+    /**
+     * How {@link #endInput} ends a proxy: a seam, so that its order is checked without a
+     * compositor.
+     */
+    interface Ending {
+        /**
+         * Sends the proxy's destructor request, which ends it on both sides.
+         *
+         * @param proxy  the proxy
+         * @param opcode the request's number in its interface
+         */
+        void request(long proxy, int opcode);
+
+        /**
+         * Ends the client's side of a proxy whose interface has no destructor request at the
+         * version it was bound with; the compositor's side goes with the connection.
+         *
+         * @param proxy the proxy
+         */
+        void forget(long proxy);
+    }
+
+    /** The proxies' own requests, and {@code wl_proxy_destroy}. */
+    private final Ending ending = new Ending() {
+        @Override
+        public void request(long proxy, int opcode) {
+            wl.request(proxy, opcode, NULL, Wl.DESTROY);
+        }
+
+        @Override
+        public void forget(long proxy) {
+            wl.forget(proxy);
+        }
+    };
+
+    /**
+     * Ends the input objects of this clipboard's seat, each that is not {@code NULL}, in the one
+     * order they allow: the pinch, then the gestures manager it was made from, then the pointer
+     * the pinch was made for, then the keyboard. A pinch outliving its pointer is a gesture
+     * object for a pointer the compositor has let go of; the manager, at version 1, has no
+     * destructor ({@code release} came with version 2), so only its proxy is destroyed. Under
+     * {@link #lock}; the caller flushes.
+     *
+     * @param pinch    the pointer's {@code zwp_pointer_gesture_pinch_v1}, or {@code NULL}
+     * @param gestures the {@code zwp_pointer_gestures_v1}, or {@code NULL}
+     * @param pointer  the {@code wl_pointer}, or {@code NULL}
+     * @param keyboard the {@code wl_keyboard}, or {@code NULL}
+     * @param ending   how each is ended
+     */
+    static void endInput(long pinch, long gestures, long pointer, long keyboard, Ending ending) {
+        if (pinch != NULL) {
+            ending.request(pinch, 0);                                 // destroy
+        }
+        if (gestures != NULL) {
+            ending.forget(gestures);
+        }
+        if (pointer != NULL) {
+            ending.request(pointer, 1);                               // release
+        }
+        if (keyboard != NULL) {
+            ending.request(keyboard, 0);                              // release
         }
     }
 
@@ -1212,6 +1274,18 @@ public final class WaylandClipboard implements NativeClipboard {
             Thread.currentThread().interrupt();
         }
         if (!dispatcher.isAlive()) {
+            // The seat's input objects, which the compositor would go on sending every key, motion
+            // and pinch to, into a queue nobody dispatches any more, until the display closes.
+            // While it is still open (the backend closes this first) and before the listeners
+            // they were given are freed.
+            synchronized (lock) {
+                endInput(pinch, gestures, pointer, keyboard, ending);
+                pinch = NULL;
+                gestures = NULL;
+                pointer = NULL;
+                keyboard = NULL;
+                wl.flush(display);
+            }
             wl.free();
         }
     }

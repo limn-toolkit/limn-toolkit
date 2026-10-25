@@ -7,13 +7,16 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.SharedLibrary;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 /**
@@ -48,6 +51,30 @@ import java.util.function.LongSupplier;
  * its members from threads of its own already. The wait does not pump, since nothing in that one
  * call sends to the window, and it is bounded anyway: a wait that cannot end is a frozen window,
  * and a window that answers nothing falls back to its default provider.
+ *
+ * <p><b>A call that outlives the bound</b> goes on, since an interrupt does not reach a thread
+ * inside the platform, and what it answers when it returns is a key made for a client that has
+ * been told no already. Nothing can be done with that key but say so ({@link #landedLate}). It
+ * cannot be returned, since the message was answered; it may not be kept for the next ask, since
+ * {@code LresultFromObject}'s documentation says a key returned again hands that client an
+ * error; and no call releases it: the one that consumes a key, {@code ObjectFromLresult}, is
+ * documented as Active Accessibility's internal function that neither a client nor a server is to
+ * call, and the layout of UI Automation's own key is not documented at all. What the key holds of
+ * the provider is let
+ * go when the provider is disconnected: the bridge disconnects its root at every rebind and
+ * detach, and {@code UiaDisconnectProvider} is documented to leave nothing of a provider held,
+ * so that the code behind it may be unloaded once it returns. And a call the window's thread
+ * stopped waiting for before it began is never made, so no key is made for nobody that way.
+ *
+ * <p><b>A provider call that waits on the window's thread</b> waits out the bound, since that
+ * thread waits here without pumping. Two waits could: a message sent to the window, which no run
+ * on the guest saw this call make, and a guard the window's thread holds. It holds one only
+ * inside a bridge's whole-registry empty, whose withdraw and disconnects pump sent messages and
+ * so can let a {@code WM_GETOBJECT} in. The bridge answers its own window's with nothing there,
+ * as the platform's rule for {@code UiaDisconnectProvider} asks of a provider being disconnected
+ * ({@code UiaBridge#answerGetObject}); and a hand-over into another window's bridge that this
+ * call reaches from here while that bridge empties does not wait for its guard but answers no
+ * element ({@link #isAnswerThread}).
  */
 final class UiaAnswerThread {
 
@@ -100,8 +127,22 @@ final class UiaAnswerThread {
         static final ExecutorService ANSWERS = Executors.newCachedThreadPool(
                 task -> DAEMONS.newThread(() -> {
                     joinTheMultithreadedApartment();
+                    ANSWERING.set(Boolean.TRUE);
                     task.run();
                 }));
+    }
+
+    /** Set on each answer thread for its whole life; unset everywhere else. */
+    private static final ThreadLocal<Boolean> ANSWERING = new ThreadLocal<>();
+
+    /**
+     * Whether the calling thread is an answer thread: one whose call a window's thread may be
+     * waiting on, unpumped, while that thread holds a bridge's guard (see the class's note).
+     *
+     * @return true on a thread of this class's pool
+     */
+    static boolean isAnswerThread() {
+        return ANSWERING.get() != null;
     }
 
     /**
@@ -145,12 +186,42 @@ final class UiaAnswerThread {
      * @return what it answered, or {@code 0} when it failed or did not finish in time
      */
     static long away(LongSupplier call, long boundMillis) {
-        Future<Long> answer = Pool.ANSWERS.submit(call::getAsLong);
+        return away(call, boundMillis, Pool.ANSWERS, UiaAnswerThread::landedLate);
+    }
+
+    /**
+     * {@link #away(LongSupplier, long)} on any executor, with what is done with a late answer
+     * given; for tests.
+     *
+     * <p>Once the bound has passed the call is abandoned: not started at all if it has not begun,
+     * and otherwise left to finish, its answer then handed to {@code late} on the thread that
+     * made it (or on this one, when it landed between the bound and the hand-over).
+     *
+     * @param call        what to run
+     * @param boundMillis how long to wait
+     * @param executor    where to run it
+     * @param late        given the answer of a call that finished after the bound
+     * @return what it answered, or {@code 0} when it failed or did not finish in time
+     */
+    static long away(LongSupplier call, long boundMillis, Executor executor, LongConsumer late) {
+        AtomicBoolean abandoned = new AtomicBoolean();
+        CompletableFuture<Long> answer = new CompletableFuture<>();
+        executor.execute(() -> {
+            if (abandoned.get()) {
+                // The window's thread stopped waiting before this began: nothing is made for nobody.
+                answer.cancel(false);
+                return;
+            }
+            try {
+                answer.complete(call.getAsLong());
+            } catch (Throwable failed) {
+                answer.completeExceptionally(failed);
+            }
+        });
         try {
             return answer.get(boundMillis, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException late) {
-            // Not cancelled: an interrupt does not reach a thread inside the platform. What it
-            // answers when it returns is dropped, and the provider reference it handed over with it.
+        } catch (TimeoutException tooLate) {
+            abandon(abandoned, answer, late);
             LOG.log(System.Logger.Level.WARNING, "UI Automation did not take the window's provider"
                     + " within " + boundMillis + " ms; the window answers as if it had none");
             UiaTrace.note("provider hand-over outlived its " + boundMillis + " ms bound; answered 0");
@@ -160,9 +231,39 @@ final class UiaAnswerThread {
                     failed.getCause());
             return 0;
         } catch (InterruptedException interrupted) {
+            abandon(abandoned, answer, late);
             Thread.currentThread().interrupt();
             return 0;
         }
+    }
+
+    /**
+     * Stops waiting for a call: it is not started if it has not begun, and what it answers if it
+     * has goes to {@code late} when it lands. A call that failed, or was never started, hands
+     * nothing over.
+     */
+    private static void abandon(AtomicBoolean abandoned, CompletableFuture<Long> answer, LongConsumer late) {
+        abandoned.set(true);
+        answer.thenAccept(late::accept);
+    }
+
+    /**
+     * What a hand-over that outlived its bound answered, once it lands: said, and nothing more,
+     * because nothing more can be done with it (see the class's note). A key of {@code 0} is a
+     * call that refused, and holds nothing.
+     *
+     * @param key what {@code UiaReturnRawElementProvider} answered
+     */
+    private static void landedLate(long key) {
+        if (key == 0) {
+            UiaTrace.note("provider hand-over answered 0 after its bound; it made no key");
+            return;
+        }
+        String line = "provider hand-over returned key 0x" + Long.toHexString(key) + " after its bound;"
+                + " the window had answered without it, so no client will claim it, and what it holds"
+                + " of the provider is let go when the provider is disconnected";
+        LOG.log(System.Logger.Level.WARNING, line);
+        UiaTrace.note(line);
     }
 
     /** @return {@code InSendMessageEx(NULL)}, or {@code 0} where there is no such function */

@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -19,7 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * another process. What is checked here is the decision the guest's runs drew — a single-threaded
  * apartment inside a message another thread is still blocked on, and nothing else — and that the
  * hand-over answers with the call's own result, from another thread, and never leaves the
- * window's thread waiting past its bound.
+ * window's thread waiting past its bound; that what a call returns after the bound is handed over
+ * when it lands; and that a call not begun within the bound is never made.
  */
 class UiaAnswerThreadTest {
 
@@ -70,6 +72,83 @@ class UiaAnswerThreadTest {
         // The stuck call keeps its thread; the next window's question gets a thread of its own.
         assertEquals(7, UiaAnswerThread.away(() -> 7, UiaAnswerThread.BOUND_MILLIS));
         stuck.countDown();
+    }
+
+    /**
+     * A key {@code UiaReturnRawElementProvider} returns after the bound was made for a client
+     * already told no, and was dropped where nobody could see it. It is now handed over when it
+     * lands, on the thread that made it, to be said; nothing can release it (see the class).
+     */
+    @Test
+    void aLateAnswerIsHandedOverWhenItLandsOnTheThreadThatMadeIt() throws InterruptedException {
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors
+                .newSingleThreadExecutor(task -> new Thread(task, "an answer thread of the test"));
+        try {
+            CountDownLatch stuck = new CountDownLatch(1);
+            java.util.concurrent.ArrayBlockingQueue<String> landed =
+                    new java.util.concurrent.ArrayBlockingQueue<>(2);
+            long answer = UiaAnswerThread.away(() -> {
+                try {
+                    stuck.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return 0x5a5a;
+            }, 50, executor, key -> landed.add(Long.toHexString(key) + " on "
+                    + Thread.currentThread().getName()));
+            assertEquals(0, answer, "the window answered without it");
+            assertNull(landed.poll(), "and nothing has landed yet");
+            stuck.countDown();
+            assertEquals("5a5a on an answer thread of the test", landed.poll(2, TimeUnit.SECONDS));
+            assertNull(landed.poll(100, TimeUnit.MILLISECONDS), "once");
+
+            // A call that answers in time is never handed over as late.
+            assertEquals(9, UiaAnswerThread.away(() -> 9, UiaAnswerThread.BOUND_MILLIS, executor,
+                    key -> landed.add("late " + key)));
+            assertNull(landed.poll(100, TimeUnit.MILLISECONDS));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * A call that had not begun when the window's thread stopped waiting is never made, so no key
+     * is made for nobody: here the only thread is still busy with an earlier call past the bound.
+     */
+    @Test
+    void aCallNotBegunWithinTheBoundIsNeverMade() throws InterruptedException {
+        java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors
+                .newSingleThreadExecutor(task -> new Thread(task, "the one answer thread of the test"));
+        CountDownLatch busy = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger made = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger late = new java.util.concurrent.atomic.AtomicInteger();
+        try {
+            executor.execute(() -> {
+                try {
+                    busy.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertEquals(0, UiaAnswerThread.away(() -> {
+                made.incrementAndGet();
+                return 0x77;
+            }, 50, executor, key -> late.incrementAndGet()));
+            busy.countDown();
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(2, TimeUnit.SECONDS));
+            assertEquals(0, made.get(), "the call was not made once the thread was free");
+            assertEquals(0, late.get(), "and nothing landed");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void onlyTheAnswerThreadsSayTheyAreOne() {
+        assertFalse(UiaAnswerThread.isAnswerThread(), "the test's own thread");
+        assertEquals(1, UiaAnswerThread.away(() -> UiaAnswerThread.isAnswerThread() ? 1 : 0,
+                UiaAnswerThread.BOUND_MILLIS));
     }
 
     @Test
