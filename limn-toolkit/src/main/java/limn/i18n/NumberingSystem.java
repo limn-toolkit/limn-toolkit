@@ -122,10 +122,23 @@ public enum NumberingSystem {
      * writes, and so is a retired one: {@code ar-YD}, South Yemen, writes what {@code ar-YE}
      * writes.
      *
+     * <p>A locale that names its digits decides first: the Unicode extension {@code -u-nu-}, as a
+     * user's system settings write a choice of digits that is not the language's default, so
+     * {@code ar-EG-u-nu-latn} writes Latin digits and {@code en-u-nu-arab} Arabic-Indic ones. A
+     * system the extension names and this enum does not carry is read as no extension at all.
+     *
      * @param locale the locale to classify
-     * @return the system CLDR gives it, or {@link #LATN}
+     * @return the system the locale names, else the one CLDR gives it, else {@link #LATN}
      */
     public static NumberingSystem forLocale(Locale locale) {
+        String named = locale.getUnicodeLocaleType("nu");
+        if (named != null) {
+            for (NumberingSystem system : values()) {
+                if (system.name().equalsIgnoreCase(named)) {
+                    return system;
+                }
+            }
+        }
         Locale read = LanguageAliases.resolve(locale);
         String language = read.getLanguage();
         String script = read.getScript();

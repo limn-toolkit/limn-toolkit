@@ -627,6 +627,10 @@ Maven Central say which number that was.
 
 ### New
 
+- A locale that names its digits is written in them: `ar-EG-u-nu-latn`, which a user's system
+  settings write for Arabic with Latin digits, wrote Arabic-Indic ones, the language's default.
+  `NumberingSystem.forLocale` reads the `-u-nu-` extension first; a system the toolkit does not
+  carry is read as no extension.
 - A window that draws no frames, covered on macOS or minimized, still finishes the toolkit's own
   fades: a dialog dismissed by code completes its `result()`, an overlay fading out is removed, a
   popup's window closes. They waited for the user to look at the window again. While a wall-time

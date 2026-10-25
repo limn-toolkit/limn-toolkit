@@ -114,4 +114,19 @@ class NumberingSystemTest {
         assertNotEquals(declared, I18n.epoch(), "clearing is a change too");
         assertEquals(NumberingSystem.LATN, I18n.numberingSystem(), "and the locale decides again");
     }
+
+    /**
+     * A locale that names its digits is written in them: a user who chose Latin digits for Arabic
+     * in Egypt got Arabic-Indic ones, the language's default, and the extension was ignored.
+     */
+    @Test
+    void aLocaleThatNamesItsDigitsIsWrittenInThem() {
+        assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.forLanguageTag("ar-EG-u-nu-latn")));
+        assertEquals(NumberingSystem.ARAB, NumberingSystem.forLocale(Locale.forLanguageTag("en-u-nu-arab")));
+        assertEquals(NumberingSystem.DEVA, NumberingSystem.forLocale(Locale.forLanguageTag("hi-u-nu-deva")));
+        assertEquals(NumberingSystem.ARAB, NumberingSystem.forLocale(Locale.forLanguageTag("ar-EG-u-nu-thai")),
+                "a system this toolkit does not carry: the language decides");
+        I18n.setLocale(Locale.forLanguageTag("ar-EG-u-nu-latn"));
+        assertEquals("1,234.5", NumberFormats.number().apply(1234.5), "the formats follow it");
+    }
 }
