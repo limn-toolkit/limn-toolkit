@@ -509,13 +509,16 @@ to the toolkit.
 
 - `--video-frame n` freezes every view on one picture by handing it a stream that holds exactly that
   picture, with no clock in the path. **Two runs must hash the same**; check by hashing, not by
-  looking. `--scene video` and `--scene kitchen-video` are the two that hold a view.
+  looking. `--scene video` is the scene that holds a view; the kitchen scene that held the other
+  went with the Kitchen Sink, and the Showcase's Video page is reached through its navigation.
 - A screenshot run starts no audio device and therefore no player, because which picture a capture
   catches would otherwise depend on the mixer period and the machine's load.
-- the showcase's Video page is a couple of hundred points tall and its panel is the last thing
-  that fits. A control added below the picture lands past the fold and a capture cannot show it,
-  which is why the transport is over the picture and why that tab's picture box is shorter than the
-  standalone scene's.
+- The Showcase's Video page scrolls, and its picture spans the page's width at 16:9
+  (`Page.aspect`), with the source picker and the file actions above it and the fit and, in a run
+  with sound, the choice of soundtrack below. The standalone scene keeps a fixed 640 × 320 box
+  instead, deliberately not 16:9, so the three fits draw three different pictures. In both the
+  transport is drawn over the bottom of the picture, as in the window a file opens in, and leaves
+  once the pointer has been still for three seconds; a frozen capture has none.
 - **The page offers a short list of the sources; `--scene video` offers all of them.** The list is
   `VideoScene.pageSources()`, named rather than sliced: the sample clip, which is the excerpt the
   jar carries and never a clip the payload writes (ADR 027, amended 2026-10-20), then the colour
