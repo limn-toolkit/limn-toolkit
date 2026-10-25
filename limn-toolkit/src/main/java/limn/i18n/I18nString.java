@@ -114,7 +114,10 @@ public final class I18nString {
         this.parts = null;
     }
 
-    /** A text made afresh from {@code parts} at each resolution: see {@link #withArguments}. */
+    /**
+     * A text {@code composed} makes in the language in effect, made again only when that language
+     * changes: see {@link #withArguments}.
+     */
     I18nString(@Nullable String key, String english, java.util.function.Supplier<String> composed,
                @Nullable Object @Nullable [] parts) {
         this.key = key;
@@ -246,9 +249,17 @@ public final class I18nString {
      * change of language reaches it as it reaches a plain declared string.
      *
      * <p>An argument that is itself an {@code I18nString} is read in that language too; numbers
-     * are written as {@link #format} writes them. The arguments are held as given, so a mutable
-     * one is read at each resolution. Two texts made from the same string and equal arguments are
-     * equal, so setting the same sentence again is no change.
+     * are written as {@link #format} writes them. Two texts made from the same string and equal
+     * arguments are equal, so setting the same sentence again is no change.
+     *
+     * <p><b>The arguments are values, taken at the call.</b> What follows is the language, not the
+     * arguments: the sentence is formatted once in each language it is read in and kept, as a
+     * declared string's translation is, so a count or a name that changes afterwards does not
+     * reach a text already made. Make a new one with the new value and set it again, as a label
+     * showing a count does each time the count moves. The array is copied; an object in it that
+     * changes after the call is read again only when the language does, and by {@link #equals}
+     * when two texts are compared, so pass what it holds ({@code builder.toString()}, a copy of a
+     * date) rather than the object.
      *
      * @param args the arguments, in their positions
      * @return the text with its arguments

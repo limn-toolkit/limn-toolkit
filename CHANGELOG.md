@@ -682,8 +682,10 @@ Maven Central say which number that was.
   does: a reader hears a group of people with nothing to say who they are.
 - `I18nString.withArguments(…)` and `PluralString.forCount(count, …)`: a sentence with arguments as an
   `I18nString` that is formatted again in the language in effect wherever it is read, so a label
-  given one follows a change of language as a plain declared string does. `format(…)` still
-  answers the sentence of the moment as a `String`, which a label kept in the old language.
+  given one follows a change of language as a plain declared string does. The arguments are values
+  taken at the call: the sentence is formatted once per language, so a new count is a new text set
+  again. `format(…)` still answers the sentence of the moment as a `String`, which a label kept in
+  the old language.
 - `Color.timesAlpha(factor)`: the colour made more transparent by a factor, its alpha multiplied,
   where `withAlpha` replaces it. The toolkit's own fades and tints of a tone use it.
 - `MediaPlayer.setGain(float)` and `gain()`: the soundtrack's gain, from 0 to 1, kept by the player.

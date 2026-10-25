@@ -73,6 +73,23 @@ class TextWithArgumentsTest {
         assertNotEquals(FILES.forCount(3), FILES.forCount(4));
     }
 
+    /**
+     * The arguments are values taken at the call, as the Javadoc says: the caller's array is
+     * copied, and what a change of language formats again is those values, in the new language.
+     * The Javadoc read once as though an argument were read again at each resolution, which the
+     * memo per language never did.
+     */
+    @Test
+    void theArgumentsAreValuesTakenAtTheCall() {
+        Object[] args = {"draft", "10:42"};
+        I18nString text = SAVED.withArguments(args);
+        args[0] = "final";
+        assertEquals("Saved draft at 10:42", text.get());
+        I18n.setLocale(PT_BR);
+        assertEquals("draft salvo às 10:42", text.get(), "the same values, in the new language");
+        assertEquals(SAVED.withArguments("draft", "10:42"), text);
+    }
+
     @Test
     void itsWordsDropTheAccessLetterInEachLanguage() {
         I18nString menu = new I18nString("test.args.menu", "&Open {0}").withArguments("x");

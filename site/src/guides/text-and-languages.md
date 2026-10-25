@@ -297,8 +297,11 @@ count.setText(FILES.forCount(files.size()));                  // "{0} file" / "{
 ```
 
 An argument that is itself an `I18nString` is read in the new language too, and the count's form
-and digits follow the language as well. Use `format(…)` when you need the text of the moment
-as a `String`: for a log line, a file name, or a message to another program.
+and digits follow the language as well. What follows is the language, not the arguments: they are
+values taken when you make the text, and it is formatted once per language and kept. When the
+count or the name changes, make a new text and set it again, as the second line does each time
+the files change. Use `format(…)` when you need the text of the moment as a `String`: for a log
+line, a file name, or a message to another program.
 
 ## If you draw text yourself
 

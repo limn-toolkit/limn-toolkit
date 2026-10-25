@@ -130,7 +130,8 @@ public final class PluralString {
      * it again, form and digits included, each time it is read in another language. What a label
      * showing a count is given, so that a change of language reaches it; {@link #format} answers
      * the sentence of the moment as a {@code String}. An argument that is an {@code I18nString} is
-     * read in that language too.
+     * read in that language too. The count and the arguments are values taken at the call, as
+     * {@link I18nString#withArguments} says: for a new count, make a new text and set it again.
      *
      * @param count how many; it chooses the form and is appended to {@code args} as text
      * @param args  the caller's arguments, which keep their own positions
