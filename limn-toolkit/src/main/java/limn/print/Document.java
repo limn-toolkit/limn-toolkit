@@ -170,7 +170,10 @@ public final class Document {
     /**
      * Sets what is drawn at the top of every page: a new widget for each page, made when the page is
      * drawn, since a page's number is known only once the document is cut, and its count only once it
-     * is cut to the end. The tallest of them is the room every page keeps for it.
+     * is cut to the end. The tallest of them is the room every page keeps for it: the document is cut
+     * again each time the count makes one taller, up to three times, and one taller still after that
+     * is drawn in the room the last cut kept, cut at its foot, with a warning; the content never runs
+     * under it.
      *
      * @param header makes a page's header, or null for none
      * @return this document

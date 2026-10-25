@@ -559,6 +559,13 @@ the build departed from, and what it found, in the order of the sections above.
   label painted three times under three clips, and a PDF reader extracting text reads a clipped
   line as well as a shown one, so every page carried the whole paragraph's text. The recording
   canvas drops text, rectangles and images whose box lies wholly outside the clip.
+- **The header and the footer are measured after each cut, not once.** Section 6.3 measured them
+  once, with the largest count the first pass could reach. They are measured for every page of
+  each cut, and a cut that makes one taller is followed by another at the taller height, up to
+  three more; the last cut is always made at the heights the pages are drawn with, so the content
+  never runs under an edge. An edge a fourth count would make taller still is drawn in the room
+  the last cut kept, cut at its foot, with a warning. (The first build stopped after its third
+  measure and drew a header that grew then over the top of the content cut for the old one.)
 - **Every block takes the content box's width.** Section 6.1 placed a narrower block by its own
   alignment and scaled a wider one down; a block is laid out at the content width, and a widget
   that should be narrower is wrapped in a row or a sized box. Scaling is not built.
