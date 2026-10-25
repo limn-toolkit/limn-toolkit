@@ -278,7 +278,9 @@ as that needs, and `outline()` stays the quieter edge of what groups or divides.
 
 Letting the user choose the face the whole toolkit uses takes three calls. `Fonts.available()`
 lists the families the backend has found, and the list grows once the operating system's own
-have been read, so a picker rebuilds when `Fonts.observeChanges` says so.
+have been read, so a picker rebuilds when `Fonts.observeChanges` says so and when it comes back
+on screen, which no listener told while it was away; the same listener hears a switch made
+elsewhere, by a theme or another screen, and the picker shows `Fonts.defaultFamily()`.
 `Fonts.setDefaultFamilyWhenResident(family)` makes the switch: it reads the family's regular and
 bold faces on a worker and switches once they are in memory, so the frame that shows the new font
 reads no file, and a later pick overtakes one still reading, so stepping through the list ends on
