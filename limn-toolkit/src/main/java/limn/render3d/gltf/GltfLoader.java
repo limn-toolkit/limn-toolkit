@@ -165,7 +165,7 @@ public final class GltfLoader {
      *
      * <pre>{@code
      * loading = GltfLoader.loadAsync(file)
-     *                     .onProgress(bar::setProgress)
+     *                     .onProgress(fraction -> bar.setProgress((float) fraction))
      *                     .onSuccess(model -> show(model))
      *                     .deliverIf(view::isShowing)
      *                     .start();

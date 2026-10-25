@@ -104,7 +104,8 @@ shares one result between everyone who asks for the same file. For bytes already
 `Images.decodeAsync` and `Sounds.decodeAsync` are `Work` jobs: attach the handlers, then
 `start()`. [Images and media](/docs/images-and-media/) has the example.
 
-Native file dialogs follow the same rule. `window.fileDialogs()` returns at once with a
-`CompletionStage` that completes on the UI thread when the user chooses or cancels, so the window
-keeps drawing, animating and running its timers while the chooser is open;
+Native file dialogs follow the same rule. The `FileDialogs` that `window.fileDialogs()` gives
+you opens a chooser with `openFile`, `openFiles`, `saveFile` or `chooseFolder`, and each returns
+at once with a `CompletionStage` that completes on the UI thread when the user chooses or
+cancels, so the window keeps drawing, animating and running its timers while the chooser is open;
 [Menus and dialogs](/docs/menus-and-dialogs/#native-file-dialogs) has the example.

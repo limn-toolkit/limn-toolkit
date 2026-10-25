@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <pre>{@code
  * job = Ui.work(progress -> repository.load(id))
- *         .onProgress(bar::setProgress)
+ *         .onProgress(fraction -> bar.setProgress((float) fraction))
  *         .onSuccess(list::setItems)
  *         .onFailure(error -> status.setText(error.getMessage()))
  *         .deliverIf(view::isShowing)

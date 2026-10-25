@@ -96,10 +96,11 @@ new one, or register with `observeChanges`, which takes any number of watchers.
 ## An exception in one of your handlers
 
 An exception thrown by your code inside the event loop, in a click handler, a posted task, a
-ticker or a frame, does not end the application. The toolkit catches it where it happened, logs
-it at `ERROR`, and goes on: the event is dropped, the task is skipped, a ticker that threw is
-removed, the frame is drawn again. A frame that throws every time is retried with a pause rather
-than at full speed, so a bug that repeats does not spin the processor.
+ticker or a frame, does not end the application. The toolkit catches it where it happened and
+goes on: the event is dropped, the task is skipped, a ticker that threw is removed, the frame is
+drawn again. A frame that throws every time is retried with a pause rather than at full speed, so
+a bug that repeats does not spin the processor. Until you install a handler of your own, every
+one of them is logged at `ERROR`.
 
 To send those exceptions somewhere of your own, a crash report, a log file or a dialog, install a
 `CrashHandler` once at startup:
@@ -115,6 +116,11 @@ It runs on the UI thread, inside the turn that caught the exception, so it keeps
 throws. Its answer is followed where the exception would otherwise have ended the loop, a frame
 or the system's event poll, and only heard where the toolkit contains it anyway, one event or one
 task, so decide by what was thrown rather than by the phase.
+
+Installing it replaces the default handler, which is what logs at the first kind of site. One
+event, one task or one ticker is still logged at `ERROR` where it was caught, and then handed to
+your handler; an exception from a frame, the event poll or a window's teardown goes to your
+handler alone, and is logged only if your handler throws. Record it there.
 
 ## "A paint may not announce a change"
 

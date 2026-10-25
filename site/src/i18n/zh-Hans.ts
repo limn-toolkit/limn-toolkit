@@ -238,7 +238,7 @@ export const zhHans: Catalog = {
     "MP3 支持来自 JLayer，它是 LGPL-2.1，未经修改地使用，并作为一个独立的 jar 保存在音频解码接口之后。只排除这一个依赖，失去的只有 MP3：MP3 届时会作为后端不读取的格式被拒绝，WAV 与 Ogg Vorbis 照常可用。这样去掉的是一个 LGPL 组件，而不是全部：后端仍带有上文提到的 LGPL 音频输出 OpenAL Soft。",
   "licence.ffmpeg.heading": "FFmpeg 视频，以及随之分发的东西",
   "licence.ffmpeg.body":
-    "可选的视频解码器支持 MP4 和 Matroska 中的 H.264、HEVC、VP9 与 VP8，动态链接一份精简的 FFmpeg，按 LGPL-2.1-或更高版本 构建。<b>它的原生库是一个独立的制品 <code>limn-ffmpeg-natives</code>，每个桌面目标一个 classifier，另有 <code>limn-video-ffmpeg-natives-all</code> 列出全部，作为走遍所有平台的一揽子依赖</b>，因此包含 <code>limn-video-ffmpeg</code> 及这些库的分发就是在分发 FFmpeg，而这些 jar 各自带着许可证文本和必需的声明。它们是动态链接且可替换的，这正是该许可证的要求。没有别的东西依赖这个模块：去掉它，其他媒体格式照旧工作。",
+    "可选的视频解码器支持 MP4 和 Matroska 中的 H.264、HEVC、VP9 与 VP8，动态链接一份精简的 FFmpeg，按 LGPL-2.1-或更高版本 构建。<b>它的原生库是一个独立的制品 <code>limn-ffmpeg-natives</code>，每个桌面目标一个 classifier，另有 <code>limn-video-ffmpeg-natives-all</code> 列出全部，作为走遍所有平台的一揽子依赖</b>，因此包含 <code>limn-video-ffmpeg</code> 及这些库的分发就是在分发 FFmpeg，而这些 jar 各自带着许可证文本和必需的声明。它们是动态链接且可替换的，这正是该许可证的要求。Limn 的其他库都不依赖这个模块：去掉它，其他媒体格式照旧工作。",
   "licence.notAdvice": "以上均不构成法律意见。请阅读许可全文，并咨询你自己的律师。",
 
   // ----------------------------------------------------------------- privacy

@@ -430,7 +430,7 @@ public final class Document {
      *
      * <pre>{@code
      * document.writePdf(file)
-     *         .onProgress(bar::setProgress)
+     *         .onProgress(fraction -> bar.setProgress((float) fraction))
      *         .onSuccess(saved -> window.launcher().showInFolder(saved))
      *         .onFailure(error -> status.setText(error.getMessage()))
      *         .start();

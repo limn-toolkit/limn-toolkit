@@ -230,9 +230,10 @@ under `ar-EG` reads in the same digits as the amount beside it. A locale that na
 with `-u-ca-` is written in that calendar, as the date widgets draw it: `ja-JP-u-ca-japanese`
 writes the era ("R7/10/25"), `th-TH-u-ca-buddhist` the Buddhist year, and
 `ar-SA-u-ca-islamic-umalqura` the Hijri date. The value is the same `LocalDate` either way. A date
-that calendar cannot hold, one before the first era it knows, is written in the ISO calendar
-rather than refused, and so is every date of a locale that names no calendar, or one the platform
-does not carry.
+that calendar does not reach, before its first day or era or after its last day (the platform's
+Umm al-Qura calendar covers 1882 to 2174, and its Japanese one starts at Meiji 6), is written in
+the ISO calendar rather than refused, and so is every date of a locale that names no calendar, or
+one the platform does not carry.
 
 A spinner's number is written and read the way the language writes it: a spinner stepping by
 a quarter shows a half as `0,50` in German, Swedish writes a negative value with a true minus
