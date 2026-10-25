@@ -605,6 +605,25 @@ final class DBus {
         }
     }
 
+    /**
+     * One connection to a bus, in one of two shapes, each with its own rule for which thread may
+     * touch the socket.
+     *
+     * <p><b>Opened with {@link #open}, it has two threads, and the reader thread never writes to
+     * the connection.</b> The reader thread reads every message: it hands a reply to the
+     * {@link #call} waiting for it, a signal to {@link #onSignal}'s listener, and a method call to
+     * its {@link Handler}, whose reply, like any refusal, it queues for the writer thread
+     * ({@link #send}) instead of writing it. The writer thread writes every reply and every signal.
+     * A blocking {@link #call} is the one other writer: it writes its own request on the thread
+     * that makes it, under {@code writeLock} so that serials go out in the order they were taken,
+     * and then waits for the reader thread to hand its reply over. So a peer that stops reading
+     * parks the writer thread and never the one thread answering every client, and a call made on
+     * the reader thread, a handler's included, waits for itself until its timeout.
+     *
+     * <p><b>Opened with {@link #openOnThisThread}, it has no thread of its own</b>, and the thread
+     * that opened it is the only one that reads or writes ({@link #callHere}, {@link #writeHere},
+     * {@link #readHere}).
+     */
     static final class Conn implements Closeable {
         final String address;
         private final Wire ch;
@@ -615,6 +634,11 @@ final class DBus {
         public volatile String uniqueName;
         public volatile String saslGuid;
         private volatile boolean running = true;
+        /**
+         * Reads every message and runs every handler; never writes to the connection, since a
+         * write that a peer does not drain would park the one thread answering every client. What
+         * it owes a peer it hands to {@link #writerThread}. Started by {@link #start}.
+         */
         private Thread readerThread;
         public volatile Thread lastHandlerThread;
         /** The last reply this connection received, kept so the spike can capture raw wire bytes. */
@@ -922,6 +946,11 @@ final class DBus {
 
         /** Everything waiting to be written, and the policy that decides what may wait. */
         private final Outbound outbound = new Outbound();
+        /**
+         * Writes every reply and signal, in the order {@link #outbound} hands them over; the only
+         * other writer is a blocking {@link #call}'s own request. Started by {@link #start}, before
+         * the reader thread.
+         */
         private Thread writerThread;
 
         /** How many signals were refused because the queue was already at its bound. */
@@ -967,7 +996,10 @@ final class DBus {
             outbound.release();
         }
 
-        /** Drains the outbound queue. The one thread that writes to this connection. */
+        /**
+         * Drains the outbound queue: the writer thread's whole life, and every write of a reply or
+         * a signal on this connection.
+         */
         private void writeLoop() {
             while (running) {
                 byte[] b;
@@ -1043,7 +1075,11 @@ final class DBus {
         void exportFallback(Handler h) { fallback = h; }
         private volatile Handler fallback;
 
-        /** Blocking method call. Throws DBusError on an ERROR reply. */
+        /**
+         * Blocking method call. Throws DBusError on an ERROR reply. Writes the request on the
+         * calling thread and waits for the reader thread to hand the reply over, so it is never
+         * made on the reader thread, a handler included.
+         */
         Msg call(Msg m, long timeoutMs) throws IOException {
             ArrayBlockingQueue<Msg> q = new ArrayBlockingQueue<>(1);
             Msg reply;
