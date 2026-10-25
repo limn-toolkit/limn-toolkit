@@ -237,7 +237,7 @@ class ThemeAuditTest {
         assertTrue(theme.scrim().a() > Theme.dark().scrim().a(),
                 "the premise: this palette ships the heavier veil");
 
-        Color veiled = theme.background().lerp(theme.scrim().withAlpha(1f), theme.scrim().a());
+        Color veiled = theme.scrim().compositeOver(theme.background());
         assertEquals(theme.background().lightness(), veiled.lightness(), 1e-9,
                 "the trap: veiling this canvas moves it by nothing measurable");
 

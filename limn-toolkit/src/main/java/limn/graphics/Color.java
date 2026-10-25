@@ -42,17 +42,56 @@ public record Color(float r, float g, float b, float a) implements Paint {
         return alpha == a ? this : new Color(r, g, b, alpha);
     }
 
-    /** Linear interpolation between this color and {@code other} at {@code t} in [0..1]. */
+    /**
+     * Linear interpolation between this color and {@code other} at {@code t} in [0..1], with the
+     * channels weighted by their alpha (premultiplied), as the renderer's gradients interpolate.
+     * Between two opaque colours that is the plain mix of the channels. Toward a translucent one it
+     * is what a fade looks like: a fade from white to {@link #TRANSPARENT} stays white as it thins,
+     * where mixing the channels as they are written went grey midway, because {@code TRANSPARENT}
+     * is a transparent black.
+     *
+     * <p>Not a composite: the alpha is interpolated too, so a translucent colour mixed with an
+     * opaque one is translucent. {@link #compositeOver} is the colour a translucent one shows
+     * over a backdrop.
+     */
     public Color lerp(Color other, float t) {
         float k = Scalars.clamp01(t);
         if (k == 0) {
             return this; // exactly the arithmetic below at k = 0, without the allocation
         }
+        float alpha = a + (other.a - a) * k;
+        if (alpha <= 0) {
+            return new Color(r + (other.r - r) * k, g + (other.g - g) * k, b + (other.b - b) * k, 0f);
+        }
         return new Color(
-                r + (other.r - r) * k,
-                g + (other.g - g) * k,
-                b + (other.b - b) * k,
-                a + (other.a - a) * k);
+                (r * a + (other.r * other.a - r * a) * k) / alpha,
+                (g * a + (other.g * other.a - g * a) * k) / alpha,
+                (b * a + (other.b * other.a - b * a) * k) / alpha,
+                alpha);
+    }
+
+    /**
+     * The colour this one shows over {@code backdrop}: source-over, as the renderer composites.
+     * Over an opaque backdrop the result is opaque, which is what {@link #relativeLuminance} and
+     * {@link #contrastRatio} need of a translucent ink, a veil or a selection tint.
+     *
+     * @param backdrop what is under this colour
+     * @return the composite
+     */
+    public Color compositeOver(Color backdrop) {
+        if (a >= 1f) {
+            return this;
+        }
+        float under = backdrop.a * (1 - a);
+        float alpha = a + under;
+        if (alpha <= 0) {
+            return TRANSPARENT;
+        }
+        return new Color(
+                (r * a + backdrop.r * under) / alpha,
+                (g * a + backdrop.g * under) / alpha,
+                (b * a + backdrop.b * under) / alpha,
+                alpha);
     }
 
     // ------------------------------------------------------------------ HSV
@@ -211,7 +250,7 @@ public record Color(float r, float g, float b, float a) implements Paint {
      *
      * <p><b>Alpha is ignored.</b> A translucent colour has no luminance of its own; what
      * a reader sees is the composite. Composite it over its backdrop first
-     * ({@code backdrop.lerp(this, this.a())}) and ask that colour.
+     * ({@code this.compositeOver(backdrop)}) and ask that colour.
      */
     public double relativeLuminance() {
         return 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b);

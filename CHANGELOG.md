@@ -1496,6 +1496,10 @@ Maven Central say which number that was.
 
 ### Changed
 
+- `Color.lerp` mixes premultiplied, as the renderer's gradients do. Between opaque colours nothing
+  changes; toward a translucent one a fade keeps its colour as it thins, where a fade from white to
+  `Color.TRANSPARENT` went grey midway. `Color.compositeOver(backdrop)` is new, and is the colour a
+  translucent one shows over a backdrop, which is what a contrast check of a veil or a tint needs.
 - Every component's edge and state clears 3:1 against what is next to it in every shipped palette,
   as WCAG 2.1 1.4.11 asks (ADR 081). The secondary button, the check box, the switch, the radio
   button, the segmented control, every field box, the colour pickers, the split pane's divider and
