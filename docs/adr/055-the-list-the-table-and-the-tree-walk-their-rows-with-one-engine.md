@@ -101,6 +101,14 @@ public final class Rows<E> {
 }
 ```
 
+> *Note, 2026-10-25:* `Rows` no longer has the bare `reset()` sketched above. Since 2026-10-20
+> the list's `setItems` and the table's `setRows` call `reset(keepAt, stale)`, which carries over
+> the realized rows a popup hangs from whose item the new rows still hold, as
+> `refresh(keepAt, stale)` does, and then puts the run at its start; the bare form was left with no
+> caller and was removed with the toolkit's other uncalled members. And `renumber`, as built from
+> the first, asks each realized row for the index its row has now (a `ToIntFunction` of the row)
+> rather than mapping an old index to a new one. The sketch stays as it was decided.
+
 - **`E` is whatever the widget realizes a row as.** A `Widget` for the list and the tree, the
   table's `Slot`, which holds a row's shaped texts and its widget cells and may hold no widget
   at all. The engine never asks what it is: it keeps them sorted by row and hands them back.
