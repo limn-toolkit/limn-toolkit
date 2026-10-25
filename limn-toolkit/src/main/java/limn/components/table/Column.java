@@ -355,7 +355,11 @@ public final class Column<T> {
 
     /**
      * Names how rows compare on this column, replacing the comparison derived from the value.
-     * UI thread only.
+     * A table sorted on this column sorts again at once, as {@link Table#setSort} would: the
+     * focus cell, the range anchor and a widget cell holding the keyboard go with their records,
+     * and the selection stays with its own. A table whose {@link Table#onSortRequest} orders the
+     * rows itself keeps them as they are. A comparator that leaves the column unable to compare
+     * ({@code null} on a widget column) takes the table's sort on it away. UI thread only.
      *
      * @param comparator the order; {@code null} restores the derived one
      * @return this column
@@ -364,13 +368,16 @@ public final class Column<T> {
         Ui.checkUiThread();
         this.comparator = comparator;
         changed(false);
+        sortChanged();
         return this;
     }
 
     /**
      * Sets whether a header click sorts on this column (default on). A column that cannot
      * compare &mdash; a widget column with no comparator &mdash; is not sortable whatever this says.
-     * UI thread only.
+     * A table sorted on this column when it stops being sortable goes back to the model's order
+     * at once, as {@link Table#setSort} with {@link SortOrder#NONE} would, the focus cell and the
+     * range anchor going with their records. UI thread only.
      *
      * @param sortable whether a click sorts
      * @return this column
@@ -379,6 +386,7 @@ public final class Column<T> {
         Ui.checkUiThread();
         this.sortable = sortable;
         changed(false);
+        sortChanged();
         return this;
     }
 
@@ -497,6 +505,18 @@ public final class Column<T> {
                 tables.remove(i);
             } else {
                 table.columnChanged(footer);
+            }
+        }
+    }
+
+    /** Tells every table showing this column that how it sorts changed: its comparator or whether it may. */
+    private void sortChanged() {
+        for (int i = tables.size() - 1; i >= 0; i--) {
+            Table<T> table = tables.get(i).get();
+            if (table == null) {
+                tables.remove(i);
+            } else {
+                table.columnSortChanged(this);
             }
         }
     }

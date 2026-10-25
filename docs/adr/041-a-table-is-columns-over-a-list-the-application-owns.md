@@ -437,6 +437,16 @@ and NaN included. A column of one kind sorts as it did. Pinned by
 `ColumnSortKeyTest.theDerivedOrderIsATotalOrderOverValuesOfEveryKind` and
 `longsBigIntegersAndBigDecimalsCompareExactly`.
 
+**Amended 2026-10-25 (the final review's list below its bar).** "On `setSort`, on `refresh` and on
+nothing else" left out the column itself: since columns tell their tables of a change (2026-10-25,
+I5), `Column.comparator` and `Column.sortable` on the column the rows are sorted on only asked for
+a layout, so the rows stayed in the old order, and a column made unsortable kept its order and its
+header's arrow, until the next refresh or click. Either now goes through the seam `setSort` takes:
+a new comparator sorts again at once, and a column that can no longer sort drops the sort, the
+focus cell and the range anchor going with their records and the selection staying with its own,
+announced as `CHILDREN`/`CODE`. Under `onSortRequest` the table holds no order to redo, and only the
+header's arrow goes. Pinned by `ColumnOnALiveTableTest`.
+
 ---
 
 ## 5. Columns have widths and weights, and the header resizes them

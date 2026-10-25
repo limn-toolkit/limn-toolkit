@@ -1587,8 +1587,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * Re-reads the rows and re-lays out: call after the list's contents change. A column's
-     * setters need no call: the table takes a change to its width, visibility, alignment or
-     * footer by itself. The sort is re-applied and the scroll
+     * setters need no call: the table takes a change to its width, visibility, alignment,
+     * footer or sorting by itself. The sort is re-applied and the scroll
      * position is kept, clamped.
      *
      * <p><b>A row is its record</b>: the selection, the lead, the focus cell and the range anchor
@@ -2467,14 +2467,11 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * Reads every column's footer cell from the rows: once per {@link #setRows} and
-     * {@link #refresh}, and once more when the language moves, never per frame.
-     */
-    /**
      * A column of this table changed through one of its setters, after the table was made: its
-     * width, share, alignment, visibility or sorting is taken by the next layout and paint, and
-     * its footer is computed again at once when that is what changed. A setter did nothing on a
-     * live table before, and an application had to know to ask for the layout or a refresh.
+     * width, share, alignment or visibility is taken by the next layout and paint, its footer is
+     * computed again at once when that is what changed, and a change to how it sorts reaches
+     * {@link #columnSortChanged} too. A setter did nothing on a live table before, and an
+     * application had to know to ask for the layout or a refresh.
      */
     void columnChanged(boolean footer) {
         if (footer) {
@@ -2484,6 +2481,34 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         invalidate();
     }
 
+    /**
+     * How a column of this table sorts changed, through {@link Column#comparator} or
+     * {@link Column#sortable}. The column the rows are ordered on is ordered again at once, or its
+     * order is dropped when it can no longer sort, through the seam {@link #setSort} takes, so the
+     * focus cell, the range anchor and a widget cell holding the keyboard go with their records
+     * and the selection, by model row, stays with its own; announced as a sort is,
+     * {@code CHILDREN}/{@code CODE}. Until 2026-10-25 a comparator set on a live table took effect
+     * at the next refresh or header click, and a column made unsortable kept its order and its
+     * header's arrow. A table whose {@link #onSortRequest} orders the rows holds no order of its
+     * own to redo, and only drops the header's arrow from a column that can no longer sort.
+     */
+    void columnSortChanged(Column<T> column) {
+        // The header cell's PRESS and its sort direction are published from isSortable().
+        invalidateAccessible();
+        if (column != sortColumn || sortOrder == SortOrder.NONE) {
+            return;
+        }
+        if (!column.isSortable()) {
+            applySort(column, SortOrder.NONE, Change.Origin.CODE);
+        } else if (onSortRequest == null) {
+            permute(Change.Origin.CODE);
+        }
+    }
+
+    /**
+     * Reads every column's footer cell from the rows: once per {@link #setRows} and
+     * {@link #refresh}, and once more when the language moves, never per frame.
+     */
     private void recomputeFooter() {
         if (footerTexts.length < columns.size()) {
             footerTexts = new String[columns.size()];

@@ -1566,7 +1566,10 @@ Maven Central say which number that was.
 - A column's setters take effect on a table already made. `Column.width`, `minWidth`, `weight`,
   `align`, `visible`, `sortable`, `comparator`, `resetWidth` and the footer setters only stored a
   field, and the table showed the change only once something else asked it to lay out or refresh;
-  the table now asks for the layout itself and computes a changed footer at once.
+  the table now asks for the layout itself and computes a changed footer at once. A `comparator` or
+  `sortable(false)` on the column the rows are sorted on sorts them again, or drops the sort, at
+  once, the focus cell going with its record and the selection staying with its own, as a sort
+  does.
 - `Color.lerp` mixes premultiplied, as the renderer's gradients do. Between opaque colours nothing
   changes; toward a translucent one a fade keeps its colour as it thins, where a fade from white to
   `Color.TRANSPARENT` went grey midway. `Color.compositeOver(backdrop)` is new, and is the colour a
