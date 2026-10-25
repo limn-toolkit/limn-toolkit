@@ -54,6 +54,8 @@ with `setLabelFor` and a field built with no caption.
 | `RangeSlider` | a lower and an upper bound on a range, two thumbs that never cross |
 | `Checkbox` | a boolean, as a box or as a switch |
 | `RadioButton` | one of several, grouped by a `ButtonGroup` |
+| `ColorPickerButton` | a colour, shown as a chip that opens a `ColorPicker` in a dialog |
+| `ColorPicker` | the whole picker in the form: a field and a hue ramp, a hex field, and channels in RGB, HSV or CMYK |
 
 Each has two channels, and they answer two different questions. The fluent `onX` slot is the
 **handler**: the application's one response to the *user* operating the widget. It never runs
@@ -459,6 +461,12 @@ Tab moves between fields in tree order, so the order you add them is the order p
 through them, and Escape closes a `Dialog`. Focus is drawn as a ring outside the control, so
 it never sits on top of the field's own border, and the ring's colour is solved against the
 accent it surrounds, so you do not have to check it yourself.
+
+A caption takes an access letter: an `&` before a letter in a `Field`'s caption, a bound
+`Label`'s text or a button's text, `new Field("&Email", email)`, lets Alt and that letter bring the
+keyboard to the field or press the button, on Windows and Linux. The letter is in the translated
+text, so each language picks its own; [Access letters](/docs/menus-and-dialogs/#access-letters)
+has the rules.
 
 A form does not submit on Enter by default. If you want that, give the field an `onSubmit`
 handler: it runs when the user presses Enter, with the text, and without one Enter is left to

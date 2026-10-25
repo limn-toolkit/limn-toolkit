@@ -48,6 +48,11 @@ I18n.setLocale(Locale.forLanguageTag("pt-BR"));
 The switch re-lays-out every open window on its own, for the same reason a theme switch
 does: translated text is a different width, so everything has to be measured again.
 
+A string that marks an access letter with `&` ("&Save", "&Arquivo", "ファイル(&F)") carries the
+letter in each translation, so the translator picks one that is in the word; [Access
+letters](/docs/menus-and-dialogs/#access-letters) has the rules, and
+`I18nString.withoutAccessLetter()` reads such a string as its words for a sentence that quotes it.
+
 The toolkit's own strings (the colour picker's labels, the theme names, the built-in
 component text) already ship translated for a long list of language tags, so switching the
 locale translates the parts you did not write as well. A language the toolkit has no file
@@ -202,11 +207,14 @@ Everything else is drawn as authored, so a brand mark can never come back flippe
 
 The numbers the toolkit itself renders — a spinner's value, a chart's axis and tooltip
 labels, the media player's clock — take the locale's digits at the moment they are
-formatted, and which digits a locale takes is CLDR's answer, checked against CLDR in the
-build. Arabic as written in Egypt (`ar-EG`) and the twenty-two other regions that use them
-gets `٤٢`, and a spinner's editor accepts Arabic-Indic keystrokes there; plain `ar`, and Arabic
-everywhere else, writes Latin digits, as native applications do; Persian takes its own extended
-set, and Hebrew stays Latin, because that is how Hebrew writes numbers.
+formatted. A locale that names its digits decides first: the Unicode extension `-u-nu-`, which
+a user's system settings write for a choice of digits that is not the language's default, so
+`ar-EG-u-nu-latn` writes Latin digits and `en-u-nu-arab` Arabic-Indic ones; a system the toolkit
+does not carry is read as no extension. Otherwise which digits a locale takes is CLDR's answer,
+checked against CLDR in the build. Arabic as written in Egypt (`ar-EG`) and the twenty-two other
+regions that use them gets `٤٢`, and a spinner's editor accepts Arabic-Indic keystrokes there;
+plain `ar`, and Arabic everywhere else, writes Latin digits, as native applications do; Persian
+takes its own extended set, and Hebrew stays Latin, because that is how Hebrew writes numbers.
 `I18n.setNumberingSystem(…)` overrides the choice for a deployment that wants the other
 convention. Your own strings are never rewritten — a part number keeps exactly the
 characters you authored — and the same seam is public for your own formatting:
@@ -218,7 +226,13 @@ digits named on it, which the platform's own choice for a bare locale is not (it
 in Arabic-Indic digits). Dates and times want `DateFormats`, beside `NumberFormats`:
 `DateFormats.date(FormatStyle.SHORT)`, `time` and `dateTime` write the language's own order and
 words in the toolkit's digits, where the platform writes every date in ASCII digits, so a date
-under `ar-EG` reads in the same digits as the amount beside it.
+under `ar-EG` reads in the same digits as the amount beside it. A locale that names a calendar
+with `-u-ca-` is written in that calendar, as the date widgets draw it: `ja-JP-u-ca-japanese`
+writes the era ("R7/10/25"), `th-TH-u-ca-buddhist` the Buddhist year, and
+`ar-SA-u-ca-islamic-umalqura` the Hijri date. The value is the same `LocalDate` either way. A date
+that calendar cannot hold, one before the first era it knows, is written in the ISO calendar
+rather than refused, and so is every date of a locale that names no calendar, or one the platform
+does not carry.
 
 A spinner's number is written and read the way the language writes it: a spinner stepping by
 a quarter shows a half as `0,50` in German, Swedish writes a negative value with a true minus

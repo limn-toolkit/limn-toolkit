@@ -100,6 +100,10 @@ tone. `Badge.ofCount(n)` shows a number, "99+" past 99, in the digits of the lan
 
 {% snippet guide:badge %}
 
+A `ProgressBar` says how far a piece of work has gone: `setProgress` from 0 to 1, which the fill
+eases to, or a sweep with `setIndeterminate(true)` for work that cannot say.
+[Background work](/docs/background-work/) shows a job reporting into one.
+
 An `Avatar` is a person as a circle: their picture with `setImage`, or their initials over a
 colour of their own, both from the name. An `AvatarGroup` overlaps them and ends in "+k" past the
 most it shows, with the hidden names in its tooltip. To a reader an avatar is an image named by
@@ -125,9 +129,9 @@ button.setIcon(null);                            // allowed: the parameter is @N
 Nothing enforces this at run time, and nothing needs adding for the annotations to be there:
 they come with the toolkit's dependency, and no code reads them once the program runs; a
 modular application may even leave the jar off its module path. An IDE reads them and warns
-at the call; Kotlin turns them into `Widget<*>?` and `Icon?`; a checker such as
-[NullAway](https://github.com/uber/NullAway) turns them into build errors, for your own code
-as well once you mark it `@NullMarked` too.
+at the call; Kotlin turns them into `Widget<*>?` and `Icon?`; a nullness checker that runs in
+the build turns them into build errors, for your own code as well once you mark it `@NullMarked`
+too.
 
 ## Writing your own widget
 

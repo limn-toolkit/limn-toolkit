@@ -25,7 +25,7 @@ dependencies {
 {% endtabs %}
 
 It depends on `limn-toolkit` and on nothing else. It brings no test framework, so it works
-under JUnit, TestNG or a `main` method alike.
+under whichever one your build already runs, or from a `main` method.
 
 ## A form, filled in by a test
 
@@ -92,12 +92,27 @@ closed) and `scene()` answering the scene bound to each. `frame()` on a window r
 
 A frame takes a turn of the loop, as on a desktop: `frame()` first runs what is waiting on the UI
 queue, then draws. A desktop drains the queue once and then draws every window; framing several
-`HeadlessWindow`s drains once for each, so count frames, not turns, when several windows are open. That is where the toolkit finishes what it leaves for the next turn. A test that
-pins less motion with `TestPreferences.reduceMotion(true)`, the way to make the toolkit's dialogs
-and popups open and close without a fade, presses Escape and frames the windows, and the dialog's
-result is there: it was completed on the turn after the key. A fade of your own that goes straight
-to its target, with no window or under less motion, runs its `onArrive` after the seconds it asked
-for, on the clock the runtime's timers fall due on, which `new HeadlessUi(clock)` lets the test move.
+`HeadlessWindow`s drains once for each, so count frames, not turns, when several windows are open.
+That is where the toolkit finishes what it leaves for the next turn.
+
+Under less motion the toolkit's dialogs and popups open and close without a fade. A test asks for
+it the way a user's system would, through a `TestPreferences` opened after the `HeadlessUi` and
+closed before it, which puts back what the system answered before:
+
+```java
+try (TestPreferences system = new TestPreferences()) {
+    system.reduceMotion(true);
+    // open the dialog, press Escape, frame the windows
+}
+```
+
+Such a test presses Escape and frames the windows, and the dialog's result is there: it was
+completed on the turn after the key. The same object reports a dark appearance
+(`colorScheme`), more contrast (`increaseContrast`) and access letters underlined at all times
+(`underlineAccessKeys`), so a screen's test can check that it follows each. A fade of your own
+that goes straight to its target, with no window or under less motion, runs its `onArrive` after
+the seconds it asked for, on the clock the runtime's timers fall due on, which
+`new HeadlessUi(clock)` lets the test move.
 
 An `AccessibleHarness` keeps one clock for its scene and for the runtime's timers: `frame()` takes a
 turn as a window's does, and `advanceTime(millis, widget)` moves both clocks, taking a turn for each

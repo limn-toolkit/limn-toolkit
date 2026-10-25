@@ -249,7 +249,10 @@ backend.createWindow(WindowConfig.of("Invoices", 900, 640)
 ```
 
 The limits bound what the user can do with the window's edges; `window.setSizeLimits(…)` changes
-them later, and `window.sizeLimits()` reads them. A size set from code is not clamped.
+them later, and `window.sizeLimits()` reads them. A size set from code is not clamped. The rest of
+what a `WindowConfig` says, a window with no frame, a translucent one or one that stays above the
+others, and the window's icon, is in
+[Menus and dialogs](/docs/menus-and-dialogs/#a-windows-frame-and-its-icon).
 
 To size a window to its content instead of guessing a number, bind the scene and call
 `scene.pack()`, before showing the window if it was made hidden. It measures the root with nothing

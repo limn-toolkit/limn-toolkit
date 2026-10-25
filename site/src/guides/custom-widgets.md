@@ -23,6 +23,18 @@ setters every widget has return your type: `new Rating().setTooltip("Stars")` is
 them; `constrain` clamps to what was allowed. `onPaint` draws in the widget's own coordinates,
 from `(0, 0)` to `width()` by `height()`.
 
+The `Canvas` draws more than circles. Rectangles, rounded or not, and ellipses are filled or
+stroked, lines are drawn, text and images are placed, and any other outline is a `Path2D`, built
+with `moveTo`, `lineTo`, `quadTo`, `cubicTo` and `close`, then filled with `fillPath` or stroked
+with `drawPath`.
+Whatever takes a colour takes a `Paint`, which is a `Color`, a `LinearGradient` or a
+`RadialGradient`. `drawShadow(shape, shadow)` casts a `Shadow` under a rounded rectangle;
+`save`, `translate`, `rotate`, `scale` and `restore` move the coordinates, and `clipRect` and
+`clipRoundRect` cut what follows; `setBlendMode` draws in `BlendMode.ADDITIVE`, for light, or
+`MULTIPLY`, for shade; and `saveLayer` paints a group into a picture of its own, composited at one
+opacity, so overlapping parts do not show through each other. A widget that paints outside its
+box says how far, as [A layout of your own](#a-layout-of-your-own) explains.
+
 Sizes, spacing and fonts come from the theme's tokens for the widget's control size, read in
 `onMeasure` and `onPaint`. Do not read them in the constructor: a widget being constructed has
 no parent yet, so the value it reads is the process default and never follows the control size
@@ -79,11 +91,20 @@ value that eases from one state to another from a `Transition`, never from a pai
 
 {% snippet guide:custom-widget-input %}
 
-Mouse events arrive in the widget's own coordinates and bubble from the widget under the pointer
-to its ancestors; key events go to the focused widget first and then to its ancestors. Call
-`consume()` on an event you handled, and it goes no further. A widget takes the keyboard only if
-it is `setFocusable(true)`, and taking focus on a press is what makes the arrows work after a
-click.
+Mouse events bubble from the widget under the pointer to its ancestors, and key events go to the
+focused widget first and then to its ancestors. A mouse event carries its point in the scene's
+coordinates, whichever widget receives it, so a widget turns it into its own with
+`sceneToLocal(event.x(), event.y())`, as the rating does, which holds under a scroll and under
+a turned ancestor alike. Call `consume()` on an event you handled, and it goes no further. A
+widget takes the keyboard only if it is `setFocusable(true)`, and taking focus on a press is
+what makes the arrows work after a click.
+
+Two more types arrive under the pointer. `WHEEL` is a wheel or a trackpad scroll, its amounts in
+`scrollX()` and `scrollY()`. `ZOOM` asks to zoom around the pointer by `scale()`: a pinch on a
+trackpad, and the wheel turned with Command on macOS or Control elsewhere, which is offered as a
+zoom before it is a scroll. A widget that zooms consumes it, and the rest of that gesture then
+comes to it wherever the pointer goes; one that does not lets it bubble, and the wheel goes on as
+a scroll.
 
 A right-to-left subtree mirrors the reading direction, so the rating's first dot sits on the
 right there, and Left and Right swap along with it. Up and Down do not swap, because they are a

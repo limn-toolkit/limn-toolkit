@@ -21,7 +21,7 @@ on the UI thread, so a handler can touch widgets directly:
 
 ```java
 job = Ui.work(progress -> repository.load(id))
-        .onProgress(bar::setProgress)
+        .onProgress(fraction -> bar.setProgress((float) fraction))
         .onSuccess(list::setItems)
         .onFailure(error -> status.setText(error.getMessage()))
         .deliverIf(view::isShowing)
@@ -35,7 +35,8 @@ Read that in order:
   worker.
 - **`onProgress` takes a fraction** from 0 to 1, reported by the body through
   `progress.report(…)`. Deliveries are coalesced, so a body that reports every row does not
-  flood the UI thread.
+  flood the UI thread. `bar` here is a `ProgressBar`, which draws that fraction;
+  `setIndeterminate(true)` turns it into a sweep for work that cannot say how far it is.
 - **Exactly one terminal callback runs**: `onSuccess` or `onFailure`, never both, never
   twice.
 - **`deliverIf` is the guard** for a result arriving after the view has gone. When it
@@ -103,5 +104,7 @@ shares one result between everyone who asks for the same file. For bytes already
 `Images.decodeAsync` and `Sounds.decodeAsync` are `Work` jobs: attach the handlers, then
 `start()`. [Images and media](/docs/images-and-media/) has the example.
 
-Native file dialogs are the deliberate exception: they block the UI thread while they are
-open, exactly as they do in every other desktop application.
+Native file dialogs follow the same rule. `window.fileDialogs()` returns at once with a
+`CompletionStage` that completes on the UI thread when the user chooses or cancels, so the window
+keeps drawing, animating and running its timers while the chooser is open;
+[Menus and dialogs](/docs/menus-and-dialogs/#native-file-dialogs) has the example.

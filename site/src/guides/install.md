@@ -1,26 +1,29 @@
 ---
 title: "Install and first window"
-description: "The JDK you need, the two dependencies, the one macOS flag, and a program that puts a window on screen."
+description: "The JDK you need, the one dependency, the optional fonts, the one macOS flag, and a program that puts a window on screen."
 ---
 
 ## What you need
 
 - **JDK 17 or newer.** Nothing in the toolkit needs a preview feature.
-- **A GPU with OpenGL 3.3.** Anything from the last decade qualifies. macOS runs it through
-  Apple's 4.1 compatibility layer, or its software renderer on a Mac with no GPU driver (a
-  virtual machine). A Linux machine with no GPU at all can fall back to Mesa's software
-  rasteriser, which is how the screenshots on this site are taken. A Windows machine with no
-  OpenGL driver, or one older than 3.3 (a virtual machine, a remote-desktop session), runs on
-  OpenGL ES 3.0 from ANGLE over Direct3D 11 instead, which the backend carries and loads only
-  there; it needs a Direct3D 11 GPU of feature level 10_0 or the system's own software adapter.
-  A Mac with no OpenGL at all would do the same over Metal. Where even that gives no context, the
-  error Limn stops with names the way out: the graphics driver, or Microsoft's free
+- **A GPU with OpenGL 3.3.** Anything from the last decade qualifies, and macOS runs it through
+  Apple's 4.1 compatibility layer. Where the system's OpenGL gives no context, the backend runs on
+  OpenGL ES 3.0 from ANGLE instead, which it carries for Windows and macOS and loads only when it
+  is needed. On Windows that is a machine with no OpenGL driver, or one older than 3.3 (a virtual
+  machine, a remote-desktop session), and ANGLE runs over Direct3D 11 there, which needs a
+  Direct3D 11 GPU of feature level 10_0 or the system's own software adapter. On macOS it is a
+  Mac with no accelerated renderer, as in a virtual machine, or with no OpenGL at all, and ANGLE
+  runs over Metal; only if that fails too does such a Mac take the system's software renderer. A
+  Linux machine with no GPU at all can fall back to Mesa's software rasteriser, which is how the
+  screenshots on this site are taken. On Windows, where even ANGLE gives no context, the error
+  Limn stops with names the way out: the graphics driver, or Microsoft's free
   [OpenCL, OpenGL, and Vulkan Compatibility Pack](https://apps.microsoft.com/detail/9NQPSL29BFFF)
   (`winget install Microsoft.OpenCLGLVulkanCompatibilityPack`). An application opened from its
   icon has no console to show that error, so it first shows Windows' own error dialog, with
   buttons that open the pack in the Store or install it with winget;
   `-Dlimn.backend.errorDialog=false` turns the dialog off, and `-Dlimn.backend.angle=off` refuses
-  the ANGLE fallback.
+  the ANGLE fallback. [Troubleshooting](/docs/troubleshooting/#the-window-never-opens) has the
+  rest.
 - **On Linux, an X11 or a Wayland session.** The same binaries serve both.
 
 ### Supported systems
@@ -107,11 +110,11 @@ That one line is the whole install. `limn-backend-lwjgl` is the window and the r
 it exports `limn-toolkit` — the widget set, the layout and the scene graph — to whatever
 depends on it. Everything else (FFmpeg video decoding, the icon set) is optional and separate.
 
-The backend brings its native binaries, LWJGL's and the SVG renderer's, with it for every
-desktop platform: Windows, macOS and Linux, x64 and ARM alike. There is nothing per-platform to
-add: the JVM loads the slice that matches the machine it is running on, and the rest sit inert on
-the classpath, costing download size and nothing else. A build that ships one platform at a
-time, or runs on the module path, keeps only that platform's:
+The backend brings its native binaries, LWJGL's, the SVG renderer's and, for Windows and macOS,
+ANGLE's, with it for every desktop platform: Windows, macOS and Linux, x64 and ARM alike. There is
+nothing per-platform to add: the JVM loads the slice that matches the machine it is running on, and
+the rest sit inert on the classpath, costing download size and nothing else. A build that ships one
+platform at a time, or runs on the module path, keeps only that platform's:
 [Packaging](/docs/packaging/#natives-for-one-platform) shows how.
 
 It also brings the fonts a UI cannot do without: Roboto (the default family) and the four
@@ -199,10 +202,17 @@ until 2.0, and JDK 17 stays the minimum until 2.0.
 
 The one exception is the package `limn.backend.spi`, which an application never touches: it is
 for someone writing a backend of their own, it is incubating, and it may change in a 1.x minor,
-always with the migration in the changelog.
+always with the migration in the
+[changelog](https://github.com/limn-toolkit/limn-toolkit/blob/main/CHANGELOG.md).
 
 Any of Limn's enums may gain constants in a 1.x minor, so a `switch` over one needs a `default`
 branch.
+
+What each release changed, and what to change in your code when you move to it, is in the
+[changelog](https://github.com/limn-toolkit/limn-toolkit/blob/main/CHANGELOG.md). A
+vulnerability is reported privately, as
+[SECURITY.md](https://github.com/limn-toolkit/limn-toolkit/blob/main/SECURITY.md) describes, and
+fixes are made on the latest release.
 
 ## Where to go next
 
