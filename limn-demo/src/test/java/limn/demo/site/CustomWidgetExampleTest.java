@@ -3,10 +3,12 @@ package limn.demo.site;
 import limn.demo.site.CustomWidgetExample.Rating;
 import limn.input.Keys;
 import limn.scene.Change;
+import limn.scene.Insets;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
+import limn.scene.layout.Padding;
 import limn.testing.HeadlessUi;
 import limn.testing.TestRulers;
 import limn.testing.a11y.ValueContract;
@@ -39,10 +41,14 @@ class CustomWidgetExampleTest {
         ui.close();
     }
 
+    /**
+     * The rating away from the scene's corner, as a widget in a real screen is: a press arrives in
+     * the scene's coordinates, so a widget that read them as its own would pick the wrong dot.
+     */
     private static Scene sceneOf(Rating rating) {
         Column root = new Column();
         root.add(rating);
-        Scene scene = new Scene(root);
+        Scene scene = new Scene(new Padding(new Insets(37, 0, 0, 120), root));
         scene.setTextRuler(TestRulers.FIXED);
         scene.layoutPass(400, 100);
         return scene;
