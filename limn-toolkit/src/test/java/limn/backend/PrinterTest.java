@@ -74,4 +74,30 @@ class PrinterTest {
     void aJobNeedsAName() {
         assertThrows(IllegalArgumentException.class, () -> new PrintJob(" ", PDF, 0, 0, -1));
     }
+
+    /**
+     * A file printed under a blank name is refused at the call, as bytes are, before the file is
+     * read and the system asked. The name was checked only once the file had been read, inside the
+     * stage's dependent on the UI thread, so the refusal ended there and the stage the caller held
+     * never completed.
+     */
+    @Test
+    void aFileWithABlankNameIsRefusedAtTheCall() throws Exception {
+        java.nio.file.Path file = java.nio.file.Files.createTempFile("limn-printer", ".pdf");
+        try (HeadlessUi ui = new HeadlessUi()) {
+            java.nio.file.Files.write(file, PDF);
+            Recorded peer = new Recorded();
+            Printer printer = new Printer(peer);
+            assertThrows(IllegalArgumentException.class, () -> printer.print(file, " "));
+            assertThrows(IllegalArgumentException.class, () -> printer.print(PDF, ""));
+            ui.runtime().drain();
+            assertNull(peer.job, "the system was not asked");
+            AtomicReference<PrintResult> result = new AtomicReference<>();
+            printer.print(file, "Invoice 0091").thenAccept(result::set);
+            ui.pumpUntil(() -> result.get() != null);
+            assertEquals(PrintResult.PRINTED, result.get(), "and a named one prints");
+        } finally {
+            java.nio.file.Files.deleteIfExists(file);
+        }
+    }
 }

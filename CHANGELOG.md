@@ -736,7 +736,8 @@ Maven Central say which number that was.
     Below those, the wheel with Control still zooms.
 - A window prints a PDF: `NativeWindow.printer()` returns a `Printer` with `print(Path, title)`,
   `print(byte[], title)` and `isAvailable()`, answering a `PrintResult` (`PRINTED`, `CANCELLED`,
-  `UNAVAILABLE`, `FAILED`) on the UI thread; a window with no printing answers `Printer.NONE`.
+  `UNAVAILABLE`, `FAILED`) on the UI thread, a blank title refused at the call; a window with no
+  printing answers `Printer.NONE`.
   `NativeWindow` has no default for it, so an implementation of a window outside this repository
   adds `printer()` (`return Printer.NONE;` for a window with none).
 - `Path2D.forEach(Path2D.Visitor)` hands a path's moves, lines, curves and closes back as they were
