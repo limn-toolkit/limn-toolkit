@@ -372,14 +372,19 @@ public final class Document {
      * it is bounded): a script's fallback face arrives in the background on its first need, and a
      * page recorded before it lands holds boxes where that script's text is. UI thread; the UI
      * thread never waits, and {@code then} runs on it, at once when nothing was loading.
+     *
+     * <p>{@code failed} hears what a recording threw, with the recording made before the face
+     * loaded when it is the second that threw, or null when it is the first, which it hears inside
+     * this call: the second can fail where the first did not, a header measuring taller in the face
+     * that loaded than in the one it was first measured in.
      */
     void recordSettled(long waitMillis, java.util.function.Consumer<Pages.Result> then,
-                       java.util.function.Consumer<Throwable> failed) {
+                       java.util.function.BiConsumer<Throwable, Pages.@Nullable Result> failed) {
         Pages.Result first;
         try {
             first = record();
         } catch (RuntimeException | Error error) {
-            failed.accept(error);
+            failed.accept(error, null);
             return;
         }
         CompletableFuture<Void> settled = limn.print.internal.Outlines.current().settled().toCompletableFuture();
@@ -396,7 +401,7 @@ public final class Document {
             try {
                 then.accept(record());
             } catch (RuntimeException | Error again) {
-                failed.accept(again);
+                failed.accept(again, first);
             }
         }));
     }
@@ -587,7 +592,7 @@ public final class Document {
             }
             window.printer().print(new PrintJob(title, pdf, paper.width(), paper.height(), pages.pages().size()))
                     .thenAccept(answer::complete);
-        }), error -> {
+        }), (error, before) -> {
             LOG.log(System.Logger.Level.WARNING, "the document's pages could not be recorded", error);
             answer.complete(PrintResult.FAILED);
         });

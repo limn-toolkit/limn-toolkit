@@ -721,7 +721,9 @@ Maven Central say which number that was.
   on with the faces there are, and say so in a warning. `PrintPreview` shows
   a document's pages as sheets, fitted to the width, to a page, or at a percentage; the user zooms
   it with a pinch or the wheel and Command (macOS) or Control held, around the pointer, or,
-  focused, with Command or Control and `+`, `-` and `0`, and `zoomPercent()` says the size shown. `Paper` has the
+  focused, with Command or Control and `+`, `-` and `0`, and `zoomPercent()` says the size shown;
+  when recording the pages again once a face has loaded fails, the pages before stay on show and
+  `failure()` says why, announced as a `VALIDITY` change. `Paper` has the
   ISO A and B sizes, Letter, Legal and Tabloid, any size, and `Paper.forLocale`.
 - A pinch on a trackpad reaches the widget under the pointer as a `MouseEvent` of type `ZOOM`.
   Its `scale()` is the factor since the event before.
