@@ -60,6 +60,13 @@ An input handler that runs longer than 8 ms is logged as a warning that names th
 how long it took, because for that long the window did not respond.
 `scene.setSlowHandlerBudgetMillis(…)` changes the budget.
 
+Expect these warnings the first time a screen is built in a process just started. The JVM is
+loading and interpreting classes it has not run yet, and a screen of a few dozen components
+costs 10 to 60 ms on that first build and a few milliseconds on the next. The demo's
+navigation, which builds each page on its first click, shows exactly that. A warning that
+repeats on a second visit is the one to chase. So is one far above the rest: there, something
+the screen does while it is built is opening a device or reading a file, and belongs on a worker.
+
 ## Long lists
 
 `ListView`, `Table` and `Tree` build rows only where the viewport reaches, plus the row the
