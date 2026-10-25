@@ -1142,3 +1142,15 @@ first written, so their fixes could be judged alone.
   list. *Since closed:* mirrored anyway, as a maintainer's call — the demo is the toolkit's shop
   window, and a bar that ignored the axis under a picker that flips it read as a bug report waiting
   to be filed.
+
+## Note, 2026-10-25: `Insets` names its sides by the reading direction
+
+Section 4 decided that `Insets` stays `(top, right, bottom, left)`. The code never read it that
+way: `Padding`, `ScrollView`'s bar insets and every component that takes insets mirror the two
+sides under a right-to-left subtree, so the value named `left` was the start side and the one
+named `right` the end side, and `new Insets(0, 0, 0, 40)` put the 40 on the physical right of an
+Arabic form while calling it left. A workaround hunt on 2026-10-17 found the contradiction (W3),
+and the owner chose before 1.0 to rename rather than document it: the record is
+`(top, end, bottom, start)` and its accessors are `start()` and `end()`. The positions are
+unchanged, so every `new Insets(…)` means what it meant, and only the two accessors and the
+error messages changed name.

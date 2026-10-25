@@ -20,9 +20,9 @@ class InsetsTest {
 
     private static final List<Side> SIDES = List.of(
             new Side("top", v -> new Insets(v, 0, 0, 0)),
-            new Side("right", v -> new Insets(0, v, 0, 0)),
+            new Side("end", v -> new Insets(0, v, 0, 0)),
             new Side("bottom", v -> new Insets(0, 0, v, 0)),
-            new Side("left", v -> new Insets(0, 0, 0, v)));
+            new Side("start", v -> new Insets(0, 0, 0, v)));
 
     private static String failing(Runnable make) {
         return assertThrows(IllegalArgumentException.class, make::run).getMessage();
@@ -61,7 +61,7 @@ class InsetsTest {
     void theFactoriesAreHeldToTheSameRule() {
         assertEquals("top inset must not be negative and must be finite, got NaN",
                 failing(() -> Insets.all(Float.NaN)));
-        assertEquals("right inset must not be negative and must be finite, got Infinity",
+        assertEquals("end inset must not be negative and must be finite, got Infinity",
                 failing(() -> Insets.symmetric(0, Float.POSITIVE_INFINITY)));
     }
 
@@ -74,9 +74,9 @@ class InsetsTest {
         assertEquals(new Insets(0, 0, 0, 0), Insets.NONE);
         Insets insets = new Insets(1.5f, 2, 3, 4);
         assertEquals(1.5f, insets.top());
-        assertEquals(2, insets.right());
+        assertEquals(2, insets.end());
         assertEquals(3, insets.bottom());
-        assertEquals(4, insets.left());
+        assertEquals(4, insets.start());
         assertEquals(new Insets(8, 12, 8, 12), Insets.symmetric(8, 12));
     }
 }

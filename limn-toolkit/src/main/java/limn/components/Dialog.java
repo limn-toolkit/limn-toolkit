@@ -1808,7 +1808,7 @@ public final class Dialog {
             // repaint pass skips the first widget on the way down that declared less than what
             // hangs past it, and what hangs past the body can reach as far as the view lets it.
             Insets padding = cardPadding.insets();
-            band = Math.max(0, Math.min(padding.left(), padding.right()) - Strokes.BORDER);
+            band = Math.max(0, Math.min(padding.start(), padding.end()) - Strokes.BORDER);
             scroll.paintOverflow(band);
             body.paintOverflow(band);
             float gap = Tokens.spacingFor(this, Tokens.Role.MEDIUM);

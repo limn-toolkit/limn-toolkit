@@ -132,7 +132,7 @@ public class Padding extends Widget<Padding> {
         if (clipsChildren()) {
             return 0;
         }
-        float narrowest = Math.min(Math.min(insets.left(), insets.right()),
+        float narrowest = Math.min(Math.min(insets.start(), insets.end()),
                 Math.min(insets.top(), insets.bottom()));
         return Math.max(0, LayoutOverflow.of(this) - narrowest);
     }
@@ -141,27 +141,24 @@ public class Padding extends Widget<Padding> {
     protected Size onMeasure(Constraints constraints) {
         Size inner = child.measure(constraints.deflate(insets));
         return constraints.constrain(
-                inner.width() + insets.left() + insets.right(),
+                inner.width() + insets.start() + insets.end(),
                 inner.height() + insets.top() + insets.bottom());
     }
 
     @Override
     protected void onLayout() {
         child.layoutBox(leadingInset(), insets.top(),
-                Math.max(0, width() - insets.left() - insets.right()),
+                Math.max(0, width() - insets.start() - insets.end()),
                 Math.max(0, height() - insets.top() - insets.bottom()));
     }
 
     /**
-     * The inset on the side the content starts from: {@code left} in a left-to-right subtree and
-     * {@code right} in a right-to-left one.
-     *
-     * <p>Resolved here rather than by giving {@link Insets} a leading/trailing shape of its own.
-     * {@code Insets} stays physical because it is read in very few places and a second inset type
-     * would cost every application a decision it does not have; this is the one container that
-     * has to take it. {@link #onMeasure} needs nothing, because it sums the two.
+     * The inset on the physical left of the content, where layout measures from: the
+     * {@linkplain Insets#start() start} inset in a left-to-right subtree and the
+     * {@linkplain Insets#end() end} one in a right-to-left one, where the content starts on the
+     * right. {@link #onMeasure} needs nothing, because it sums the two.
      */
     private float leadingInset() {
-        return isRightToLeft() ? insets.right() : insets.left();
+        return isRightToLeft() ? insets.end() : insets.start();
     }
 }

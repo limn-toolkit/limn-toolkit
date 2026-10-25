@@ -3,7 +3,11 @@ package limn.scene;
 import limn.internal.lang.Checks;
 
 /**
- * Edge insets in logical points (padding/margins).
+ * Edge insets in logical points (padding/margins), by the reading direction: {@code start} is
+ * the side a line of text starts from and {@code end} the side it ends at, the left and the
+ * right in a layout that reads left to right and the right and the left in one that reads right
+ * to left. Every layout and component that takes insets mirrors them that way, so a padding of
+ * 40 at the start is on the right of an Arabic form without a second set of insets.
  *
  * <p>Each side is a finite distance of zero or more. A side that is negative, {@code NaN} or
  * infinite is refused where the insets are made, by the side's name, because nothing downstream
@@ -12,7 +16,7 @@ import limn.internal.lang.Checks;
  * {@code NaN} by {@code NaN} with no error anywhere, and an infinite side left the child no room
  * at all while the padding took all of its parent's.
  */
-public record Insets(float top, float right, float bottom, float left) {
+public record Insets(float top, float end, float bottom, float start) {
 
     public static final Insets NONE = new Insets(0, 0, 0, 0);
 
@@ -24,9 +28,9 @@ public record Insets(float top, float right, float bottom, float left) {
      */
     public Insets {
         Checks.notNegative(top, "top inset");
-        Checks.notNegative(right, "right inset");
+        Checks.notNegative(end, "end inset");
         Checks.notNegative(bottom, "bottom inset");
-        Checks.notNegative(left, "left inset");
+        Checks.notNegative(start, "start inset");
     }
 
     /** The same inset on all four sides. */
@@ -34,7 +38,7 @@ public record Insets(float top, float right, float bottom, float left) {
         return new Insets(value, value, value, value);
     }
 
-    /** One inset for top and bottom, another for left and right. */
+    /** One inset for top and bottom, another for start and end. */
     public static Insets symmetric(float vertical, float horizontal) {
         return new Insets(vertical, horizontal, vertical, horizontal);
     }

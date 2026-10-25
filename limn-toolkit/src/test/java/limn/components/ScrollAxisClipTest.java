@@ -890,7 +890,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
             TokenPadding padding = find(dialog.contentRoot(), TokenPadding.class);
             assertNotNull(scroll);
             assertNotNull(padding);
-            float band = padding.insets().left() - Strokes.BORDER;
+            float band = padding.insets().start() - Strokes.BORDER;
             assertEquals(Tokens.spacingFor(padding, Tokens.Role.LARGE) - Strokes.BORDER, band, 0,
                     step.name());
             assertEquals(band, declared(scroll), 0, step.name());

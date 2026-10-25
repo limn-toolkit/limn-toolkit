@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the whole of the answer and it needs no code in the class. It still needs these tests, because
  * everything interesting about the deletion is what it does <em>not</em> delete: the insets do not
  * vanish with the node, they survive as the child's origin, and under a right-to-left subtree that
- * origin is {@code insets.right()} rather than {@code insets.left()}. The accessible tree is the
+ * origin is {@code insets.end()} rather than {@code insets.start()}. The accessible tree is the
  * second reader of the class's one mirroring expression, after paint, and the first that could
  * catch it being flattened back to {@code left()} with every layout test still green.
  *
@@ -87,7 +87,7 @@ class PaddingAccessibilityTest extends AccessibleTestBase {
      * The insets outlive the node they belonged to, as the child's laid-out origin, and they mirror.
      *
      * <p>{@code leadingInset()} is private and its only other reader is {@code onLayout}, so a
-     * simplification back to {@code insets.left()} would leave a mirrored interface's reader cursor
+     * simplification back to {@code insets.start()} would leave a mirrored interface's reader cursor
      * on the wrong side of every padded control with nothing else failing.
      */
     @Test
@@ -97,7 +97,7 @@ class PaddingAccessibilityTest extends AccessibleTestBase {
         frame();
 
         AccessibleNode child = node("ok");
-        assertEquals(padding.localToScene(0, 0).x() + 10, child.x(), "the left inset, left to right");
+        assertEquals(padding.localToScene(0, 0).x() + 10, child.x(), "the start inset, left to right");
         assertEquals(padding.localToScene(0, 0).y() + 4, child.y());
         assertEquals(padding.width() - 40, child.width());
         assertEquals(padding.height() - 12, child.height());
@@ -107,7 +107,7 @@ class PaddingAccessibilityTest extends AccessibleTestBase {
 
         AccessibleNode mirrored = node("ok");
         assertEquals(padding.localToScene(0, 0).x() + 30, mirrored.x(),
-                "mirrored, the content starts from the right inset");
+                "mirrored, the content starts after the end inset");
         assertEquals(padding.localToScene(0, 0).y() + 4, mirrored.y(), "and the vertical insets do not");
         assertEquals(padding.width() - 40, mirrored.width());
         assertEquals(padding.height() - 12, mirrored.height());

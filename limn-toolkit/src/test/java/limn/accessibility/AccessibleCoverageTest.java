@@ -275,7 +275,7 @@ class AccessibleCoverageTest {
             "limn.components.TokenPadding",
             // Declares no role, name, action or state of its own and no onPaint, so §1.6's
             // predicate deletes it in silence and hoists its child. The insets outlive the node as
-            // the child's origin, and under a right-to-left subtree that origin is insets.right().
+            // the child's origin, and under a right-to-left subtree that origin is insets.end().
             // Unlike a private pane, it is public and non-final and carries the whole naming
             // surface, so an application that names, tooltips or roles one materialises a GROUP
             // over the padded rectangle: transparency here is per instance, and that node is the

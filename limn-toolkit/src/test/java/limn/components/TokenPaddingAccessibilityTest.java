@@ -220,7 +220,7 @@ class TokenPaddingAccessibilityTest extends AccessibleComponentTestBase {
     /**
      * The offset does not mirror, because all four edges are equal by construction.
      *
-     * <p>{@code Padding.leadingInset()} picks {@code insets.right()} under a right-to-left subtree,
+     * <p>{@code Padding.leadingInset()} picks {@code insets.end()} under a right-to-left subtree,
      * and that choice is real and is pinned where it belongs, on Padding itself. Here it is a no-op,
      * and saying so in one line is what tells the next hand that giving this widget per-edge roles
      * or an asymmetric variant would make the published box mirror.

@@ -362,14 +362,14 @@ class ContainerMirroringTest extends ComponentTestBase {
         Box ltrChild = new Box(10);
         Padding ltr = new Padding(new Insets(4, 30, 4, 10), ltrChild);
         layout(ltr, 200, 20);
-        assertEquals(10, ltrChild.x(), EPS, "the left inset, reading left to right");
+        assertEquals(10, ltrChild.x(), EPS, "the start inset, on the left reading left to right");
         assertEquals(160, ltrChild.width(), EPS);
 
         Box rtlChild = new Box(10);
         Padding rtl = new Padding(new Insets(4, 30, 4, 10), rtlChild);
         rtl.setLayoutDirection(LayoutDirection.RTL);
         layout(rtl, 200, 20);
-        assertEquals(30, rtlChild.x(), EPS, "the right inset becomes the leading one");
+        assertEquals(30, rtlChild.x(), EPS, "the end inset is on the left reading right to left");
         assertEquals(160, rtlChild.width(), EPS, "and the width is the same, because measure sums");
     }
 

@@ -1830,6 +1830,11 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `Insets` names its sides by the reading direction: `(top, end, bottom, start)`, with `start()`
+  and `end()` in place of `left()` and `right()`. Every layout already mirrored them under a
+  right-to-left subtree, so `left` was the start side and `right` the end one; the names now say
+  so. The positions are unchanged, so `new Insets(…)` needs no change. Replace `insets.left()` with
+  `insets.start()` and `insets.right()` with `insets.end()`.
 - `SizeTokens` is a final class with no public constructor instead of a record, so a token a widget
   needs can join it in a 1.x minor. Every reading method (`tokens.body()`, `SizeTokens::fieldIcon`)
   and `equals`, `hashCode` and `toString` work as before, but nothing outside builds or deconstructs

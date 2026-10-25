@@ -394,7 +394,7 @@ class ContainerOverflowTest extends ComponentTestBase {
         TokenPadding page = new TokenPadding(new Swatch());
         assertEquals(3, declared(page), 0, "before its first measure it holds no insets");
         page.measure(Constraints.loose(200, 200));
-        assertTrue(page.insets().left() >= 3, "the page padding is wider than the ring");
+        assertTrue(page.insets().start() >= 3, "the page padding is wider than the ring");
         assertEquals(0, declared(page), 0);
     }
 

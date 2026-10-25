@@ -606,7 +606,7 @@ final class TreeScene {
                         bytes.setRole(Label.Role.LABEL);
                         row.add(bytes);
                     }
-                    // Room at the end, the right inset being the trailing one in either direction.
+                    // Room at the end, the end inset being the trailing one in either direction.
                     return new Padding(new Insets(0, 12, 0, 0), row);
                 }
             });

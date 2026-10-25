@@ -44,7 +44,7 @@ public record Constraints(float minWidth, float maxWidth, float minHeight, float
 
     /** @return constraints shrunk by the given insets (never below zero) */
     public Constraints deflate(Insets insets) {
-        float horizontal = insets.left() + insets.right();
+        float horizontal = insets.start() + insets.end();
         float vertical = insets.top() + insets.bottom();
         return new Constraints(
                 Math.max(0, minWidth - horizontal),

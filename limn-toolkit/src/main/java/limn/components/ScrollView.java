@@ -488,8 +488,8 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
         boolean rtl = isRightToLeft();
         // The tracks set in by the insets: shorter, and the thumb proportioned to what is left.
         float vTrack = Math.max(0, vLen - barInsets.top() - barInsets.bottom());
-        float hStart = rtl ? barInsets.right() : barInsets.left();
-        float hEnd = rtl ? barInsets.left() : barInsets.right();
+        float hStart = rtl ? barInsets.end() : barInsets.start();
+        float hEnd = rtl ? barInsets.start() : barInsets.end();
         float hTrack = Math.max(0, hLen - hStart - hEnd);
         if (vBar != null) {
             vBar.measure(Constraints.tight(t, vTrack));

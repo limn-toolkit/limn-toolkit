@@ -144,7 +144,7 @@ one a name belongs to is a decision the author makes:
 - `Stack.Alignment` carries both. Its nine physical corners (`TOP_LEFT` … `BOTTOM_RIGHT`) name a
   side of the box and keep naming it whatever the subtree reads; its six logical constants
   (`TOP_START` … `BOTTOM_END`) follow the direction. `TOP_LEFT` remains the default.
-- `Insets` stays physical, `(top, right, bottom, left)`. `Padding` resolves the leading side itself,
+- `Insets` is `(top, end, bottom, start)` (renamed from `(top, right, bottom, left)` on 2026-10-25, ADR 032s note of that day). `Padding` resolves the leading side itself,
   because measurement only ever sums the two and a second inset type would cost every application a
   decision it does not have.
 

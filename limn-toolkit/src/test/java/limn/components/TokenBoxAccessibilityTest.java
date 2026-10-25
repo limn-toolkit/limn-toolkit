@@ -301,7 +301,7 @@ class TokenBoxAccessibilityTest extends AccessibleComponentTestBase {
      * <p>{@code onLayout} places the child at the physical origin and fills the whole box, so there
      * is no leading-or-trailing choice to make and the published rectangle is identical under both
      * directions. TokenBox is the only direction-invariant member of the {@code Token*} family —
-     * TokenPadding's origin becomes {@code insets.right()} under a right-to-left subtree, and a
+     * TokenPadding's origin becomes {@code insets.end()} under a right-to-left subtree, and a
      * column's cross axis reflects — so a later mirroring sweep that treated this class like its
      * siblings would move every control inside one off its painted position, for a mirrored reader
      * only, with paint unchanged.
