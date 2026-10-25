@@ -59,9 +59,13 @@ Maven Central say which number that was.
   `ListView`, `Table` or `Tree` that a `refresh()` or a `setItems`/`setRows` keeps because its item is
   still in the list does not leave: a menu or a popover on it stays open through a timer's refreshes
   and acts on the item as the row was built with it (after a push of new objects equal to the old,
-  the old object, so such a menu acts through the item's key), and the row shows the item afresh
-  once the popup has closed. This holds for a menu opened from a control in the row too, a "..."
-  button, a combo box's list or a date field's calendar. A field's own menu is the one that
+  the old object, so such a menu acts through the item's key, or, in a table, through the record
+  supplier of `Column.widget(title, (row, current) -> …)`, which answers the table's object, so a
+  choice made in a combo box whose list stayed open through the push lands there), and the row
+  shows the item afresh once the popup has closed (a table's row shows its texts afresh at once,
+  and its widget cells once the row is next built, as a refresh that does not keep it builds it).
+  This holds for a menu opened from a control in the row too, a "..." button, a combo box's list
+  or a date field's calendar. A field's own menu is the one that
   closes on a refresh, since the field would otherwise go on editing the object its row was
   built for, and so is a menu on a row whose field has the keyboard due back. When a kept row is
   rebuilt after its menu closes, a control of it that took the keyboard meanwhile, such as a
@@ -686,6 +690,13 @@ Maven Central say which number that was.
   taken at the call: the sentence is formatted once per language, so a new count is a new text set
   again. `format(…)` still answers the sentence of the moment as a `String`, which a label kept in
   the old language.
+- `Column.widget(title, (row, current) -> …)`: a widget column whose factory is also handed a
+  supplier of the row's record as the table holds it now, for a control that writes to its record.
+  A row a `setRows` or a `refresh()` keeps because a popup hangs from it or the keyboard is in it
+  keeps the widgets built with the old object; after a push of new objects equal to the old, the
+  supplier answers the new one, so a choice made in a combo box whose list stayed open through the
+  push lands in the record the table holds, where a control holding on to the row wrote to the old
+  object and the row showed the old value when it was built again.
 - `Color.timesAlpha(factor)`: the colour made more transparent by a factor, its alpha multiplied,
   where `withAlpha` replaces it. The toolkit's own fades and tints of a tone use it.
 - `MediaPlayer.setGain(float)` and `gain()`: the soundtrack's gain, from 0 to 1, kept by the player.

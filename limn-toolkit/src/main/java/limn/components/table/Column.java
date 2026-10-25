@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 
 /**
@@ -90,7 +91,7 @@ public final class Column<T> {
     private final I18nString title;
     private final Function<T, Object> value;
     private final BiFunction<Object, Locale, String> format;
-    private final Function<T, Widget<?>> widget;
+    private final BiFunction<T, Supplier<T>, Widget<?>> widget;
     private Comparator<T> comparator;
     private boolean sortable = true;
     private Alignment alignment = Alignment.START;
@@ -107,7 +108,7 @@ public final class Column<T> {
     private final List<java.lang.ref.WeakReference<Table<T>>> tables = new java.util.ArrayList<>(1);
 
     private Column(I18nString title, Function<T, Object> value,
-                   BiFunction<Object, Locale, String> format, Function<T, Widget<?>> widget) {
+                   BiFunction<Object, Locale, String> format, BiFunction<T, Supplier<T>, Widget<?>> widget) {
         this.title = Objects.requireNonNull(title, "title");
         this.value = value;
         this.format = format;
@@ -321,6 +322,15 @@ public final class Column<T> {
      * the factory is called again for a row that scrolled out and back. Not sortable unless
      * {@link #comparator} names how.
      *
+     * <p>The factory is handed the record the table holds for the row as the cell is built, and
+     * a control made here acts on that object. A row that {@link Table#setRows} or
+     * {@link Table#refresh()} keeps, because a popup hangs from one of its widget cells or the
+     * keyboard is in one, keeps the widgets built then; where the list now holds a new object
+     * equal to the old, as after a server's push, they go on acting on the old one until the row
+     * is built again. A control that writes to its record, a combo box or a check box that sets
+     * a field, takes {@link #widget(I18nString, BiFunction)}, whose writes land in the record the
+     * table holds.
+     *
      * @param title   what the header says
      * @param factory the widget for a row's cell
      * @param <T>     the row type
@@ -328,7 +338,7 @@ public final class Column<T> {
      */
     public static <T> Column<T> widget(I18nString title, Function<T, Widget<?>> factory) {
         Objects.requireNonNull(factory, "factory");
-        return new Column<>(title, null, null, factory);
+        return new Column<>(title, null, null, (row, current) -> factory.apply(row));
     }
 
     /**
@@ -340,6 +350,53 @@ public final class Column<T> {
      * @return the column
      */
     public static <T> Column<T> widget(String title, Function<T, Widget<?>> factory) {
+        return widget(I18nString.literal(title), factory);
+    }
+
+    /**
+     * A column whose cells are widgets that act on their row's record as the table holds it when
+     * they act: the factory is handed the row it builds the cell for and a supplier of that row's
+     * record, which a control reads in its handler. The supplier answers the object the factory
+     * was handed until a {@link Table#setRows} or a {@link Table#refresh()} keeps the cell's row
+     * (because a popup hangs from one of its widget cells, such as a combo box's open list, or
+     * the keyboard is in one) while the list now holds another object for that record, as a
+     * server's push of new objects equal to the old does; from then on it answers that object.
+     * So a choice made in a list that stayed open through the push lands in the record the table
+     * holds, and the row shows it when it is built again, where a control holding on to the
+     * object it was built with would have written to one the table no longer holds.
+     *
+     * <pre>{@code
+     * Column.<Order>widget("Status", (order, current) -> {
+     *     ComboBox<Status> box = new ComboBox<>(List.of(Status.values()));
+     *     box.setSelectedItem(order.status());
+     *     box.onSelect(() -> current.get().setStatus(box.selectedItem()));
+     *     return box;
+     * });
+     * }</pre>
+     *
+     * <p>Ask it on the UI thread, where a control's handlers run. Once the row has left the
+     * table it answers the last record it was bound to. In every other respect this is
+     * {@link #widget(I18nString, Function)}.
+     *
+     * @param title   what the header says
+     * @param factory the widget for a row's cell, from the row and the supplier of its record now
+     * @param <T>     the row type
+     * @return the column
+     */
+    public static <T> Column<T> widget(I18nString title, BiFunction<T, Supplier<T>, Widget<?>> factory) {
+        Objects.requireNonNull(factory, "factory");
+        return new Column<>(title, null, null, factory);
+    }
+
+    /**
+     * {@link #widget(I18nString, BiFunction)} with a literal title.
+     *
+     * @param title   what the header says
+     * @param factory the widget for a row's cell, from the row and the supplier of its record now
+     * @param <T>     the row type
+     * @return the column
+     */
+    public static <T> Column<T> widget(String title, BiFunction<T, Supplier<T>, Widget<?>> factory) {
         return widget(I18nString.literal(title), factory);
     }
 
@@ -779,9 +836,14 @@ public final class Column<T> {
         }
     }
 
-    /** The widget of {@code row}'s cell, for a widget column. */
-    Widget<?> widgetFor(T row) {
-        return Objects.requireNonNull(widget.apply(row), "the column's widget factory returned null");
+    /**
+     * The widget of {@code row}'s cell, for a widget column.
+     *
+     * @param row     the record the table holds for the row now
+     * @param current the row's record as the table holds it from now on
+     */
+    Widget<?> widgetFor(T row, Supplier<T> current) {
+        return Objects.requireNonNull(widget.apply(row, current), "the column's widget factory returned null");
     }
 
     /**

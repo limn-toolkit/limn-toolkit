@@ -1315,6 +1315,7 @@ The third review (R16) found two things the rows kept for a popup (R15S-1) left 
   2026-10-24 the rule above is narrowed to what it protects:
   - A row is let go of only when the keyboard is in, or due back to, a widget that takes typed text (a field, a text area). A menu opened from a "..." button, a combo box or a date field in the row stays open through a timer's refreshes again (R17-1).
   - A kept row let go of once its popup closes hands the keyboard to the same control of the row realized afresh, not to the list, so a click into its field is not undone (R17-4).
+  - What R17-1 left: a table's row kept by `setRows` for a combo box's open list keeps the widgets built with the old object, so the choice made in the list went to that object and the row showed the server's value again once it was built anew. Since 2026-10-25 `Column.widget(title, (row, current) -> …)` hands the factory a supplier of the row's record, which the table re-points to the object the list holds whenever it keeps the row, so a control that writes through it writes to the table's record, the list staying open and the keyboard where it was. A cell made by the one-argument factory still holds the object it was built with, as its Javadoc says. `RowMenusOutliveARefreshTest`.
 - **The wait for a popup's close held the page** (R16-3). The engine asks the scene to tell it
   when a popup in the widget closes; a kept row whose item a later refresh removed left the
   widget before its menu closed, so the scene was never asked to tell, and kept the request, the

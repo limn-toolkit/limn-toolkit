@@ -308,6 +308,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             T row = rows.get(model);
             slot.id = rowIdOf(model);
             slot.key = keyOf(row);
+            RowRecord<T> current = new RowRecord<>(row);
+            slot.record = current;
             Locale locale = locale();
             for (int c = 0; c < columns.size(); c++) {
                 Column<T> column = columns.get(c);
@@ -316,7 +318,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     // it was a child, and so a Tab stop and a published node. The next layout to
                     // show the column re-mounts the rows and builds it then.
                     if (column.isVisible()) {
-                        Widget<?> widget = column.widgetFor(row);
+                        Widget<?> widget = column.widgetFor(row, current);
                         slot.widgets[c] = widget;
                         add(insertAt + slot.widgetCount, widget);
                         slot.widgetCount++;
@@ -526,6 +528,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         long id;
         /** The key its record is followed by, taken when it was mounted. */
         Object key;
+        /**
+         * The record the table holds for it now, which its widget cells' supplier answers: the
+         * object it was mounted with, until a refresh or a {@code setRows} keeps it over another
+         * object for the same record.
+         */
+        RowRecord<?> record;
         /** Its occurrence among the equal keys before it; read the first time it is described. */
         int ordinal;
         boolean ordinalKnown;
@@ -546,6 +554,32 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             fittedWidth = new float[columns];
             widgets = new Widget<?>[columns];
         }
+    }
+
+    /**
+     * A realized row's record as the table holds it now: the supplier a widget cell made by
+     * {@link Column#widget(I18nString, java.util.function.BiFunction)} reads its record from.
+     * One per mounted row, shared by its widget cells, and re-pointed when a refresh or a
+     * {@link #setRows} keeps the row over another object for the same record. Read and written on
+     * the UI thread.
+     */
+    private static final class RowRecord<T> implements java.util.function.Supplier<T> {
+        private T record;
+
+        RowRecord(T record) {
+            this.record = record;
+        }
+
+        @Override
+        public T get() {
+            return record;
+        }
+    }
+
+    /** @return {@code slot}'s record supplier, as this table's row type */
+    @SuppressWarnings("unchecked") // every slot's supplier is made by mount over this table's rows
+    private RowRecord<T> recordOf(Slot slot) {
+        return (RowRecord<T>) slot.record;
     }
 
     /**
@@ -1146,12 +1180,16 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * is dropped, the sort is re-applied, and the view starts at the top. A row a popup hangs
      * from by one of its widget cells whose record the new rows hold is kept, as
      * {@link #refresh()} keeps it: its texts show the record found again, and its widget cells
-     * stay those built for the record as it was handed then. A popup on them acts on that record,
-     * which after new objects equal to the old is the old object and not the table's, so a menu
-     * that can outlive a push acts through the record's key. A row the keyboard is in or returns
-     * to when its popup closes, such as a field whose own menu is open, is not kept: the field
-     * would stay bound to the old object and an edit made in it would go there, so it goes, its
-     * menu with it, and the keyboard falls back to the table. UI thread only.
+     * stay those built for the record as it was handed then, the popup open and the keyboard
+     * where it was. After new objects equal to the old, the record the table holds is the new
+     * object: a cell made by {@link Column#widget(I18nString, java.util.function.BiFunction)}
+     * reads it from its supplier, so a choice made in a combo box whose list stayed open through
+     * the push lands there, while a cell made by {@link Column#widget(I18nString, Function)}
+     * still holds the old object, and a menu on it that can outlive a push acts through the
+     * record's key. A row whose field has the keyboard, or has it due back as its own menu
+     * closes, is not kept: the field would stay bound to the old object and an edit made in it
+     * would go there, so it goes, its menu with it, and the keyboard falls back to the table. UI
+     * thread only.
      *
      * @param rows the rows; the table reads them on demand, so a change to the list's contents
      *             is invisible until {@link #refresh()}
@@ -1614,7 +1652,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * popover) follows its record as the row of a focused widget cell does: its widgets stay, so
      * the popup stays open through a refresh a timer or a server push makes, acting on the record
      * its widget cell was built for; when the record is gone they are let go of and the popup
-     * closes with them. UI thread only.
+     * closes with them. Where the list now holds another object for that record, a cell made by
+     * {@link Column#widget(I18nString, java.util.function.BiFunction)} reads that object from its
+     * supplier, as after {@link #setRows}. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
@@ -2718,7 +2758,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                 }
                 if (column.isVisible() && widget == null && slot.row < count
                         && (view == null || slot.row < view.length)) {
-                    widget = column.widgetFor(rows.get(modelOf(slot.row)));
+                    widget = column.widgetFor(rows.get(modelOf(slot.row)), recordOf(slot));
                     slot.widgets[c] = widget;
                     add(childAt, widget);
                     slot.widgetCount++;
@@ -3170,10 +3210,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * Releases every mounted row but those in {@code keep}, each of whose record stands at the
      * model index it maps to now: one whose widget cell holds the keyboard, or from whose widget
      * cell a popup hangs. Each stays mounted, its widgets children, the focus where it is and the
-     * popup open, re-bound to the row that shows its record. Until 2026-09-15 a refresh or a sort
-     * released the focused one and handed the keyboard to the table, which is {@code ListView}'s
-     * rule for rows bound to data the list may no longer hold; a table follows its records, and a
-     * record found again is the one the widget was built for. With no row to keep this is
+     * popup open, re-bound to the row that shows its record, and its widget cells' supplier
+     * re-pointed to the object the list holds for that record now. Until 2026-09-15 a refresh or
+     * a sort released the focused one and handed the keyboard to the table, which is
+     * {@code ListView}'s rule for rows bound to data the list may no longer hold; a table follows
+     * its records, and a record found again is the one the widget was built for, or an object
+     * equal to it that its supplier answers from then on. With no row to keep this is
      * {@link #unmountAll()}.
      *
      * @param keep  the rows to keep, with their records' model indices now
@@ -3199,10 +3241,16 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         for (int p = 0; p < engine.mountedCount(); p++) {
             Slot slot = engine.mountedAt(p);
             int model = keep.get(slot);
+            T record = rows.get(model);
             slot.row = engine.rowAt(p);
             slot.top = Float.NaN;
             slot.id = rowIdOf(model);
-            slot.key = keyOf(rows.get(model));
+            slot.key = keyOf(record);
+            // The object the list holds now, which after a push of new objects equal to the old is
+            // not the one the widget cells were built with: a cell that reads its record from the
+            // supplier writes to this one (R17-1), where one holding the old object wrote to a
+            // record the table no longer held and the row showed the old value when built again.
+            recordOf(slot).record = record;
             slot.ordinalKnown = false;
             rebind(slot);
         }

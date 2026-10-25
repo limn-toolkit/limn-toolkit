@@ -205,6 +205,25 @@ button made there acts on it:
 
 {% snippet guide:table-row-button %}
 
+A control that writes to its record, a combo box that sets a status or a check box that flags the
+row, takes the factory's other form, which is handed the row's record as the table holds it now
+as well, and writes through that:
+
+```java
+Column.<Order>widget("Status", (order, current) -> {
+    ComboBox<Status> box = new ComboBox<>(List.of(Status.values()));
+    box.setSelectedItem(order.status());
+    box.onSelect(() -> current.get().setStatus(box.selectedItem()));
+    return box;
+});
+```
+
+The difference shows when a server pushes new objects equal to the old with `setRows` while the
+combo box's list is open: the row is kept, so the list stays open, and its widgets are the ones
+built with the old object. `current.get()` answers the object the table holds now, so the choice
+lands there and the row shows it when it is next built; a control that held on to `order` would
+have written to an object the table no longer has.
+
  A hidden column (`visible(false)`) builds
 no widget and publishes nothing at all; show or hide one and the table lays out again, so ask for
 a layout rather than a `refresh()` — the rows have not changed.

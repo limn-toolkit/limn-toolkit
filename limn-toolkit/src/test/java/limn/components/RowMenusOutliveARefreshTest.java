@@ -667,6 +667,59 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
         assertEquals("paid 1042!", pushed.get(1).note, mode + ": the edit is the table's order's");
     }
 
+    /**
+     * R17-1's trade-off: a combo box in a table's row with its list open when {@code setRows}
+     * hands the table new objects equal to the old keeps its list open and the keyboard (R17-1),
+     * and the choice made in it went to the order its column factory was given, which the table
+     * no longer held, so the row showed the server's status again once it was built anew. A cell
+     * made with the record's supplier writes to the order the table holds now.
+     */
+    @ParameterizedTest
+    @EnumSource(DisplayMode.class)
+    @SuppressWarnings("unchecked")
+    void aChoiceInATableCombosListOpenAcrossAPushLandsInTheOrderTheTableHolds(DisplayMode mode) {
+        Table<Order> table = Table.of(
+                Column.<Order, Integer>of("Number", o -> o.number, String::valueOf),
+                Column.<Order>widget("Status", (order, current) -> {
+                    ComboBox<String> box = new ComboBox<>(List.of("open", "paid", "shipped"));
+                    box.setSelectedItem(order.status);
+                    box.setDisplayMode(mode);
+                    box.onSelect(() -> current.get().status = box.selectedItem());
+                    box.setId("row-" + order.number);
+                    return box;
+                }));
+        List<Order> before = orders(1041, 1042, 1043);
+        table.setRows(before);
+        open(table, mode);
+        ComboBox<String> box = (ComboBox<String>) realizedRowOf(table, w -> Objects.equals(w.id(), "row-1042"));
+        scene.requestFocus(box);
+        drive(scene).press(Keys.DOWN);
+        settle();
+        assertTrue(box.isOpen(), mode + ": Down opened the list");
+
+        List<Order> pushed = orders(1041, 1042, 1043); // the server's copy, still "open"
+        table.setRows(pushed);
+        settle();
+        assertTrue(box.isOpen(), mode + ": the list stays open through the push");
+        assertSame(box, realizedRowOf(table, w -> Objects.equals(w.id(), "row-1042")), mode.name());
+
+        drive(scene).press(Keys.DOWN);
+        drive(scene).press(Keys.DOWN);
+        drive(scene).press(Keys.ENTER);
+        settle();
+        assertFalse(box.isOpen(), mode.name());
+        assertSame(box, scene.focusedWidget(), mode + ": the keyboard is back in the combo box");
+        assertEquals("shipped", pushed.get(1).status, mode + ": the choice is the table's order's");
+        assertEquals("open", before.get(1).status, mode + ": nothing was written to the order that left");
+
+        scene.requestFocus(table);
+        table.refresh();
+        settle();
+        ComboBox<String> again = (ComboBox<String>) realizedRowOf(table, w -> Objects.equals(w.id(), "row-1042"));
+        assertNotSame(box, again, mode + ": built anew for the order the table holds");
+        assertEquals("shipped", again.selectedItem(), mode + ": and it shows the choice");
+    }
+
     // -------------------------------------------------------------------------------- Tree
 
     @ParameterizedTest
