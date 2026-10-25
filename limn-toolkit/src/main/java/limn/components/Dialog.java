@@ -1067,13 +1067,18 @@ public final class Dialog {
         // dialog's future — advances with it (Scene#clock).
         modalScene = new Scene(root, owner.clock());
         modalScene.inheritRenderingFlags(owner); // partial/debug follow the owner window
-        // Opaque styles fill with the surface color; translucent shows the
-        // desktop through the transparent framebuffer's rounded corners.
-        Theme theme = Theme.current();
-        modalScene.setBackground(style.transparent() ? Color.TRANSPARENT : theme.surface());
+        // Translucent shows the desktop through the transparent framebuffer's rounded corners. An
+        // opaque style's surface is the panel's own fill (onPaint), painted through Theme.of as
+        // every widget inside it is, never a colour copied into the scene here: copied from
+        // current() as the window opened, it stayed the application's palette while the text
+        // took the contrast palette's, white on white under a dark Windows contrast theme, and it
+        // stayed the palette the window opened in after a switch of either.
+        if (style.transparent()) {
+            modalScene.setBackground(Color.TRANSPARENT);
+        }
         // Resolved once, after the host link: the window is sized from this row and the
         // content must be laid out from the same one.
-        SizeTokens t = theme.tokensFor(panel);
+        SizeTokens t = Theme.of(panel).tokensFor(panel);
         // Measured against what the SCREEN allows, not what the owner happens to be: a card
         // taller than the work area is one whose buttons are behind the dock. The body scrolls
         // inside whatever this leaves it.
@@ -2048,15 +2053,19 @@ public final class Dialog {
                         theme.surface().withAlpha(0.98f), Strokes.BORDER, theme.outline());
                 return;
             }
+            // A window of its own, opaque: the surface fills it, from the palette the content paints
+            // with, so the two cannot disagree; the scene repaints whole when the palette or the
+            // system's contrast changes, and this fill follows it.
             switch (style) {
-                case UNDECORATED_OPAQUE ->
-                    // Opaque solid card: the scene already cleared to surface;
-                    // just a border around the borderless window.
-                        canvas.drawRect(inset, inset, w - 2 * inset, h - 2 * inset,
-                                Strokes.BORDER, theme.outline());
-                case DECORATED -> {
-                    // The OS draws the frame; the surface fill is the scene clear.
+                case UNDECORATED_OPAQUE -> {
+                    // A solid card with a border around the borderless window.
+                    canvas.fillRect(0, 0, w, h, theme.surface());
+                    canvas.drawRect(inset, inset, w - 2 * inset, h - 2 * inset,
+                            Strokes.BORDER, theme.outline());
                 }
+                case DECORATED ->
+                    // The system draws the frame.
+                        canvas.fillRect(0, 0, w, h, theme.surface());
                 default -> {
                 }
             }

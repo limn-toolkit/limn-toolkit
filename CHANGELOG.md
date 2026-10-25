@@ -614,7 +614,9 @@ Maven Central say which number that was.
   the control also kept its enabled look there.
 - A window clears to the palette in effect. `Theme.light().apply()` before the first window drew
   light controls on a dark canvas, and a window opened after a switch, or never handed to `apply`,
-  mixed the two palettes.
+  mixed the two palettes. A decorated or opaque `Dialog` in a window of its own is filled from the
+  palette its content paints with, the contrast palette included, and follows a switch while it is
+  open; it kept the surface of the palette it opened in.
 - A theme file's eight-digit tone loads opaque, except the scrim's: `focusRing = #5B9DFF80` drew a
   half-transparent ring on lists and an opaque one on buttons.
 - A table under Arabic, Egyptian Arabic or Persian writes every figure in one set of digits: a

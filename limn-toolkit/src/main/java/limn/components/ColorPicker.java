@@ -1226,7 +1226,8 @@ public final class ColorPicker extends Widget<ColorPicker> {
 
         @Override
         protected void onPaint(Canvas canvas) {
-            SizeTokens t = Theme.of(this).tokensFor(this);
+            Theme theme = Theme.of(this);
+            SizeTokens t = theme.tokensFor(this);
             float w = width();
             float h = height();
             if (w < 1 || h < 1) {
@@ -1251,8 +1252,8 @@ public final class ColorPicker extends Widget<ColorPicker> {
             paintRail(canvas, t, w, top, rtl);
             canvas.restore();
             canvas.drawRoundRectBorder(0, top, w, rail, radius, pen,
-                    Theme.of(this).controlBorder().lerp(Theme.of(this).focusRing(), focus));
-            paintThumb(canvas, t, thumbCentreX(t, rtl), h / 2, focus);
+                    theme.controlBorder().lerp(theme.focusRing(), focus));
+            paintThumb(canvas, t, thumbCentreX(t, rtl), h / 2, focus, theme.focusRing());
         }
 
         @Override
@@ -1552,7 +1553,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
      * under it is already the one in the swatch.
      */
     private static void paintThumb(Canvas canvas, SizeTokens t,
-                                   float cx, float cy, float focus) {
+                                   float cx, float cy, float focus, Color ring) {
         float thumbW = t.colorThumbW();
         float h = t.colorThumbH();
         float x = cx - thumbW / 2;
@@ -1568,7 +1569,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
             float ringW = thumbW + 2 * Strokes.FOCUS_GAP_SLIDER;
             float ringH = h + 2 * Strokes.FOCUS_GAP_SLIDER;
             canvas.drawRoundRect(cx - ringW / 2, cy - ringH / 2, ringW, ringH, ringW / 2,
-                    Strokes.FOCUS_RING, Theme.current().focusRing().withAlpha(focus));
+                    Strokes.FOCUS_RING, ring.withAlpha(focus));
         }
     }
 
