@@ -141,4 +141,45 @@ class DateFormatsTest {
         assertEquals(in("en-US", shortDate, day), in("en-US-u-ca-unknowncal", shortDate, day),
                 "a calendar the platform does not carry is read as none");
     }
+
+    /**
+     * A day the locale's calendar does not reach is written in the ISO calendar, as the date
+     * widgets draw it, where the platform refuses it: Umm al-Qura covers 1882 to 2174, so the
+     * {@code 9999-12-31} that business data writes for "no end date" and the {@code 0001-01-01} it
+     * writes for "no start" threw under {@code ar-SA-u-ca-islamic-umalqura}, and the Japanese
+     * calendar begins at Meiji 6, 1873. In a table's date column the throw crashed every frame.
+     * Every style, the date of a date and time, and the time of day alone of one; a day inside the
+     * calendar keeps it, and a value the format cannot write is still refused.
+     */
+    @Test
+    void aDayTheLocalesCalendarDoesNotReachIsWrittenInTheIsoCalendar() {
+        String hijri = "ar-SA-u-ca-islamic-umalqura";
+        for (FormatStyle style : FormatStyle.values()) {
+            Function<TemporalAccessor, String> date = DateFormats.date(style);
+            for (LocalDate placeholder : new LocalDate[] {LocalDate.of(9999, 12, 31), LocalDate.of(1, 1, 1)}) {
+                assertEquals(in("ar-SA", date, placeholder), in(hijri, date, placeholder), style + " " + placeholder);
+            }
+            assertEquals(in("ja-JP", date, LocalDate.of(1, 1, 1)), in("ja-JP-u-ca-japanese", date, LocalDate.of(1, 1, 1)),
+                    style + ", before Meiji 6");
+            assertEquals(in("ja-JP", date, LocalDate.of(1872, 12, 31)),
+                    in("ja-JP-u-ca-japanese", date, LocalDate.of(1872, 12, 31)), style + ", the day before it");
+        }
+        assertEquals("M6/1/1", in("ja-JP-u-ca-japanese", DateFormats.date(FormatStyle.SHORT), LocalDate.of(1873, 1, 1)),
+                "Meiji 6 itself is the calendar's");
+        assertTrue(I18n.toAsciiDigits(in(hijri, DateFormats.date(FormatStyle.SHORT), LocalDate.of(2174, 11, 25)))
+                .contains("1600"), "Umm al-Qura's last day is still the calendar's");
+        LocalDateTime noEnd = LocalDateTime.of(9999, 12, 31, 23, 59);
+        for (FormatStyle style : new FormatStyle[] {FormatStyle.SHORT, FormatStyle.MEDIUM}) {
+            assertEquals(in("ar-SA", DateFormats.dateTime(style), noEnd), in(hijri, DateFormats.dateTime(style), noEnd),
+                    style + " date and time");
+            assertEquals(in("ar-SA", DateFormats.time(style), noEnd), in(hijri, DateFormats.time(style), noEnd),
+                    style + " time of a date and time");
+        }
+        assertThrows(java.time.DateTimeException.class,
+                () -> in("ja-JP-u-ca-japanese", DateFormats.date(FormatStyle.SHORT), HOUR),
+                "a time of day has no date to write");
+        assertThrows(java.time.DateTimeException.class,
+                () -> in(hijri, DateFormats.dateTime(FormatStyle.SHORT), LocalDate.of(9999, 12, 31)),
+                "a date outside the calendar still has no time to write");
+    }
 }

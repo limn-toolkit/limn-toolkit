@@ -2,10 +2,12 @@ package limn.i18n;
 
 import limn.i18n.internal.LocaleServices;
 
+import java.time.DateTimeException;
 import java.time.chrono.Chronology;
 import java.time.chrono.IsoChronology;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
+import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 import java.util.Objects;
@@ -36,7 +38,12 @@ import java.util.function.Function;
  * {@code th-TH-u-ca-buddhist} the Buddhist year (2568), {@code ar-SA-u-ca-islamic-umalqura} the
  * Hijri date. The value is the same {@code LocalDate} either way; only how it is written changes.
  * A calendar the platform does not carry is read as none, and a locale that names none is written
- * in the ISO calendar, which is what the platform answers for every language without one.
+ * in the ISO calendar, which is what the platform answers for every language without one. A day
+ * the named calendar does not reach is written in the ISO calendar too, as the date widgets draw
+ * it: the platform's Umm al-Qura calendar covers 1882 to 2174 and its Japanese one nothing before
+ * 1873, so a {@code 9999-12-31} that stands for "no end date" is written under
+ * {@code ar-SA-u-ca-islamic-umalqura} as the ISO date it is, where the platform refuses it. That
+ * holds for every style, and for the date in a date and time, and the time of day alone of one.
  *
  * <p>A format takes any temporal that holds the fields it writes: a {@code LocalDate} for a date,
  * a {@code LocalTime} for a time, a {@code LocalDateTime} for both, and a zoned or offset one for
@@ -105,14 +112,37 @@ public final class DateFormats {
     private static Function<TemporalAccessor, String> written(FormatStyle style,
             BiFunction<FormatStyle, Locale, DateTimeFormatter> formatter) {
         return value -> {
+            Objects.requireNonNull(value, "value");
             Locale locale = I18n.locale();
             DateTimeFormatter format = formatter.apply(style, locale);
             Chronology calendar = calendarOf(locale);
-            if (calendar != IsoChronology.INSTANCE) {
+            if (calendar != IsoChronology.INSTANCE && holds(calendar, value)) {
                 format = format.withChronology(calendar);
             }
-            return I18n.localizeDigits(I18n.toAsciiDigits(format.format(Objects.requireNonNull(value, "value"))));
+            return I18n.localizeDigits(I18n.toAsciiDigits(format.format(value)));
         };
+    }
+
+    /**
+     * Whether {@code calendar} has a day for {@code value}, which the formatter converts the value
+     * into before it writes any field of it, a time format's included. A calendar covers a stretch
+     * of days and refuses the others: Umm al-Qura only AH 1300 to 1600 (1882 to 2174), the
+     * Japanese calendar nothing before Meiji 6 (1873). The formatter threw for such a day, so a
+     * {@code 9999-12-31} placeholder in a table's date column crashed every frame of its window;
+     * the day is written in the value's own calendar instead, the ISO one for a {@code LocalDate},
+     * as the date widgets draw a day their calendar does not reach. A value with no day, a time of
+     * day, is not converted, and holds.
+     */
+    private static boolean holds(Chronology calendar, TemporalAccessor value) {
+        if (!value.isSupported(ChronoField.EPOCH_DAY)) {
+            return true;
+        }
+        try {
+            calendar.date(value);
+            return true;
+        } catch (DateTimeException outside) {
+            return false;
+        }
     }
 
     /**
