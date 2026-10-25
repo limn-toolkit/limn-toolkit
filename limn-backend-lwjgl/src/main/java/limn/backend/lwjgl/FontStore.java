@@ -880,8 +880,13 @@ final class FontStore implements AutoCloseable {
         List<SystemFonts.Face> picks = candidates == null ? List.of() : preloadPicks(candidates);
         List<SystemFonts.Face> missing = new ArrayList<>(picks.size());
         for (SystemFonts.Face pick : picks) {
-            if (!loadedSystem.containsKey(key + suffix(pick.bold(), pick.italic()))) {
+            StbFont resident = loadedSystem.get(key + suffix(pick.bold(), pick.italic())); // a touch
+            if (resident == null) {
                 missing.add(pick);
+            } else {
+                // Asked for again, a picker stepped back to a family it passed: wanted now, so a
+                // read nobody wants must not close it before the switch it is for is made.
+                readAhead.remove(resident);
             }
         }
         if (missing.isEmpty()) {

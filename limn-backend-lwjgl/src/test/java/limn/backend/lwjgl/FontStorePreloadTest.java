@@ -212,6 +212,43 @@ class FontStorePreloadTest {
     }
 
     @Test
+    void aFamilyAskedForAgainIsNotClosedForAReadNobodyWants() throws IOException {
+        List<SystemFonts.Face> faces = new ArrayList<>();
+        for (String family : List.of("Current", "Other", "Passed", "Next")) {
+            faces.addAll(regularAndBold(family));
+        }
+        try (FontStore store = new FontStore()) {
+            store.setSystemFaces(faces);
+            Fonts.setDefaultFamily("Current");
+            try {
+                store.resolve(Font.of(14));
+                store.resolve(Font.of(14).bold());
+                store.resolve(new Font("Other", 14));
+                store.resolve(new Font("Other", 14).bold());
+                landOvertaken(store, "Passed"); // a picker went past it: kept, in the last room
+                store.preloadFamily("Passed", () -> { }); // and came back to it
+
+                landOvertaken(store, "Next"); // a read it overtook again lands now
+                deleteFiles("Passed");
+                assertEquals("Passed Regular", store.resolve(new Font("Passed", 14)).name(),
+                        "a family asked for again is wanted, and a read nobody wants closes it not");
+                assertEquals("Passed Bold", store.resolve(new Font("Passed", 14).bold()).name());
+            } finally {
+                Fonts.setDefaultFamily(null);
+            }
+        }
+    }
+
+    /** Asks for {@code family}, takes the request back and waits for the read to land. */
+    private void landOvertaken(FontStore store, String family) {
+        Runnable answer = () -> { };
+        store.preloadFamily(family, answer);
+        store.withdrawPreload(family, answer);
+        pumpUntil(() -> !store.readInFlight(family));
+        runtime.drain();
+    }
+
+    @Test
     void aRequestWithdrawnBeforeTheEnumerationLandsLeavesNothingToRead() {
         try (FontStore store = new FontStore()) {
             Runnable answer = () -> { };
