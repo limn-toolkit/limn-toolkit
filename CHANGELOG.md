@@ -644,7 +644,15 @@ Maven Central say which number that was.
   still switches at once and leaves the read to the next frame, and now checks the UI thread when
   a runtime is installed, as the other process-wide settings do. The demo's font picker and the
   theme editor's now switch this way, and the theming guide shows a picker. A backend's
-  `FontLoader` reads ahead in `preload`, whose default reads nothing.
+  `FontLoader` reads ahead in `preload`, whose default reads nothing. `Theme.apply()` and
+  `Theme.applyFontFamily()` switch a palette's font this way too, so a theme picker reads no font
+  file inside a frame either: the palette still switches at once, the font follows once its faces
+  are in memory, a palette picked before then overtakes it, and a palette whose font is already in
+  use lays nothing out again. Both now return that switch's `CompletionStage<Boolean>` instead of
+  nothing, so a call written as a statement compiles unchanged; under a headless runtime the font
+  switches on its next turn rather than inside the call. Code that needs the palette's font in
+  force when the call returns, as a capture or a test that draws next does, follows `apply()`
+  with `Fonts.setDefaultFamily(theme.fontFamily())`.
 - `DateFormats` writes a date in the calendar its locale names with `-u-ca-`, as the date widgets
   already drew it: `ja-JP-u-ca-japanese` writes "R7/10/25", `th-TH-u-ca-buddhist` the year 2568,
   `zh-TW-u-ca-roc` the Republic of China's year, `ar-SA-u-ca-islamic-umalqura` the Hijri date. The

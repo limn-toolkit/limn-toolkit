@@ -6,7 +6,8 @@ description: "Palettes, density and how to make the toolkit look like your produ
 ## Picking a palette
 
 A theme is a palette plus one shape metric. Switching one is a single call, which makes it
-current, applies its font, and repaints every window on the palette's own background:
+current, repaints every window on the palette's own background, and switches to the palette's
+font once that font is in memory:
 
 ```java
 Theme.limnLight().apply();
@@ -39,8 +40,8 @@ A theme picker is a combo box over `Theme.builtins()` whose choice calls `apply`
 {% snippet guide:theme-picker %}
 
 `apply` does what a picker needs: it makes the palette current, which repaints every window,
-each clearing to the palette's `background` from its next frame, and it applies the palette's
-own font. The palette is process-wide, and so is the repaint: a window opened later, or one you
+each clearing to the palette's `background` from its next frame, and it switches to the
+palette's own font. The palette is process-wide, and so is the repaint: a window opened later, or one you
 never mention, follows it too. A scene keeps a background you chose for it yourself with
 `scene.setBackground(colour)`, as a popup that clears to transparent does; `setBackground(null)`
 hands it back to the palette.
@@ -48,12 +49,19 @@ hands it back to the palette.
 Nothing is re-measured by a palette switch, because a palette carries colours and corner radii
 and nothing in the toolkit measures from either. The palette's font is the one part that
 re-measures, and `apply` sends it through the font axis, which lays every scene out again by
-itself.
+itself. It does so the way a [font picker](#fonts) does: the colours change at once, while a
+family the operating system supplies has its regular and bold faces read on a worker first, and
+the font switches when they are in memory, so no frame of a theme picker reads a font file. A
+palette picked before that read lands overtakes it, so the font never arrives after the user has
+moved on, and a palette whose font is already in use lays nothing out again. `apply` returns the
+switch's `CompletionStage<Boolean>`, which answers `true` once the palette's font is the one in
+use, or `false` if a later choice overtook it.
 
 :::caution[`apply`, not `setCurrent`]
 `Theme.setCurrent(palette)` switches the palette and repaints every window, but never applies
 the palette's font. It is the half of `apply` meant for a colour well that changes the palette
-on every frame of a drag, where reading a font file inside a frame is not wanted. A theme
+on every frame of a drag, where asking for the font again on every frame is not wanted;
+`palette.applyFontFamily()` is the other half, for the frames where the font moved. A theme
 picker, a settings screen and a "dark mode" switch all want `apply`.
 :::
 
@@ -162,7 +170,7 @@ loads in an application that has never heard of it.
 | `scrim` | the veil a modal dialog lays over what it blocks |
 | `cornerScale` | how round the corners are |
 | `elevation(level)` | the shadow of a raised surface, of one that covers and of a dialog: see [Elevation](#elevation) |
-| `fontFamily` | the face the palette prefers; applied by `apply`, or by `applyFontFamily()` |
+| `fontFamily` | the face the palette prefers; switched to by `apply`, or by `applyFontFamily()`, once its faces are in memory |
 
 Each is an accessor on the palette. Read the palette through `Theme.of(this)` when you paint,
 never at construction time: a colour copied in a constructor will not follow the next theme
@@ -278,8 +286,15 @@ the last entry.
 
 {% snippet guide:font-picker %}
 
+A palette's own font goes the same way: `Theme.apply` and `applyFontFamily()` switch to the
+palette's `fontFamily` through `Fonts.setDefaultFamilyWhenResident`, so a theme picker and a
+font picker overtake each other, and whichever the user touched last decides the font.
+
 `Fonts.setDefaultFamily` switches at once and leaves the read to the next frame, which suits a
-switch that has to have happened when it returns, such as before the first window opens.
+switch that has to have happened when it returns, such as before the first window opens, or in
+a capture or a test that draws next. For a palette, that is
+`Fonts.setDefaultFamily(theme.fontFamily())` after `theme.apply()`: it overtakes the switch
+`apply` is waiting to make, so the first frame is already in the palette's font.
 `Fonts.preload(family)` reads a family ahead without switching to it.
 
 Individual widgets take a `Font` where it matters, as `label.setFont(…)` does, but reach for the

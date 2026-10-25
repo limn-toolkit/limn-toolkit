@@ -561,10 +561,12 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
     }
 
     /**
-     * Has the application wear {@code family}, through {@link Fonts#setDefaultFamilyWhenResident}
-     * rather than {@link Theme#applyFontFamily()}: the faces are read on a worker and the switch
-     * is made once they are in, so the frame that shows the new font reads no file, and picking
-     * one family after another in the list ends on the last.
+     * Has the application wear {@code family}, through {@link Fonts#setDefaultFamilyWhenResident},
+     * the switch {@link Theme#applyFontFamily()} makes: the faces are read on a worker and the
+     * switch is made once they are in, so the frame that shows the new font reads no file, and
+     * picking one family after another in the list ends on the last. It is not
+     * {@code applyFontFamily} itself because that asks on every call, which is right for a theme
+     * picker and wrong here.
      *
      * <p>Safe on the hot path, and only because of the comparison: this runs on every frame of a
      * colour drag, and asking costs a stage, a post and a lookup in the backend's faces. It asks

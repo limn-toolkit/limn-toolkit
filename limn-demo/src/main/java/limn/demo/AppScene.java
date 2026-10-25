@@ -490,9 +490,10 @@ final class AppScene {
 
         Scene scene = new Scene(page);
 
-        // The call a theme picker makes: the palette becomes current, its face is applied, and
-        // the scene clears to its background and repaints. A palette is a repaint, never a
-        // re-measure; the face, when it changes, has every scene laid out again by itself.
+        // The call a theme picker makes: the palette becomes current, and the scene clears to its
+        // background and repaints. A palette is a repaint, never a re-measure; its font follows
+        // once it has been read off the UI thread, and a font that changes has every scene laid
+        // out again by itself.
         //
         // Two ways to a palette, and the picker says which is in force. "System" is the
         // system's light or dark appearance, taken now and again whenever it changes; any other

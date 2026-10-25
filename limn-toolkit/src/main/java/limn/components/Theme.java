@@ -13,6 +13,7 @@ import limn.graphics.Fonts;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletionStage;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import limn.internal.lang.Checks;
@@ -29,8 +30,9 @@ import org.jspecify.annotations.Nullable;
  * Octo&nbsp;Light, High&nbsp;contrast).
  *
  * <p><b>Switching one is one call:</b> {@link #apply() theme.apply()}, which makes the palette
- * current, applies its font and repaints every window, the colour each clears to included. A
- * widget reads the palette it paints with through {@link #of(Widget)}, never through a field.
+ * current and repaints every window, the colour each clears to included, and switches to the
+ * palette's font once that font's faces are in memory. A widget reads the palette it paints with
+ * through {@link #of(Widget)}, never through a field.
  *
  * <p><b>An application can build its own.</b> {@link #builder(String, boolean)} starts from
  * a working palette and {@link #toBuilder()} starts from this one, so a palette of your own
@@ -121,11 +123,13 @@ public final class Theme {
      *
      * <p><b>A declaration, not a resolution.</b> Nothing here reads a font file or checks that
      * the family exists; a palette is a value and stays one. What acts on it is
-     * {@link #applyFontFamily()}, which hands the name to {@link Fonts#setDefaultFamily}, and
-     * that is where the fallback lives: a family the backend cannot resolve, including every
-     * family on a machine that does not have it installed, renders in the toolkit's embedded
-     * Roboto. Naming a font that only exists on the designer's laptop therefore degrades to the
-     * shipped face rather than to tofu or to an exception.
+     * {@link #applyFontFamily()}, which {@link #apply()} calls: it hands the name to
+     * {@link Fonts#setDefaultFamilyWhenResident}, which reads the family's regular and bold
+     * faces on a worker and switches the UI font once they are in memory. The fallback lives
+     * behind that: a family the backend cannot resolve, including every family on a machine
+     * that does not have it installed, is switched to all the same and renders in the toolkit's
+     * embedded Roboto. Naming a font that only exists on the designer's laptop therefore
+     * degrades to the shipped face rather than to tofu or to an exception.
      *
      * <p><b>Why this is a name and not a {@link Font} on the size rows.</b> Type is measured
      * from, and a palette switch relays out nothing; see {@link #tokens}. Baking the family
@@ -688,11 +692,41 @@ public final class Theme {
     }
 
     /**
-     * Switches to this palette and shows it: makes it current, which repaints every window
-     * ({@link #setCurrent}), and applies its font ({@link #applyFontFamily}). A palette is a
-     * repaint and never a re-measure; the font, when it changes, relayouts through its own axis.
-     * The call a theme picker or a settings screen makes, and the one to make before the first
-     * window opens, so that the first frame is already in this palette. UI thread.
+     * Switches to this palette and shows it: makes it current at once, which repaints every
+     * window ({@link #setCurrent}), and switches the UI font to its {@link #fontFamily} once that
+     * family's faces are in memory ({@link #applyFontFamily}). The call a theme picker or a
+     * settings screen makes, and the one to make before the first window opens, so that the
+     * first frame is already in this palette's colours. UI thread.
+     *
+     * <p><b>The colours now, the font once it is resident.</b> A palette is a repaint and never
+     * a re-measure, so its colours are in force from the next frame. Its font is a relayout, and
+     * a family the operating system supplies may first need its regular and bold faces read from
+     * disk, tens of megabytes for a CJK face. That read happens on a worker and the switch is made
+     * on the UI thread when it lands, so no frame of a theme picker reads a font file; until then
+     * text stays in the family it was in. A family that needs no read, the toolkit's own face
+     * (which every built-in palette names) or one whose faces are already in memory, switches on
+     * the UI thread's next turn, which for a call made from an input handler comes before the
+     * next frame is drawn. A palette whose family is already the default switches nothing and
+     * lays nothing out again.
+     *
+     * <p><b>The later choice wins.</b> A font switch this call is still waiting to make is
+     * overtaken by the next {@code apply} or {@link #applyFontFamily}, and by
+     * {@link Fonts#setDefaultFamily} or {@link Fonts#setDefaultFamilyWhenResident}, and then
+     * switches nothing, so a picker stepped through palettes ends on the last one's font and a
+     * family never lands after the user has moved on, including when the later palette names the
+     * toolkit's own face.
+     *
+     * <p><b>When the font has to be in force as the call returns</b>, as for a capture or a test
+     * that draws next, or an application whose first frame must already be in the palette's
+     * font, follow this with {@code Fonts.setDefaultFamily(theme.fontFamily())}: it switches at
+     * once and overtakes the switch this call is waiting to make, and the faces are then read on
+     * the UI thread by the first measure that needs them. Waiting on the returned stage before
+     * drawing works too, where the UI thread is free to run until it completes.
+     *
+     * <p>With a runtime and no backend, as under a headless test's, nothing can be read and the
+     * font switches on the runtime's next turn: a test that measures in the palette's font drains
+     * the runtime first, or switches synchronously as above. Without a runtime this throws, as
+     * the palette switch always has.
      *
      * <p>Every scene whose application chose no background with {@link Scene#setBackground}
      * clears to this palette's {@link #background()} from its next frame on, in every window,
@@ -701,11 +735,18 @@ public final class Theme {
      * overrule.
      *
      * <pre>{@code Theme.limnLight().apply();}</pre>
+     *
+     * @return the stage {@link Fonts#setDefaultFamilyWhenResident} answers: completed on the UI
+     *         thread, on a later turn and never inside this call, with {@code true} once this
+     *         palette's family is the default family, or {@code false} when a later choice
+     *         overtook it; it does not complete if the backend shuts down first. The palette has
+     *         switched before the call returns, whatever the stage answers
+     * @throws IllegalStateException off the UI thread, or when no {@code UiRuntime} is installed
      */
-    public void apply() {
+    public CompletionStage<Boolean> apply() {
         Ui.checkUiThread();
         setCurrent(this);
-        applyFontFamily();
+        return applyFontFamily();
     }
 
     /** @return this palette's {@code name} */
@@ -1011,8 +1052,9 @@ public final class Theme {
      * Switches the process-wide palette, repaints every scene and tells whoever is listening, and
      * does not change the font. A theme picker, a settings screen and a switch between light and
      * dark want {@link #apply}, which is this plus the font. This alone is the call for a colour
-     * well that switches the palette on every frame of a drag, where a font file read inside a
-     * frame is not wanted. UI thread, when a user-interface runtime is installed.
+     * well that switches the palette on every frame of a drag, where asking for the font again on
+     * every frame is not wanted: such a screen asks with {@link #applyFontFamily} only on the
+     * frames where the family moved. UI thread, when a user-interface runtime is installed.
      *
      * <p><b>Every scene repaints, without being handed over.</b> A scene subscribes to the change
      * as it subscribes to the four measurement axes, through {@code limn.scene.internal}, since
@@ -1050,31 +1092,48 @@ public final class Theme {
     }
 
     /**
-     * Asks {@link Fonts} to resolve {@link Font#DEFAULT_FAMILY} to this palette's
-     * {@link #fontFamily}: the act that makes a palette's type preference visible.
+     * Has {@link Font#DEFAULT_FAMILY} resolve to this palette's {@link #fontFamily} once that
+     * family's regular and bold faces are in memory: the act that makes a palette's type
+     * preference visible, and the font half of {@link #apply}. It is
+     * {@link Fonts#setDefaultFamilyWhenResident} with this palette's family, so the faces are
+     * read on a worker and the frame that shows the new font reads no file for them; an italic
+     * face, not read ahead, is still read where it is first drawn. Nothing changes inside this
+     * call.
      *
      * <p>Separate from {@link #setCurrent} on purpose, and the separation is the contract:
-     * switching a palette is a repaint, while switching a font is a relayout <em>and</em>, the
-     * first time a face is named, a font file read inside the next frame. {@code Fonts} says so
-     * on {@link Fonts#setDefaultFamily} and the rule it states applies here unchanged; call
-     * this from a settings screen or a theme picker, where one long frame reads as the switch
-     * happening, and never from an animation or a drag. Folding it into {@code setCurrent}
-     * would smuggle that read into every palette change, including the ones a colour well makes
-     * on every frame of a drag.
+     * switching a palette is a repaint, while switching a font is a relayout of every scene and,
+     * the first time a family is named, a read of its faces. This call keeps that read off the UI
+     * thread, but it still costs a stage, a post and a lookup in the backend's faces each time,
+     * and a relayout whenever the family moves. Folding it into {@code setCurrent} would put
+     * those into every palette change, including the ones a colour well makes on every frame of
+     * a drag; such a screen calls {@code setCurrent} on each frame and this only when the
+     * family moved.
      *
      * <p>A palette that expresses no preference carries {@code Font.DEFAULT_FAMILY}, so calling
      * this for one restores the toolkit's own face rather than leaving the previous palette's
-     * choice in place. Both directions are therefore safe to call unconditionally.
+     * choice in place, and overtakes a switch an earlier palette or a font picker is still
+     * waiting to make: the later choice wins, as {@code Fonts.setDefaultFamilyWhenResident}
+     * says. For a family that is already the default, with nothing waiting, it switches nothing
+     * and notifies no listener, so nothing is laid out again. Both directions are therefore safe
+     * to call unconditionally.
      *
-     * <p>A screen that would rather keep that read off the frame hands {@link #fontFamily()} to
-     * {@link Fonts#setDefaultFamilyWhenResident} instead, which reads the faces on a worker and
-     * makes the same switch once they are resident.
+     * <p>For a switch that has to be in force when the call returns, as a capture or a test that
+     * draws next needs, call {@code Fonts.setDefaultFamily(theme.fontFamily())} instead: it
+     * switches at once, and the first measure in the new family reads its faces on the UI
+     * thread, inside that frame. With a runtime and no backend, nothing can be read and this
+     * switches on the runtime's next turn.
      *
      * <p>UI thread.
+     *
+     * @return a stage completed on the UI thread, on a later turn and never inside this call,
+     *         with {@code true} once this palette's family is the default family, or
+     *         {@code false} when a later choice overtook it; it does not complete if the backend
+     *         shuts down first
+     * @throws IllegalStateException off the UI thread, or when no {@code UiRuntime} is installed
      */
-    public void applyFontFamily() {
+    public CompletionStage<Boolean> applyFontFamily() {
         Ui.checkUiThread();
-        Fonts.setDefaultFamily(fontFamily);
+        return Fonts.setDefaultFamilyWhenResident(fontFamily);
     }
 
     // ------------------------------------------------------- building a palette
@@ -1339,9 +1398,10 @@ public final class Theme {
          *
          * <p>The name is <b>not</b> validated against the installed faces, and deliberately: a
          * palette is a value that outlives the machine it was authored on, so a family this
-         * machine happens not to have is a legitimate thing to write down. It falls back to the
-         * embedded face when it is applied (see {@link Theme#applyFontFamily()}) rather than
-         * being rejected here, which would make a palette unloadable on the wrong laptop.
+         * machine happens not to have is a legitimate thing to write down. It is switched to
+         * when the palette is applied (see {@link Theme#applyFontFamily()}) and then renders in
+         * the embedded face, rather than being rejected here, which would make a palette
+         * unloadable on the wrong laptop.
          */
         public Builder fontFamily(@Nullable String value) {
             this.fontFamily = value == null || value.isBlank() ? Font.DEFAULT_FAMILY : value;

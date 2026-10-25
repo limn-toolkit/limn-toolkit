@@ -97,7 +97,9 @@ public final class ThemeEditorExample {
         String family = Fonts.load(Path.of("limn-demo/fonts/Inter-Variable.ttf"));
         Theme themed = Theme.current().toBuilder().fontFamily(family).build();
         Theme.setCurrent(themed);
-        themed.applyFontFamily();
+        // At once, not through applyFontFamily: the capture draws this screen next, and a switch
+        // that waits for the faces would film its first frames in the default face.
+        Fonts.setDefaultFamily(themed.fontFamily());
         return new Padding(Insets.all(20), content());
     }
 }

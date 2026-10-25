@@ -31,7 +31,7 @@ public final class ThemingExample {
                 Theme.builtins().stream().map(Theme::displayName).toList());
         picker.setSelectedIndex(Theme.builtins().indexOf(Theme.current()));
         // apply, and not setCurrent: it makes the palette current, which repaints every window
-        // on the palette's background, and applies the palette's own face.
+        // on the palette's background, and switches to the palette's own face once it is read.
         picker.onSelect(() -> Theme.builtins().get(picker.selectedIndex()).apply());
         return picker;
     }
