@@ -789,8 +789,8 @@ Maven Central say which number that was.
   rule keyed on the classifier, for the machine running the build or for a target named with
   `-PlimnTarget`) and with Maven (the backend's LWJGL and SVG natives excluded and declared again
   with one classifier, a profile per system choosing it). The one-line install still brings all
-  six platforms: 34.6 MB of jars, measured at this release, where one platform's are 11.9 to
-  14.9 MB. An application on the module path needs it, because there every platform's natives
+  six platforms: 34.4 MB of jars, measured at this release, where one platform's are 11.8 to
+  14.7 MB. An application on the module path needs it, because there every platform's natives
   jar of one LWJGL module has the same module name; the guide has the `--add-modules` line too.
 - Access letters come from the translated text (ADR 070). An `&` before a letter marks it in a
   menu title or item, a `Button`, a `Checkbox`, a `RadioButton` and a `Label` that names a
