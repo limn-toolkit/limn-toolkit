@@ -627,6 +627,10 @@ Maven Central say which number that was.
 
 ### New
 
+- `DateFormats` writes a date in the calendar its locale names with `-u-ca-`, as the date widgets
+  already drew it: `ja-JP-u-ca-japanese` writes "R7/10/25", `th-TH-u-ca-buddhist` the year 2568,
+  `zh-TW-u-ca-roc` the Republic of China's year, `ar-SA-u-ca-islamic-umalqura` the Hijri date. The
+  value is the same `LocalDate`; a locale that names no calendar is written as before.
 - A locale that names its digits is written in them: `ar-EG-u-nu-latn`, which a user's system
   settings write for Arabic with Latin digits, wrote Arabic-Indic ones, the language's default.
   `NumberingSystem.forLocale` reads the `-u-nu-` extension first; a system the toolkit does not

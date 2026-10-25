@@ -119,4 +119,26 @@ class DateFormatsTest {
         }
         return true;
     }
+
+    /**
+     * A locale that names its calendar is written in it, as the date widgets draw it: the value is
+     * the same day, the era, the Buddhist year, the Republic of China's year or the Hijri date is
+     * how it is written. Without the extension the same language writes the ISO year, as before.
+     */
+    @Test
+    void aLocaleThatNamesItsCalendarIsWrittenInIt() {
+        LocalDate day = LocalDate.of(2025, 10, 25);
+        Function<TemporalAccessor, String> shortDate = DateFormats.date(FormatStyle.SHORT);
+        Function<TemporalAccessor, String> longDate = DateFormats.date(FormatStyle.LONG);
+        assertEquals("R7/10/25", in("ja-JP-u-ca-japanese", shortDate, day));
+        assertEquals("令和7年10月25日", in("ja-JP-u-ca-japanese", longDate, day));
+        assertEquals("2025/10/25", in("ja-JP", shortDate, day), "no extension, the ISO year");
+        assertEquals("25 ตุลาคม 2568", in("th-TH-u-ca-buddhist", longDate, day));
+        assertEquals("民國114年10月25日", in("zh-TW-u-ca-roc", longDate, day));
+        assertEquals("October 25, 2568 BE", in("en-US-u-ca-buddhist", longDate, day));
+        assertTrue(I18n.toAsciiDigits(in("ar-SA-u-ca-islamic-umalqura", longDate, day)).contains("1447"),
+                "the Hijri year, in the digits the toolkit writes for Saudi Arabia");
+        assertEquals(in("en-US", shortDate, day), in("en-US-u-ca-unknowncal", shortDate, day),
+                "a calendar the platform does not carry is read as none");
+    }
 }

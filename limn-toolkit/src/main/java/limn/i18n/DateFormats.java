@@ -2,6 +2,8 @@ package limn.i18n;
 
 import limn.i18n.internal.LocaleServices;
 
+import java.time.chrono.Chronology;
+import java.time.chrono.IsoChronology;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.time.temporal.TemporalAccessor;
@@ -27,6 +29,14 @@ import java.util.function.Function;
  * Column.of("Due", Order::due, DateFormats.date(FormatStyle.SHORT));  // "10/17/26", "17/10/2026"
  * label.setText(DateFormats.time(FormatStyle.SHORT).apply(at));       // "2:09 PM", "14:09"
  * }</pre>
+ *
+ * <p><b>The calendar is the locale's.</b> A locale that names a calendar system with the Unicode
+ * extension {@code -u-ca-}, as a user's settings write a choice of calendar, is written in it, as
+ * the date widgets draw it: {@code ja-JP-u-ca-japanese} writes the era ("R7/10/25"),
+ * {@code th-TH-u-ca-buddhist} the Buddhist year (2568), {@code ar-SA-u-ca-islamic-umalqura} the
+ * Hijri date. The value is the same {@code LocalDate} either way; only how it is written changes.
+ * A calendar the platform does not carry is read as none, and a locale that names none is written
+ * in the ISO calendar, which is what the platform answers for every language without one.
  *
  * <p>A format takes any temporal that holds the fields it writes: a {@code LocalDate} for a date,
  * a {@code LocalTime} for a time, a {@code LocalDateTime} for both, and a zoned or offset one for
@@ -94,7 +104,29 @@ public final class DateFormats {
      */
     private static Function<TemporalAccessor, String> written(FormatStyle style,
             BiFunction<FormatStyle, Locale, DateTimeFormatter> formatter) {
-        return value -> I18n.localizeDigits(I18n.toAsciiDigits(formatter.apply(style, I18n.locale())
-                .format(Objects.requireNonNull(value, "value"))));
+        return value -> {
+            Locale locale = I18n.locale();
+            DateTimeFormatter format = formatter.apply(style, locale);
+            Chronology calendar = calendarOf(locale);
+            if (calendar != IsoChronology.INSTANCE) {
+                format = format.withChronology(calendar);
+            }
+            return I18n.localizeDigits(I18n.toAsciiDigits(format.format(Objects.requireNonNull(value, "value"))));
+        };
+    }
+
+    /**
+     * The calendar system {@code locale} names with {@code -u-ca-}, as the date widgets read it;
+     * ISO for one it names none of or one the platform does not carry.
+     */
+    private static Chronology calendarOf(Locale locale) {
+        if (locale.getUnicodeLocaleType("ca") == null) {
+            return IsoChronology.INSTANCE;
+        }
+        try {
+            return LocaleServices.chronology(locale);
+        } catch (RuntimeException unknown) {
+            return IsoChronology.INSTANCE;
+        }
     }
 }
