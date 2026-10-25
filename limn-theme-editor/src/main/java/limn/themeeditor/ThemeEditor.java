@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 /**
@@ -186,11 +187,13 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
     private List<ThemeAudit.Finding> shownFindings = List.of();
     private boolean applyLive = true;
     /**
-     * The family this editor asked {@link Fonts} to switch to and the answer it is waiting for,
-     * both {@code null} when it waits for none; see {@link #askForFont}.
+     * The family this editor asked {@link Fonts} to switch to, the answer it is waiting for, and
+     * the executor of the UI thread that answer comes on ({@link Ui#executor()}, one per runtime),
+     * all {@code null} when it waits for none; see {@link #askForFont}.
      */
     private String fontAsked;
     private CompletionStage<Boolean> fontAnswer;
+    private Executor fontAskedOn;
     private Consumer<Theme> onChange;
 
     /** An editor on the palette the application is currently wearing. */
@@ -574,8 +577,20 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
      * whose family did not move asks nothing, and one whose family did asks once. An answer is
      * forgotten only by the request it belongs to: one that a later pick overtook must not
      * clear the wait that pick started.
+     *
+     * <p>Or when the backend it was asked through has shut down, which is the one way an answer
+     * never comes: {@code Fonts} forgets a switch still waiting when its loader goes, and the
+     * stage is left unanswered, there being no UI thread to answer it on. An editor kept past its
+     * backend into a later one in the same process would otherwise wait on it for good, and
+     * never ask for that family again. The runtime is told apart by its UI executor, of which
+     * each has its own.
      */
     private void askForFont(String family) {
+        if (fontAsked != null && fontAskedOn != Ui.executor()) {
+            fontAsked = null; // asked of a backend that is gone
+            fontAnswer = null;
+            fontAskedOn = null;
+        }
         boolean wearing = fontAsked == null && family.equals(Fonts.defaultFamily());
         if (wearing || family.equals(fontAsked)) {
             return;
@@ -583,10 +598,12 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
         CompletionStage<Boolean> answer = Fonts.setDefaultFamilyWhenResident(family);
         fontAsked = family;
         fontAnswer = answer;
+        fontAskedOn = Ui.executor();
         answer.thenRun(() -> {
             if (fontAnswer == answer) {
                 fontAsked = null;
                 fontAnswer = null;
+                fontAskedOn = null;
             }
         });
     }
