@@ -26,7 +26,8 @@ import java.util.Objects;
  * moving and unregisters the instant it settles, so an idle widget costs nothing.
  * <b>Safe</b>: {@link #to} / {@link #snap} are UI-thread-confined, and when the
  * owner has no scene (headless, or detached) it simply jumps to the target: the
- * same "final state, no animation" a test or an off-screen widget wants.
+ * same "final state, no animation" a test or an off-screen widget wants. A repeating
+ * one, which has no final state, starts once its owner is painted in a scene.
  *
  * <pre>{@code
  * private final Transition fade = new Transition(this).duration(0.15).easing(Easing.EASE_OUT);
@@ -162,10 +163,15 @@ public final class Transition {
      * Animates the value toward {@code target}. Jumps immediately (no animation)
      * when disabled, zero-duration, the owner is detached from a scene, or the user
      * asked the system for less motion ({@link Motion#reduced()}). UI thread.
+     *
+     * <p>A {@link #repeat repeating} transition asked for while its owner is in no scene does not
+     * jump, because a pulse has no final state to jump to: it waits where it is and starts the
+     * first time its owner is painted in a scene.
      */
     public void to(float target) {
         Ui.checkUiThread();
-        if (!enabled || duration <= 0 || owner.scene() == null || Motion.reduced()) {
+        boolean detached = owner.scene() == null;
+        if (!enabled || duration <= 0 || Motion.reduced() || detached && !repeat) {
             snap(target);
             return;
         }
@@ -201,7 +207,15 @@ public final class Transition {
         // Paint happens only while the owner is showing, so this is the resume point
         // for an animation that paused itself while its widget was hidden.
         if (animating && !ticking && owner.isShowing()) {
-            ensureTicking();
+            if (Motion.reduced()) {
+                // A pulse asked for off scene, shown while the user asks for less motion: it
+                // settles where it was heading, as to() would have made it, without a repaint
+                // from inside the paint that read it.
+                current = from = to;
+                animating = false;
+            } else {
+                ensureTicking();
+            }
         }
         return current;
     }

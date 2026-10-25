@@ -30,7 +30,8 @@ settles; `EASE_IN`, `EASE_IN_OUT` and `LINEAR` are the other plain ones, and `RU
 of your own is a lambda. `snap(value)` puts the number somewhere at once, with no animation.
 
 A widget that is in no scene has no frames to animate over, so there `to` jumps. That is why a
-state set before a widget is shown is simply there when it appears.
+state set before a widget is shown is simply there when it appears. A repeating transition has no
+state to jump to, so it waits instead and starts the first time its widget is painted.
 
 ## A colour
 

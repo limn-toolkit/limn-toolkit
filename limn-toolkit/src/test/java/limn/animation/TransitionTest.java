@@ -137,4 +137,35 @@ class TransitionTest {
         assertEquals(0f, t.value(), 1e-4f);
         assertTrue(t.isAnimating());
     }
+
+    /**
+     * A pulse asked for before its widget is in a scene starts once it is: it has no final state
+     * to jump to, and it jumped to its far end and stayed there, and asking again for the same end
+     * changed nothing, so a "waiting" dot set before its page was shown never breathed.
+     */
+    @Test
+    void aPulseAskedForOffSceneStartsWhenItsWidgetJoinsOne() {
+        Owner owner = new Owner();
+        Transition t = new Transition(owner, 0).duration(0.2).easing(Easing.LINEAR).repeat(true);
+        t.to(1f);
+        assertEquals(0f, t.value(), 1e-4f, "off scene it waits where it is, not at the far end");
+        assertTrue(t.isAnimating(), "pending, for a scene to run it in");
+
+        new Scene(owner);
+        t.value(); // the first paint arms it
+        t.tick(0.1);
+        assertEquals(0.5f, t.value(), 1e-3f, "and runs once its widget is in a scene");
+        t.tick(0.1);
+        t.tick(0.1);
+        assertEquals(0.5f, t.value(), 1e-3f, "both ways");
+    }
+
+    /** Off scene, a transition that settles still jumps: the final state is what a test wants. */
+    @Test
+    void offSceneATransitionThatSettlesStillJumps() {
+        Transition t = new Transition(new Owner(), 0).duration(0.2);
+        t.to(1f);
+        assertEquals(1f, t.value(), 1e-4f);
+        assertFalse(t.isAnimating());
+    }
 }

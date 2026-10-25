@@ -545,14 +545,6 @@ final class AnimationsScene {
             play();
         }
 
-        @Override
-        protected void onAttached() {
-            super.onAttached();
-            if (pos.repeats()) {
-                play(); // set before the page was in a scene, where a transition only jumps
-            }
-        }
-
         /**
          * Runs the whole rail, from the far end: a run started from wherever the dot happened to be
          * (a curve changed mid-run) showed the curve over part of the rail, and repeating then

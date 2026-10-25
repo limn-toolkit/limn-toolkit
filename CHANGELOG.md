@@ -288,6 +288,11 @@ Maven Central say which number that was.
   and sounded for up to a tenth of a second before the next poll silenced it. The gain is now the
   player's (`MediaPlayer.setGain`, see New), and the track takes it as it arrives; the bar and the
   demo's volume set it there.
+- A repeating `Transition` asked to run before its widget is in a scene now starts once the widget is
+  painted in one. It jumped to its far end and stayed there, and asking again for the same end did
+  nothing, so a pulse set up while a page was built (the animation guide's breathing dot told to
+  wait before it was shown) never moved. A transition that settles still jumps when its widget is
+  in no scene.
 - Tab in a `Popover` drawn in the scene (on Wayland, or with `DisplayMode.IN_SCENE`) goes round its
   controls only. The layer that holds the keyboard while it is open was a tab stop of its own
   after the last control, an empty group a reader announced by the popover's name and that took

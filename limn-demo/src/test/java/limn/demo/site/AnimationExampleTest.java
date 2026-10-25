@@ -237,6 +237,18 @@ class AnimationExampleTest {
         assertTrue(!dot.isBreathing(), "snapped, it is at rest");
     }
 
+    /** Told to wait before it is shown, as a page builds it: it breathes once it is on screen. */
+    @Test
+    void aBreathingDotToldToWaitBeforeItIsShownBreathesOnceItIs() {
+        Breathing dot = new Breathing();
+        dot.setWaiting(true);
+        show(dot);
+        for (int i = 0; i < 10; i++) {
+            frame(50);
+        }
+        assertTrue(dot.isBreathing(), "the pulse waited for a scene and started in it");
+    }
+
     @Test
     void aDialTurnsWithTheScenesClockAndStandsStillWhileTheSceneIsPaused() {
         Dial dial = new Dial();
