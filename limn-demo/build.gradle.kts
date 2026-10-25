@@ -79,6 +79,15 @@ tasks.named<Test>("test") {
     System.getProperty("limn.a11y.trees.dir")?.let {
         systemProperty("limn.a11y.trees.dir", it)
     }
+    // NativeLicencesTest reads the licence texts the fat jar carries, their README and the LWJGL
+    // version the catalog pins, none of which Gradle infers as an input of a test: declared, so an
+    // edited text reruns the test instead of replaying a green result from the build cache.
+    inputs.dir(layout.projectDirectory.dir("licenses"))
+            .withPropertyName("licenceTexts")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(rootProject.file("gradle/libs.versions.toml"))
+            .withPropertyName("versionCatalog")
+            .withPathSensitivity(PathSensitivity.NONE)
 }
 
 // A developer's `full` payload (encoders, for the writer scenes), from a sibling clone of
@@ -294,9 +303,13 @@ tasks.register<Jar>("fatJar") {
     // The licences, FIRST, because first wins above: a dependency that ships a META-INF/LICENSE of
     // its own would otherwise be the one this jar answers with. A jar handed to a stranger by
     // URL is a distribution, and every text a distribution owes travels inside it: this
-    // repository's own terms, and the two the merged dependencies do not carry themselves —
-    // LWJGL's jars have no licence file, and JLayer's (LGPL) has none either. Both texts are the
-    // upstream projects' own, verbatim.
+    // repository's own terms, and those the merged dependencies do not carry themselves. JLayer's
+    // jar (LGPL) has no licence file, and LWJGL's natives jars have none for LWJGL or for any of
+    // the libraries they put in here: GLFW, HarfBuzz, OpenAL Soft (LGPL) with what it compiles in,
+    // stb, tinyfiledialogs, libffi, liburing, and the Khronos headers. licenses/README.md says where
+    // each text was taken from, at which LWJGL and which upstream commit, and NativeLicencesTest
+    // holds every native library on this module's classpath, which is what this jar unpacks, to
+    // the texts it needs.
     from(rootProject.files("LICENSE", "NOTICE")) {
         into("META-INF")
     }
@@ -325,14 +338,27 @@ tasks.register<Jar>("fatJar") {
     // Read back out of the archive rather than trusted from the copy specs above: EXCLUDE keeps
     // whichever entry arrived first, and a reordering of the from() calls would silently ship a
     // dependency's LICENSE under this jar's name. The check costs one zip listing.
-    // Resolved now, as plain files: the action below may hold no reference to the project.
-    val expected = mapOf(
+    // Resolved now, as plain files: the action below may hold no reference to the project. The
+    // directory is listed in the action, so a text added to it is checked without anything here
+    // naming it.
+    val ownTerms = mapOf(
         "META-INF/LICENSE" to rootProject.file("LICENSE"),
         "META-INF/NOTICE" to rootProject.file("NOTICE"),
-        "META-INF/licenses/LWJGL-LICENSE.txt" to file("licenses/LWJGL-LICENSE.txt"),
-        "META-INF/licenses/LGPL-2.1.txt" to file("licenses/LGPL-2.1.txt"),
+    )
+    val licenceTexts = file("licenses")
+    // The texts the payloads built by this project, and the toolkit's CLDR tables, carry in their
+    // own jars, beside what they cover: only their presence is checked, since the bytes are theirs.
+    val carriedByTheirJars = listOf(
+        "limn/i18n/internal/CLDR-LICENSE.txt",
+        "limn/svg/native/LICENSE-lunasvg.txt",
+        "limn/svg/native/LICENSE-plutovg.txt",
+        "limn/angle/native/LICENSE-angle.txt",
+        "limn/video/ffmpeg/native/LICENSE-ffmpeg.txt",
     )
     doLast {
+        val expected = ownTerms + (licenceTexts.listFiles() ?: emptyArray())
+            .filter { it.isFile }
+            .associateBy { "META-INF/licenses/${it.name}" }
         ZipFile(archiveFile.get().asFile).use { archive ->
             for ((entry, source) in expected) {
                 val found = archive.getEntry(entry)
@@ -340,6 +366,10 @@ tasks.register<Jar>("fatJar") {
                 if (!archive.getInputStream(found).readAllBytes().contentEquals(source.readBytes())) {
                     throw GradleException("$entry in ${archiveFileName.get()} is not ${source.name}")
                 }
+            }
+            for (entry in carriedByTheirJars) {
+                archive.getEntry(entry)
+                    ?: throw GradleException("${archiveFileName.get()} carries no $entry")
             }
         }
     }

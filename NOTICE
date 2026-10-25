@@ -164,10 +164,23 @@ LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -opengles, -egl, -openal, -stb,
   (Old MIT); tinyfiledialogs (zlib); and OpenAL Soft, which is not permissive:
   GNU Library General Public License version 2 or, at your option, any later
   version. LWJGL also states the Khronos Group's MIT-style licence for its
-  OpenGL, OpenGL ES and EGL modules. None of these texts is inside LWJGL's Maven
-  jars: LWJGL keeps each beside its module in its source tree, under
+  OpenGL, OpenGL ES and EGL modules. OpenAL Soft compiles in a modified PFFFT
+  (BSD-style), {fmt} (MIT) and the Guidelines Support Library (MIT), and part
+  of HarfBuzz's shaping tables is generated from data under the MIT licence.
+  None of these texts is inside LWJGL's Maven jars: LWJGL keeps its own beside
+  each module in its source tree, under
   https://github.com/LWJGL/lwjgl3/tree/master/modules/lwjgl, and records beside
-  OpenAL Soft's library in each natives jar the upstream commit it was built from.
+  the GLFW, HarfBuzz and OpenAL Soft libraries in each natives jar the upstream
+  commit each was built from, whose tree holds the rest.
+
+  The runnable demo jar attached to a GitHub release unpacks those natives jars
+  into itself, and carries every one of these texts at META-INF/licenses/:
+  LWJGL's own and libffi's, liburing's, stb's, tinyfiledialogs' and the Khronos
+  Group's from LWJGL's tree at the release this build pins, and GLFW's,
+  HarfBuzz's and OpenAL Soft's, with those of what they compile in, from the
+  upstream commits LWJGL records. They are kept in limn-demo/licenses/, whose
+  README.md says where each was taken from, with its digest. An application that
+  merges LWJGL's natives into a jar of its own owes the same texts.
 
   OpenAL Soft is the library the backend plays every sound through, so the
   backend as resolved always contains LGPL code. It is a shared library of its
