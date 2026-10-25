@@ -1850,6 +1850,10 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `TextFacet.caretRect()` is in the window's coordinates, the space a node's own box is published
+  in, with the transforms above the widget applied; it was in the node's own coordinates, which a
+  bridge could not place under a turned or scaled ancestor. A widget still declares its caret in
+  its own space through `Accessibility.text(…)`; the publish step carries it.
 - Forty-one methods of `Accessibility` that only the toolkit's publish step calls (`beginWalk`, `begin`,
   `inherited`, `mint`, `idAt`, `syntheticBoxAt`, `placeSyntheticAt`, `resolveRelations`, `events` and
   the rest) are no longer public. A widget's `onAccessibility` never called them, and an application

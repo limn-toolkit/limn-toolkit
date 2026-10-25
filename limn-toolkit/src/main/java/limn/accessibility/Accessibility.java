@@ -191,6 +191,13 @@ public final class Accessibility {
         int selectionEnd;
         int lineCount;
         Rect caretRect;
+        // The caret in the window's coordinates, which the publish step fills from caretRect; as
+        // numbers, so a quiet field's walk allocates nothing for it.
+        boolean caretInScene;
+        float caretX;
+        float caretY;
+        float caretW;
+        float caretH;
         boolean hasScroll;
         double horizontalPercent;
         double verticalPercent;
@@ -297,6 +304,7 @@ public final class Accessibility {
             selectionEnd = 0;
             lineCount = 0;
             caretRect = null;
+            caretInScene = false;
             hasScroll = false;
             horizontalPercent = 0;
             verticalPercent = 0;
@@ -919,7 +927,8 @@ public final class Accessibility {
      * @param selectionStart where the selection begins, equal to its end when there is none
      * @param selectionEnd   where it ends
      * @param lineCount      how many lines the text has
-     * @param caretRect      the caret's box in this node's own coordinates, or {@code null}
+     * @param caretRect      the caret's box in this node's own coordinates, or {@code null}; the
+     *                       publish step carries it into the window's, as it does the node's box
      * @param readOnly       whether the text may be read and not written
      * @throws NullPointerException if {@code caretAffinity} is {@code null}
      */
@@ -1523,6 +1532,64 @@ public final class Accessibility {
     }
 
     /**
+     * Carries the caret the node at {@code index} declared, in its own coordinates, into the
+     * window's, as the publish step carries the node's box; nothing when it declared none.
+     *
+     * @param index   the node's index
+     * @param toScene maps a rectangle in the node's widget to the window's
+     */
+    boolean hasCaretAt(int index) {
+        return slots[index].caretRect != null;
+    }
+
+    /**
+     * The caret the node at {@code index} declared, in its widget's own coordinates.
+     *
+     * @param index the node's index
+     * @param out   receives its corners: left, top, right, bottom
+     */
+    void caretAt(int index, float[] out) {
+        Rect r = slots[index].caretRect;
+        out[0] = r.x();
+        out[1] = r.y();
+        out[2] = r.x() + r.width();
+        out[3] = r.y() + r.height();
+    }
+
+    /**
+     * Where the node at {@code index}'s caret is in the window: what its text facet carries.
+     *
+     * @param index the node's index
+     */
+    void caretInScene(int index, float x, float y, float width, float height) {
+        Slot s = slots[index];
+        s.caretInScene = true;
+        s.caretX = x;
+        s.caretY = y;
+        s.caretW = width;
+        s.caretH = height;
+    }
+
+    private static boolean sameCaret(Slot a, Slot b) {
+        if (a.caretRect == null || b.caretRect == null) {
+            return a.caretRect == null && b.caretRect == null;
+        }
+        if (a.caretInScene != b.caretInScene) {
+            return false;
+        }
+        return a.caretInScene
+                ? a.caretX == b.caretX && a.caretY == b.caretY && a.caretW == b.caretW && a.caretH == b.caretH
+                : a.caretRect.equals(b.caretRect);
+    }
+
+    private static @Nullable Rect publishedCaret(Slot s) {
+        if (s.caretRect == null || !s.caretInScene) {
+            return s.caretRect;
+        }
+        return new Rect(s.caretX, s.caretY, s.caretW, s.caretH);
+    }
+
+    /**
      * Ends the node {@link #begin} began, making its parent current again. The publish step calls
      * this.
      */
@@ -2034,7 +2101,7 @@ public final class Accessibility {
                         || a.caretOffset != b.caretOffset || a.caretAffinity != b.caretAffinity
                         || a.selectionStart != b.selectionStart || a.selectionEnd != b.selectionEnd
                         || a.lineCount != b.lineCount
-                        || !Objects.equals(a.caretRect, b.caretRect)))
+                        || !sameCaret(a, b)))
                 || a.hasScroll != b.hasScroll
                 || (a.hasScroll && (a.horizontalPercent != b.horizontalPercent
                         || a.verticalPercent != b.verticalPercent
@@ -2273,7 +2340,7 @@ public final class Accessibility {
                         s.sizeOfSet, s.selectionContainerless) : null,
                 s.expand < 0 ? null : new ExpandFacet(s.expand == 1),
                 s.hasText ? new TextFacet(s.text, s.caretOffset, s.caretAffinity,
-                        s.selectionStart, s.selectionEnd, s.lineCount, s.caretRect) : null,
+                        s.selectionStart, s.selectionEnd, s.lineCount, publishedCaret(s)) : null,
                 s.hasScroll ? new ScrollFacet(s.horizontalPercent, s.verticalPercent,
                         s.horizontalViewSize, s.verticalViewSize, s.horizontallyScrollable,
                         s.verticallyScrollable) : null,
@@ -3229,6 +3296,21 @@ public final class Accessibility {
         // which only this class can install: a widget describing itself never calls them.
         limn.accessibility.internal.AccessibilityAccess.install(
                 new limn.accessibility.internal.AccessibilityAccess.Hook() {
+            @Override
+            public boolean hasCaretAt(Accessibility a, int index) {
+                return a.hasCaretAt(index);
+            }
+
+            @Override
+            public void caretAt(Accessibility a, int index, float[] out) {
+                a.caretAt(index, out);
+            }
+
+            @Override
+            public void caretInScene(Accessibility a, int index, float x, float y, float width, float height) {
+                a.caretInScene(index, x, y, width, height);
+            }
+
             @Override
             public int begin(Accessibility a, long id, int parent, Locale locale, float x, float y, float width, float height) {
                 return a.begin(id, parent, locale, x, y, width, height);

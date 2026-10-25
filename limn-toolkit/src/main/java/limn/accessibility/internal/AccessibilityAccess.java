@@ -22,6 +22,9 @@ public final class AccessibilityAccess {
 
     /** What {@link Accessibility} lends this class. */
     public interface Hook {
+        boolean hasCaretAt(Accessibility a, int index);
+        void caretAt(Accessibility a, int index, float[] out);
+        void caretInScene(Accessibility a, int index, float x, float y, float width, float height);
         int begin(Accessibility a, long id, int parent, Locale locale, float x, float y, float width, float height);
         void beginChildDescription(Accessibility a);
         void beginChildIdentity(Accessibility a);
@@ -300,5 +303,20 @@ public final class AccessibilityAccess {
     /** See {@code Accessibility.syntheticKeyAt}. */
     public static long syntheticKeyAt(Accessibility a, int index) {
         return hook().syntheticKeyAt(a, index);
+    }
+
+    /** See {@code Accessibility.hasCaretAt}. */
+    public static boolean hasCaretAt(Accessibility a, int index) {
+        return hook().hasCaretAt(a, index);
+    }
+
+    /** See {@code Accessibility.caretAt}. */
+    public static void caretAt(Accessibility a, int index, float[] out) {
+        hook().caretAt(a, index, out);
+    }
+
+    /** See {@code Accessibility.caretInScene}. */
+    public static void caretInScene(Accessibility a, int index, float x, float y, float width, float height) {
+        hook().caretInScene(a, index, x, y, width, height);
     }
 }

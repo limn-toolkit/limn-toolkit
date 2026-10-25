@@ -31,8 +31,9 @@ import org.jspecify.annotations.Nullable;
  *                       none
  * @param selectionEnd   where it ends
  * @param lineCount      how many lines the text has, counting a trailing empty one
- * @param caretRect      the caret's rectangle in the node's own coordinates, or {@code null} when
- *                       the node has no caret to draw
+ * @param caretRect      the caret's rectangle in the window's coordinates, the space the node's
+ *                       own box is published in, transforms above it applied (the box that holds
+ *                       the turned caret); {@code null} when the node has no caret to draw
  */
 public record TextFacet(String text, int caretOffset, ShapedText.Affinity caretAffinity,
                         int selectionStart, int selectionEnd, int lineCount, @Nullable Rect caretRect) {

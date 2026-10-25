@@ -550,7 +550,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         assertSameRectangle(exposed);
-        assertEquals(PAD_Y + 12f, areaNode().text().caretRect().y(),
+        assertEquals(exposed.localToScene(0, 0).y() + PAD_Y + 12f, areaNode().text().caretRect().y(),
                 "the caret is on the second line, one line height down from the top pad"
                         + describe(tree()));
         assertEquals(12f, areaNode().text().caretRect().height(), describe(tree()));
@@ -572,14 +572,13 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
 
     /**
      * The invariant the caret seam exists to pin: the reader's caret and the IME's are the same
-     * rectangle by construction, one being the other translated by the widget's own origin.
+     * rectangle, both in the window's coordinates.
      */
     private void assertSameRectangle(TextArea exposed) {
         Rect published = areaNode().text().caretRect();
         assertNotNull(published, describe(tree()));
         Rect ime = exposed.caretRect();
-        assertEquals(new Rect(ime.x() - exposed.localToScene(0, 0).x(), ime.y() - exposed.localToScene(0, 0).y(),
-                        ime.width(), ime.height()), published,
+        assertEquals(ime, published,
                 "a second caret expression would drift from the one the candidate window is "
                         + "placed under" + describe(tree()));
     }
@@ -597,10 +596,10 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         Rect box = areaNode().text().caretRect();
-        assertEquals(PAD_X, box.x(),
+        assertEquals(exposed.localToScene(0, 0).x() + PAD_X, box.x(),
                 "clamped to the column's left edge, per axis, exactly as caretRect() clamps"
                         + describe(tree()));
-        assertEquals(PAD_Y, box.y(), describe(tree()));
+        assertEquals(exposed.localToScene(0, 0).y() + PAD_Y, box.y(), describe(tree()));
         assertSameRectangle(exposed);
     }
 

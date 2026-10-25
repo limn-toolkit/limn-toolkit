@@ -81,6 +81,8 @@ final class AccessibleWalk {
     /** Scratch for {@link Widget#showingClip}: the owner's clip, in scene coordinates. */
     private final float[] clip = new float[4];
     /** Scratch for a widget's box in the scene, which every node of every walk publishes. */
+    /** A caret's corners on their way from its widget's space to the window's. */
+    private final float[] caretScratch = new float[4];
     private final float[] boundsScratch = new float[4];
     /**
      * Per widget node: the verbs its container claimed (a bit per {@code Action} ordinal) and
@@ -652,6 +654,15 @@ final class AccessibleWalk {
         }
 
         widget.describeAccessible(builder);
+        // A caret is declared in the widget's own space; a bridge places it in the window's, as
+        // it places the box, which a transform above the widget would otherwise leave it out of.
+        if (AccessibilityAccess.hasCaretAt(builder, slot)) {
+            float[] caret = caretScratch;
+            AccessibilityAccess.caretAt(builder, slot, caret);
+            widget.localToSceneBounds(caret[0], caret[1], caret[2], caret[3], caret);
+            AccessibilityAccess.caretInScene(builder, slot, caret[0] + graftDx, caret[1] + graftDy,
+                    caret[2] - caret[0], caret[3] - caret[1]);
+        }
         if (parent != null) {
             // After the child's own hook, so a verb the container delegates meets the verbs the
             // child claimed for itself and the builder can refuse the one both claim.

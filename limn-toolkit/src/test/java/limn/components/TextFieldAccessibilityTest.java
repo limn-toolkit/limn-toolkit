@@ -534,12 +534,11 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         Rect published = fieldNode().text().caretRect();
         assertNotNull(published, describe(tree()));
         Rect ime = exposed.caretRect();
-        assertEquals(new Rect(ime.x() - exposed.localToScene(0, 0).x(), ime.y() - exposed.localToScene(0, 0).y(),
-                        ime.width(), ime.height()), published,
-                "the reader's caret and the IME's are the same rectangle by construction: one is "
-                        + "the other translated by the widget's own origin" + describe(tree()));
-        assertEquals(12f, published.x(),
-                "the field's own left pad at MEDIUM, with an empty line and no scroll"
+        assertEquals(ime, published,
+                "the reader's caret and the IME's are the same rectangle by construction, both in "
+                        + "the window's coordinates" + describe(tree()));
+        assertEquals(INSET + 12f, published.x(),
+                "the field's own left pad at MEDIUM past its inset, with an empty line and no scroll"
                         + describe(tree()));
         assertEquals(INSET + 12f, ime.x(),
                 "and the IME is given the same column in scene coordinates" + describe(tree()));
@@ -547,7 +546,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
 
         exposed.setText("hello");
         frame();
-        assertEquals(62f, fieldNode().text().caretRect().x(),
+        assertEquals(INSET + 62f, fieldNode().text().caretRect().x(),
                 "ten points per code point past the pad, with the caret at the end"
                         + describe(tree()));
 
