@@ -91,12 +91,12 @@ export const zhHans: Catalog = {
 
   "home.features.components.heading": "一套不必自己造的组件",
   "home.features.components.body":
-    "按钮、输入框、列表、标签页、菜单、对话框、分栏、取色器，柱状图、折线图与环形图，还有一个虚拟化列表，其中一百万行的开销与二十行相同。每一个都从主题读取颜色、形状与密度，所以没有写死的值，紧凑模式只要一行。",
+    "按钮、输入框、列表、表格、树、日期选择器、标签页、菜单、对话框、卡片、分栏、取色器，柱状图、折线图与环形图，还有一个虚拟化列表，其中一百万行的开销与二十行相同。每一个都从主题读取颜色、形状与密度，所以没有写死的值，紧凑模式只要一行。在窗口之外，应用还能打印到纸上或导出 PDF，在托盘里放一个图标，把菜单放进 macOS 的菜单栏，并与其他程序互相拖放。",
   "home.features.components.link": "查看全部",
 
   "home.features.layout.heading": "装得进脑子的布局",
   "home.features.layout.body":
-    "四个组件加一个标记：列纵向堆叠，行横向铺开，栈层层叠加，内边距向内收，Expanded 决定谁占据剩下的空间。整套词汇就这些。没有约束求解器要配置，也没有布局管理器要安装。",
+    "六个组件加一个标记：列纵向堆叠，行横向铺开，折行容器在宽度用尽时另起一行，网格让单元格横竖对齐，栈层层叠加，内边距向内收，Expanded 决定谁占据剩下的空间。Opacity 与 Transform 让窗口的一部分淡入淡出、移动、缩放和旋转，而不打乱周围的布局。没有约束求解器要配置，也没有布局管理器要安装。",
   "home.features.layout.link": "阅读布局指南",
   "home.features.layout.caption": "一个由列、行、分栏和一个 Expanded 组成的窗口。",
   "home.features.layout.alt": "用 Limn 排版的窗口",
@@ -150,7 +150,7 @@ export const zhHans: Catalog = {
 
   "home.accessibility.heading": "用同样的语言，读出来",
   "home.accessibility.body":
-    "NVDA、VoiceOver 和 Orca 通过各平台自己的无障碍 API 读取 Limn 窗口，你的应用无需任何平台代码。每个控件都以界面所用的语言，自己说出角色、名称和状态。为控件命名只需一次调用。",
+    "Windows 上的屏幕阅读器、macOS 的 VoiceOver 和 Linux 的 Orca 通过各平台自己的无障碍 API 读取 Limn 窗口，你的应用无需任何平台代码。每个控件都以界面所用的语言，自己说出角色、名称和状态。为控件命名只需一次调用。",
   "home.accessibility.link": "阅读无障碍指南",
   "home.accessibility.caption":
     "上面的表单，正如屏幕阅读器被告知的那样，在本次构建中捕获。",
@@ -160,7 +160,7 @@ export const zhHans: Catalog = {
   "home.built.intro":
     "Limn 的代码由 Anthropic 的模型 Claude 在 Claude Code 中编写，由人来把握方向并加以验证。我们一开始就说明这一点，因为你会想知道。",
   "home.built.method":
-    "把握方向，指的是每一项设计决定都先在 <code>docs/adr</code> 里写成文字、经过论证并被接受，然后才有代码。加以验证，指的是每一次改动都要跑过比代码本身还庞大的测试套件；无障碍不靠假设，而是真的去听——让 NVDA、VoiceOver 和 Orca 在 Windows、macOS 和 Linux 上朗读真实的窗口；代码也经过了多轮关于正确性、性能和 API 设计的审查。",
+    "把握方向，指的是每一项设计决定都先在 <code>docs/adr</code> 里写成文字、经过论证并被接受，然后才有代码。加以验证，指的是每一次改动都要跑过比代码本身还庞大的测试套件；无障碍不靠假设，而是真的去听——让 Windows 上的屏幕阅读器、macOS 的 VoiceOver 和 Linux 的 Orca 朗读真实的窗口；代码也经过了多轮关于正确性、性能和 API 设计的审查。",
   "home.built.cost":
     "走到这一步，用了成千上万次模型调用和数以百万计的生成 token。按 COCOMO II 估算模型，不算测试，这十余万行代码相当于一支约二十人的团队两年多的工作量。这份工作已经做完了。你可以在它之上构建，而不必重做一遍。",
   "home.built.link": "阅读设计记录",
@@ -229,13 +229,13 @@ export const zhHans: Catalog = {
     "Apache License 2.0，含明确的专利授权。商业使用、修改与再分发均获允许。",
   "licence.core.heading": "工具包本身",
   "licence.core.body":
-    "<code>limn-toolkit</code> 除 JDK 外只依赖一个库：用 Java 编写的 WebP 解码器（<code>org.glavo:webp</code>），它同样采用 Apache-2.0，所以对它而言，Apache-2.0 就是全部。渲染后端会引入采用 BSD-3-Clause 的 LWJGL，以及 SVG 渲染器 lunasvg 和它用来绘制的 plutovg，两者均采用 MIT。",
-  "licence.fonts.heading": "字体",
+    "<code>limn-toolkit</code> 除 JDK 外依赖两个库：只有编译器会读取的 JSpecify 空值注解，以及用 Java 编写的 WebP 解码器（<code>org.glavo:webp</code>），两者同样采用 Apache-2.0，所以对它而言，Apache-2.0 就是全部。渲染后端会引入采用 BSD-3-Clause 的 LWJGL；SVG 渲染器 lunasvg 和它用来绘制的 plutovg，两者均采用 MIT；以及 ANGLE，即为没有 OpenGL 驱动的 Windows 或 macOS 机器准备的 OpenGL ES 后备方案，采用 BSD-3-Clause，它的每个 jar 都列出了编译进其中的源代码及其许可。LWJGL 带来的原生库同样采用宽松许可，唯一的例外是负责音频输出的 OpenAL Soft，它采用 LGPL-2.0-or-later：它是一个独立的共享库，在运行时加载，可以替换。",
+  "licence.fonts.heading": "字体与图标",
   "licence.fonts.body":
-    "Roboto 与 Noto 回退字体以 SIL Open Font License 分发。每个随附组件及其许可都列在项目的 NOTICE 文件中。",
+    "默认字体 Roboto 采用 Apache-2.0。用于其他文字和表情符号的 Noto 回退字体，以及菜单用来书写快捷键的小型符号字体，以 SIL Open Font License 1.1 分发。可选的图标包 <code>limn-icons-tabler</code> 采用 MIT。每个随附组件及其许可都列在项目的 NOTICE 文件中。",
   "licence.mp3.heading": "MP3 解码采用 LGPL",
   "licence.mp3.body":
-    "MP3 支持来自 JLayer，它是 LGPL-2.1，并作为一个独立的 jar 保存在音频解码接口之后。如果你的分发需要避免 LGPL 义务，只排除这一个依赖即可。WAV 与 Ogg Vorbis 照常可用。",
+    "MP3 支持来自 JLayer，它是 LGPL-2.1，未经修改地使用，并作为一个独立的 jar 保存在音频解码接口之后。只排除这一个依赖，WAV 与 Ogg Vorbis 照常可用，不过后端仍带有上文提到的 LGPL 音频输出 OpenAL Soft。",
   "licence.ffmpeg.heading": "FFmpeg 视频，以及随之分发的东西",
   "licence.ffmpeg.body":
     "可选的视频解码器支持 MP4 和 Matroska 中的 H.264、HEVC、VP9 与 VP8，动态链接一份精简的 FFmpeg，按 LGPL-2.1-或更高版本 构建。<b>它的原生库是一个独立的制品 <code>limn-ffmpeg-natives</code>，每个桌面目标一个 classifier，另有 <code>limn-video-ffmpeg-natives-all</code> 列出全部，作为走遍所有平台的一揽子依赖</b>，因此包含 <code>limn-video-ffmpeg</code> 及这些库的分发就是在分发 FFmpeg，而这些 jar 各自带着许可证文本和必需的声明。它们是动态链接且可替换的，这正是该许可证的要求。没有别的东西依赖这个模块：去掉它，其他媒体格式照旧工作。",

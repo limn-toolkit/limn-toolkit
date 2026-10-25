@@ -40,7 +40,7 @@ const {
 } = Astro.props;
 const base = import.meta.env.BASE_URL;
 const msg = messages(locale);
-const repo = process.env.REPO_SLUG ?? "limn-ui/limn";
+const repo = process.env.REPO_SLUG ?? "limn-toolkit/limn-toolkit";
 
 // Every href goes through `localePath`, never a bare leading slash, so `base` is applied in
 // one place and a deploy under a project path cannot break half the navigation.

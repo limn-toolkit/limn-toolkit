@@ -73,12 +73,12 @@ export const en = {
 
   "home.features.components.heading": "A component set you do not have to build",
   "home.features.components.body":
-    "Buttons, fields, lists, tabs, menus, dialogs, split panes, a colour picker, bar, line and donut charts, and a virtualized list where a million rows cost what twenty do. Every one of them reads its colour, its shape and its density from the theme, so nothing is hardcoded and a compact mode is one line.",
+    "Buttons, fields, lists, tables, trees, date pickers, tabs, menus, dialogs, cards, split panes, a colour picker, bar, line and donut charts, and a virtualized list where a million rows cost what twenty do. Every one of them reads its colour, its shape and its density from the theme, so nothing is hardcoded and a compact mode is one line. Beyond its windows, an application prints to paper or to PDF, keeps an icon in the tray, puts its menus in the macOS menu bar, and drags to and from other programs.",
   "home.features.components.link": "See all of them",
 
   "home.features.layout.heading": "Layout that fits in your head",
   "home.features.layout.body":
-    "Four widgets and one marker: a column stacks, a row spreads, a stack overlays, padding insets, and Expanded says who takes the space that is left. That is the whole vocabulary; there is no constraint solver to configure and no layout manager to install.",
+    "Six widgets and one marker: a column stacks, a row spreads, a wrap flows onto the next line, a grid lines cells up both ways, a stack overlays, padding insets, and Expanded says who takes the space that is left. Opacity and Transform fade, move, scale and rotate a part of the window without disturbing the layout around it. There is no constraint solver to configure and no layout manager to install.",
   "home.features.layout.link": "Read the layout guide",
   "home.features.layout.caption": "A window built from a column, a row, a split and one Expanded.",
   "home.features.layout.alt": "A window laid out with Limn",
@@ -132,7 +132,7 @@ export const en = {
 
   "home.accessibility.heading": "Read aloud, in those same languages",
   "home.accessibility.body":
-    "NVDA, VoiceOver and Orca read a Limn window through each platform's own accessibility API, with no platform code in your application. Every control describes itself with its role, its name and its state, in the language the interface is displayed in. Naming a control is one call.",
+    "A screen reader on Windows, VoiceOver on macOS and Orca on Linux read a Limn window through each platform's own accessibility API, with no platform code in your application. Every control describes itself with its role, its name and its state, in the language the interface is displayed in. Naming a control is one call.",
   "home.accessibility.link": "Read the accessibility guide",
   "home.accessibility.caption":
     "The form above, as a screen reader is told about it, captured during this build.",
@@ -144,7 +144,7 @@ export const en = {
   "home.built.intro":
     "Limn's code is written by Claude, Anthropic's model, in Claude Code, and directed and verified by people. We say so up front because you would want to know.",
   "home.built.method":
-    "Directed means every design decision is a written record in <code>docs/adr</code>, argued and accepted before the code. Verified means every change runs against a test suite larger than the code it tests; accessibility is heard rather than assumed, with NVDA, VoiceOver and Orca reading real windows on Windows, macOS and Linux; and the code has been through repeated audits of correctness, performance and API design.",
+    "Directed means every design decision is a written record in <code>docs/adr</code>, argued and accepted before the code. Verified means every change runs against a test suite larger than the code it tests; accessibility is heard rather than assumed, with a screen reader on Windows, VoiceOver on macOS and Orca on Linux reading real windows; and the code has been through repeated audits of correctness, performance and API design.",
   "home.built.cost":
     "Getting here took many thousands of model calls and millions of generated tokens. By the COCOMO II cost model, its more than a hundred thousand lines of code, tests not counted, are the work of a team of about twenty people for over two years. That work is done. You can build on it instead of redoing it.",
   "home.built.link": "Read the design records",
@@ -213,13 +213,13 @@ export const en = {
     "Apache License 2.0, including an explicit patent grant. Commercial use, modification and redistribution are all permitted.",
   "licence.core.heading": "The toolkit itself",
   "licence.core.body":
-    "<code>limn-toolkit</code> depends on one library beyond the JDK, a WebP decoder written in Java (<code>org.glavo:webp</code>), which is Apache-2.0 too, so for it Apache-2.0 is the whole story. The rendering backend adds LWJGL, which is BSD-3-Clause, and the SVG renderer lunasvg with the plutovg it draws with, both MIT.",
-  "licence.fonts.heading": "Fonts",
+    "<code>limn-toolkit</code> depends on two libraries beyond the JDK, JSpecify's nullness annotations, which only a compiler reads, and a WebP decoder written in Java (<code>org.glavo:webp</code>), both Apache-2.0 too, so for it Apache-2.0 is the whole story. The rendering backend adds LWJGL, which is BSD-3-Clause; the SVG renderer lunasvg with the plutovg it draws with, both MIT; and ANGLE, the OpenGL ES fallback for a Windows or macOS machine with no OpenGL driver, which is BSD-3-Clause and lists in each of its jars the sources compiled into it, with their licences. The native libraries LWJGL brings are permissive too, except OpenAL Soft, the audio output, which is LGPL-2.0-or-later: a shared library of its own, loaded at run time and replaceable.",
+  "licence.fonts.heading": "Fonts and icons",
   "licence.fonts.body":
-    "Roboto and the Noto fallback faces ship under the SIL Open Font License. Every bundled component is listed with its licence in the project's NOTICE file.",
+    "Roboto, the default face, is Apache-2.0. The Noto fallback faces, for other scripts and for emoji, and the small symbol face that menus draw shortcut keys with, ship under the SIL Open Font License 1.1. The optional icon pack, <code>limn-icons-tabler</code>, is MIT. Every bundled component is listed with its licence in the project's NOTICE file.",
   "licence.mp3.heading": "MP3 decoding is LGPL",
   "licence.mp3.body":
-    "MP3 support comes from JLayer, which is LGPL-2.1 and is kept as an isolated jar behind the audio decoder interface. Exclude that one dependency if your distribution needs to avoid LGPL obligations; WAV and Ogg Vorbis keep working.",
+    "MP3 support comes from JLayer, which is LGPL-2.1, used unmodified and kept as an isolated jar behind the audio decoder interface. Exclude that one dependency and WAV and Ogg Vorbis keep working, though the backend still carries OpenAL Soft, the LGPL audio output above.",
   "licence.ffmpeg.heading": "FFmpeg video, and what ships with it",
   "licence.ffmpeg.body":
     "The optional video decoder, for H.264, HEVC, VP9 and VP8 in MP4 and Matroska, links a trimmed FFmpeg dynamically, built as LGPL-2.1-or-later. <b>Its native libraries are an artifact of their own, <code>limn-ffmpeg-natives</code>, one classifier per desktop target, and <code>limn-video-ffmpeg-natives-all</code> names all of them for a bundle that ships everywhere</b>, so a distribution that includes <code>limn-video-ffmpeg</code> and those libraries is distributing FFmpeg, and each of those jars carries the licence text and the notice that requires. They are dynamically linked and replaceable, which is what that licence asks. Nothing else depends on this module: leave it out and every other media format keeps working.",
