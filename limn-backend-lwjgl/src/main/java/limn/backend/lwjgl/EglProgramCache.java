@@ -30,6 +30,13 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * dropping the least recently used entry first. Nothing is written to disk: a binary is only good
  * for the driver and the ANGLE that made it, and the gain wanted is the second popup's, not the
  * next launch's. ANGLE may call from its own threads, so every access is synchronized.
+ *
+ * <p><b>Closed once the virtual machine starts to shut down.</b> ANGLE may link a program on a
+ * worker thread of its own, and a link that finishes while the shutdown hooks run still calls back
+ * into Java with its binary, as one that looks for a binary first does. From the first shutdown
+ * hook on, the cache answers every ask with "no binary", which makes ANGLE compile instead, takes
+ * nothing it is handed, and has let go of what it held: a callback then reads a flag under the
+ * lock and returns, copying nothing and allocating nothing while the process is taken down.
  */
 final class EglProgramCache {
 
@@ -38,14 +45,23 @@ final class EglProgramCache {
     /** The most the cache holds; the canvas, video and 3D programs together are far less. */
     static final int CAPACITY_BYTES = 32 << 20;
 
-    private static final Map<String, byte[]> ENTRIES = new LinkedHashMap<>(64, 0.75f, true);
-    private static int bytes;
+    /** The process's cache, the one every display is handed. */
+    private static final EglProgramCache PROCESS = new EglProgramCache(CAPACITY_BYTES);
+
     private static long installedDisplay = NULL;
+    private static boolean closesAtShutdown;
     // Held for the life of the process: ANGLE keeps the function pointers.
     private static EGLSetBlobFuncANDROID setter;
     private static EGLGetBlobFuncANDROID getter;
 
-    private EglProgramCache() {
+    private final int capacity;
+    private final Map<String, byte[]> entries = new LinkedHashMap<>(64, 0.75f, true);
+    private int bytes;
+    private boolean closed;
+
+    /** @param capacity the most this cache holds, in bytes */
+    EglProgramCache(int capacity) {
+        this.capacity = capacity;
     }
 
     /**
@@ -66,35 +82,73 @@ final class EglProgramCache {
         if (function == NULL) {
             return;
         }
-        setter = EGLSetBlobFuncANDROID.create(EglProgramCache::set);
-        getter = EGLGetBlobFuncANDROID.create(EglProgramCache::get);
+        closeAtShutdown();
+        setter = EGLSetBlobFuncANDROID.create(PROCESS::set);
+        getter = EGLGetBlobFuncANDROID.create(PROCESS::get);
         JNI.invokePPPV(display, setter.address(), getter.address(), function);
         installedDisplay = display;
         LOG.log(System.Logger.Level.DEBUG, "ANGLE program cache installed");
     }
 
-    private static void set(long key, long keySize, long value, long valueSize) {
-        if (valueSize > CAPACITY_BYTES) {
+    /**
+     * Has the process's cache closed by a shutdown hook, registered once, before ANGLE can call
+     * it; closes it at once when the shutdown has already begun.
+     */
+    private static void closeAtShutdown() {
+        if (closesAtShutdown) {
             return;
         }
+        closesAtShutdown = true;
+        try {
+            Runtime.getRuntime().addShutdownHook(new Thread(PROCESS::close, "limn-angle-program-cache"));
+        } catch (IllegalStateException shuttingDown) {
+            PROCESS.close();
+        }
+    }
+
+    /**
+     * {@code EGLSetBlobFuncANDROID}: keeps the binary {@code value} under {@code key}, unless this
+     * cache is closed or the binary alone is larger than the cache. Any thread.
+     */
+    void set(long key, long keySize, long value, long valueSize) {
+        if (valueSize > capacity) {
+            return;
+        }
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+        }
+        // Copied outside the lock, so that one thread's copy does not hold up another's ask.
         String name = name(key, keySize);
         byte[] data = new byte[(int) valueSize];
         MemoryUtil.memByteBuffer(value, (int) valueSize).get(data);
-        synchronized (EglProgramCache.class) {
-            byte[] old = ENTRIES.put(name, data);
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            byte[] old = entries.put(name, data);
             bytes += data.length - (old == null ? 0 : old.length);
-            var oldest = ENTRIES.entrySet().iterator();
-            while (bytes > CAPACITY_BYTES && oldest.hasNext()) {
+            var oldest = entries.entrySet().iterator();
+            while (bytes > capacity && oldest.hasNext()) {
                 bytes -= oldest.next().getValue().length;
                 oldest.remove();
             }
         }
     }
 
-    private static long get(long key, long keySize, long value, long valueSize) {
+    /**
+     * {@code EGLGetBlobFuncANDROID}: the size of the binary kept under {@code key}, copied into
+     * {@code value} when it fits; {@code 0}, "no binary", when none is kept or this cache is
+     * closed. Any thread.
+     */
+    long get(long key, long keySize, long value, long valueSize) {
         byte[] data;
-        synchronized (EglProgramCache.class) {
-            data = ENTRIES.get(name(key, keySize));
+        synchronized (this) {
+            if (closed) {
+                return 0;
+            }
+            data = entries.get(name(key, keySize));
         }
         if (data == null) {
             return 0;
@@ -104,6 +158,21 @@ final class EglProgramCache {
             MemoryUtil.memByteBuffer(value, data.length).put(data);
         }
         return data.length;
+    }
+
+    /**
+     * Answers "no binary" to every ask from now on, takes nothing more, and lets go of what was
+     * kept. Idempotent; any thread.
+     */
+    synchronized void close() {
+        closed = true;
+        entries.clear();
+        bytes = 0;
+    }
+
+    /** @return the bytes of the binaries kept now; for tests */
+    synchronized int bytes() {
+        return bytes;
     }
 
     private static String name(long key, long keySize) {
