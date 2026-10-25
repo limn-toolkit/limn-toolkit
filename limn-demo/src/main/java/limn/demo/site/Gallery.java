@@ -677,6 +677,11 @@ public final class Gallery {
         /** Frames of it already captured, which is also the number in the file name. */
         private int frameIndex;
         private boolean buttonDown;
+        /**
+         * What the current shot does to its scene before the still ({@link Poses}), or null once
+         * it has, or for a shot that needs nothing done.
+         */
+        private java.util.function.Consumer<GalleryScenes.Built> pose;
         /** When the current shot was bound, the zero its flat-frame retry is measured from. */
         private long shotStartNanos;
         /** The frame the current shot's footer took its baseline on; -1 until it has. */
@@ -904,6 +909,14 @@ public final class Gallery {
                             }
                         }
                         scene.renderFrame(renderer.canvas(), frame);
+                        // The pose, once, after the first frame: that frame laid the scene out,
+                        // so the pose finds its widgets where they are, and the warm-up frames
+                        // still to come settle whatever it opened before the still is taken.
+                        if (pose != null && film == null && frames == 0) {
+                            java.util.function.Consumer<GalleryScenes.Built> once = pose;
+                            pose = null;
+                            once.accept(built);
+                        }
                     }
                     if (scene != null && film != null) {
                         // A filmed frame: this one is already on screen with its pointer in it.
@@ -1162,6 +1175,7 @@ public final class Gallery {
             installCallback();
             frames = 0;
             film = null;
+            pose = Poses.forEntry(shot.entry().id());
             still = null;
             stillPending = false;
             footerBaselineFrame = -1;
