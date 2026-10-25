@@ -162,9 +162,4 @@ final class FfmpegAudioStream implements AudioStreamSource {
             media.releaseAudio(generation);
         }
     }
-
-    /** @return whether this source has been closed, which is what makes it no longer handable */
-    boolean isClosed() {
-        return closed;
-    }
 }

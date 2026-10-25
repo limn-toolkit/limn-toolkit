@@ -1,7 +1,6 @@
 package limn.video.ffmpeg;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -378,10 +377,6 @@ public final class FfmpegLibrary {
     }
 
     // ------------------------------------------------------------------ resources
-
-    private static InputStream resource(String path) {
-        return FfmpegLibrary.class.getClassLoader().getResourceAsStream(path);
-    }
 
     private static String readResource(String path) {
         return Resources.textIfPresent(FfmpegLibrary.class.getClassLoader(), path, "native manifest");

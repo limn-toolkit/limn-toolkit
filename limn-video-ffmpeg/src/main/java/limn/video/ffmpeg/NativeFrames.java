@@ -149,9 +149,4 @@ final class NativeFrames {
     void invalidate() {
         java.util.Arrays.fill(bound, -1);
     }
-
-    /** @return the frame in {@code slot}, for a caller that needs it without publishing */
-    VideoFrame frameAt(int slot) {
-        return writers[slot].frame();
-    }
 }
