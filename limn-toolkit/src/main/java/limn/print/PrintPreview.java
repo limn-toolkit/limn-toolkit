@@ -52,7 +52,8 @@ import java.util.Objects;
  * and the count ("Page 3 of 12"); the pages' own text is not published to it.
  *
  * <p>The pages are recorded when the preview is made and again by {@link #refresh()}; a face the
- * text asked for that was still loading records them again once it has loaded. UI thread only.
+ * text asked for that was still loading records them again once it has loaded, or after ten
+ * seconds without it, with a warning. UI thread only.
  */
 public final class PrintPreview extends Widget<PrintPreview> {
 
@@ -120,7 +121,7 @@ public final class PrintPreview extends Widget<PrintPreview> {
     public PrintPreview refresh() {
         Ui.checkUiThread();
         long asked = ++refreshes;
-        document.recordSettled(result -> {
+        document.recordSettled(Document.FACE_WAIT_MILLIS, result -> {
             if (asked == refreshes) {
                 pages = result.pages();
                 sizeChanged();

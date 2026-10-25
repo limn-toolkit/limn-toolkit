@@ -715,7 +715,10 @@ Maven Central say which number that was.
   (each glyph its outline in a Type 3 font that maps back to its characters, so the PDF can be
   selected, copied and searched in every script), soft shadows and icons as pictures at 300 dpi, a
   backdrop as its tint, video and 3D left out with a warning; the same pages give the same bytes.
-  `print(window)` prints through the system's own dialog, owned by the window. `PrintPreview` shows
+  `print(window)` prints through the system's own dialog, owned by the window. A PDF, a print and a
+  preview record their pages again once a script's fallback face, loaded in the background on its
+  first need, has landed, waiting ten seconds at most and never on the UI thread; after that they go
+  on with the faces there are, and say so in a warning. `PrintPreview` shows
   a document's pages as sheets, fitted to the width, to a page, or at a percentage; the user zooms
   it with a pinch or the wheel and Command (macOS) or Control held, around the pointer, or,
   focused, with Command or Control and `+`, `-` and `0`, and `zoomPercent()` says the size shown. `Paper` has the

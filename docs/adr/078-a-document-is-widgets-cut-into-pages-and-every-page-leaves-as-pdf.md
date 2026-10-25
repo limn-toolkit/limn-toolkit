@@ -551,7 +551,10 @@ the build departed from, and what it found, in the order of the sections above.
   gained `settled()`, a stage the backend completes when no face is loading; `print` and a preview
   wait for it and record again, and `writePdf`'s work waits for it before writing, recording again
   on the UI thread. The work waits only for a load asked for before it began, so it never waits on
-  a worker it keeps busy (a single-worker pool deadlocked the first version).
+  a worker it keeps busy (a single-worker pool deadlocked the first version). Each waits ten
+  seconds at most, the UI thread not at all: a load stuck past that left a print that never showed
+  its dialog nor answered, and a PDF's work holding a worker, so the pages are then recorded with
+  the faces that have loaded, with a warning.
 - **A Type 3 font carries a font descriptor and a real box.** Section 7.2 did not say so. Without
   them the macOS PDF reader extracts no text at all from a Type 3 font, ToUnicode map or not,
   measured with a hand-written minimal file before and after.
