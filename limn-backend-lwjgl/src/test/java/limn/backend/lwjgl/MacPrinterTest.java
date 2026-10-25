@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -61,6 +63,43 @@ class MacPrinterTest {
                 assertEquals(1, retainCount(object), "released once by the request");
                 ObjC.msgVoid(object, "release");
             }
+        }
+    }
+
+    /**
+     * A sheet whose start throws lets go of its entry and its three objects, and hands the throw
+     * on for the window's printer to answer FAILED. They waited for a delegate call that could
+     * never come, for the life of the process. The window's pointer is never messaged: no sheet
+     * took the keyboard from it.
+     */
+    @Test
+    void aSheetThatCannotBeStartedLetsGoOfItsEntryAndItsObjects() {
+        assumeTrue(Platform.current().isMacOs(), "AppKit's objects");
+        try (HeadlessUi ui = new HeadlessUi()) {
+            long[] objects = {held(), held(), held()};
+            long window = 0x7F00_1234_5000L; // a pointer nothing may message
+            int waiting = MacPrinter.pendingCount();
+            AtomicReference<PrintResult> answer = new AtomicReference<>();
+            Error thrown = assertThrows(Error.class, () -> MacPrinter.start(objects[0], objects[1], objects[2],
+                    () -> window, window, answer::set, new MacPrinter.Panel() {
+                        @Override
+                        public void sheet(long operation, long nsWindow, long context) {
+                            throw new Error("runOperationModalForWindow: threw");
+                        }
+
+                        @Override
+                        public boolean alone(long operation) {
+                            return fail("a window on screen carries a sheet");
+                        }
+                    }));
+            assertEquals("runOperationModalForWindow: threw", thrown.getMessage());
+            assertEquals(waiting, MacPrinter.pendingCount(), "no entry left waiting for the delegate");
+            for (long object : objects) {
+                assertEquals(1, retainCount(object), "released once by the request");
+                ObjC.msgVoid(object, "release");
+            }
+            ui.runtime().drain();
+            assertNull(answer.get(), "the window's printer answers it, from the throw");
         }
     }
 }

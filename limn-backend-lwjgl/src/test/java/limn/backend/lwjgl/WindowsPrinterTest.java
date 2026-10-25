@@ -56,4 +56,26 @@ class WindowsPrinterTest {
                 "a range written backwards");
         assertArrayEquals(new int[0], WindowsPrinter.chosenPages(true, new int[] {7, 9}, 5));
     }
+
+    /**
+     * The print ticket's stream is let go of when filling it fails at any step, and handed on
+     * when it is filled. It was let go of only when the conversion was refused, so a printer whose
+     * print ticket provider would not open leaked the stream and its memory.
+     */
+    @Test
+    void anObjectThatCannotBeFilledIsReleasedAndOneFilledIsHandedOn() {
+        java.util.List<Long> released = new java.util.ArrayList<>();
+        IllegalStateException refused = new IllegalStateException("PTOpenProvider failed (0x80070005)");
+        IllegalStateException thrown = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> WindowsPrinter.filledOrReleased(0x1234L, stream -> {
+                    throw refused;
+                }, released::add));
+        assertEquals(refused, thrown);
+        assertEquals(java.util.List.of(0x1234L), released, "released once");
+
+        released.clear();
+        assertEquals(0x5678L, WindowsPrinter.filledOrReleased(0x5678L, stream -> {
+        }, released::add));
+        assertEquals(java.util.List.of(), released, "a filled one is the caller's to release");
+    }
 }

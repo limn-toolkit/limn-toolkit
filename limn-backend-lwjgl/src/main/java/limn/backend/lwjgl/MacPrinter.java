@@ -56,7 +56,8 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * <p><b>Objects kept across loop turns.</b> The event loop drains an autorelease pool every turn, so
  * the operation, the document and the print info a sheet is still using are retained here until the
  * delegate is called, and released after AppKit's call has returned, as {@link MacFileDialogs} does
- * with its panel.
+ * with its panel; a panel that cannot be made or started lets go of them at once, a throw included,
+ * since no delegate call will come for it.
  *
  * <p>A window that is not on screen cannot carry a sheet: its panel runs as a window of its own with
  * {@code -runOperation}, which is modal to the application and returns when the panel is done. It is
@@ -168,36 +169,51 @@ final class MacPrinter {
             done.accept(PrintResult.FAILED);
             return;
         }
-        long printInfo = ObjC.msg(ObjC.msg(ObjC.cls("NSPrintInfo"), "sharedPrintInfo"), "copy");
-        if (job.knowsPaper()) {
-            sendTwoDoubles(printInfo, "setPaperSize:", job.paperWidth(), job.paperHeight());
-        }
-        for (String margin : new String[] {"setTopMargin:", "setBottomMargin:", "setLeftMargin:", "setRightMargin:"}) {
-            sendDouble(printInfo, margin, 0);
-        }
-        ObjC.msgVoid(printInfo, "setHorizontallyCentered:", 1L);
-        ObjC.msgVoid(printInfo, "setVerticallyCentered:", 1L);
+        // Until start holds them, what is made here is let go of here on every way out, a throw
+        // included: the document was leaked by any message below that threw.
+        long printInfo = NULL;
+        long operation = NULL;
+        boolean held = false;
+        try {
+            printInfo = ObjC.msg(ObjC.msg(ObjC.cls("NSPrintInfo"), "sharedPrintInfo"), "copy");
+            if (job.knowsPaper()) {
+                sendTwoDoubles(printInfo, "setPaperSize:", job.paperWidth(), job.paperHeight());
+            }
+            for (String margin : new String[] {"setTopMargin:", "setBottomMargin:", "setLeftMargin:",
+                    "setRightMargin:"}) {
+                sendDouble(printInfo, margin, 0);
+            }
+            ObjC.msgVoid(printInfo, "setHorizontallyCentered:", 1L);
+            ObjC.msgVoid(printInfo, "setVerticallyCentered:", 1L);
 
-        long operation = ObjC.msg(document, "printOperationForPrintInfo:scalingMode:autoRotate:", printInfo,
-                SCALE_DOWN_TO_FIT, 1L);
-        if (operation == NULL) {
-            LOG.log(Level.WARNING, "not printed, PDFKit made no print operation for {0}", job.title());
-            ObjC.msgVoid(printInfo, "release");
-            ObjC.msgVoid(document, "release");
-            done.accept(PrintResult.FAILED);
-            return;
+            long made = ObjC.msg(document, "printOperationForPrintInfo:scalingMode:autoRotate:", printInfo,
+                    SCALE_DOWN_TO_FIT, 1L);
+            if (made == NULL) {
+                LOG.log(Level.WARNING, "not printed, PDFKit made no print operation for {0}", job.title());
+                done.accept(PrintResult.FAILED);
+                return;
+            }
+            operation = ObjC.msg(made, "retain"); // held until the panel answers
+            ObjC.msgVoid(operation, "setJobTitle:", MacTray.nsString(job.title()));
+            ObjC.msgVoid(operation, "setShowsPrintPanel:", 1L);
+            ObjC.msgVoid(operation, "setShowsProgressPanel:", 1L);
+            long panel = ObjC.msg(operation, "printPanel");
+            if (panel != NULL) {
+                long options = ObjC.msg(panel, "options");
+                ObjC.msgVoid(panel, "setOptions:", options | SHOWS_PAPER_SIZE | SHOWS_ORIENTATION | SHOWS_PREVIEW);
+            }
+            held = true; // start lets go of them from here, whatever happens
+            start(operation, document, printInfo, owner, onScreen && nsWindow != NULL ? nsWindow : NULL, done,
+                    APPKIT);
+        } finally {
+            if (!held) {
+                for (long object : new long[] {operation, printInfo, document}) {
+                    if (object != NULL) {
+                        ObjC.msgVoid(object, "release");
+                    }
+                }
+            }
         }
-        ObjC.msg(operation, "retain"); // held until the panel answers
-        ObjC.msgVoid(operation, "setJobTitle:", MacTray.nsString(job.title()));
-        ObjC.msgVoid(operation, "setShowsPrintPanel:", 1L);
-        ObjC.msgVoid(operation, "setShowsProgressPanel:", 1L);
-        long panel = ObjC.msg(operation, "printPanel");
-        if (panel != NULL) {
-            long options = ObjC.msg(panel, "options");
-            ObjC.msgVoid(panel, "setOptions:", options | SHOWS_PAPER_SIZE | SHOWS_ORIENTATION | SHOWS_PREVIEW);
-        }
-
-        start(operation, document, printInfo, owner, onScreen && nsWindow != NULL ? nsWindow : NULL, done, APPKIT);
     }
 
     /** How a panel already made is run: AppKit's two ways, or a test's. */
@@ -237,7 +253,17 @@ final class MacPrinter {
                 nsWindow != NULL ? owner : MacFileDialogs.NO_OWNER, done);
         PENDING.put(context, pending);
         if (nsWindow != NULL) {
-            panel.sheet(operation, nsWindow, context);
+            try {
+                panel.sheet(operation, nsWindow, context);
+            } catch (Throwable failed) {
+                // No sheet, so no delegate call will ever come for it: the entry and the three
+                // objects it holds stayed for the life of the process. Unless the delegate was
+                // called before the throw, which took the entry and answers on its own.
+                if (PENDING.remove(context) != null) {
+                    release(pending);
+                }
+                throw failed; // the window's printer answers FAILED and logs it
+            }
             return;
         }
         // No sheet without a window on screen: the panel as a window of its own, from a posted task.
