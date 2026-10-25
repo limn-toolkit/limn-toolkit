@@ -1,5 +1,6 @@
 package limn.demo.site;
 
+import limn.components.Accelerator;
 import limn.components.Button;
 import limn.components.Checkbox;
 import limn.components.ComboBox;
@@ -22,8 +23,11 @@ import limn.components.TextArea;
 import limn.components.TextField;
 import limn.components.BackdropPanel;
 import limn.components.ColorPicker;
+import limn.components.ColorPickerButton;
+import limn.components.ContextMenus;
 import limn.components.Dialog;
 import limn.components.DisplayMode;
+import limn.components.Field;
 import limn.components.ImageView;
 import limn.components.ListView;
 import limn.components.MediaControls;
@@ -35,6 +39,7 @@ import limn.components.ScrollView;
 import limn.components.Separator;
 import limn.components.SplitPane;
 import limn.components.ToolBar;
+import limn.components.Validation;
 import limn.components.VideoView;
 import limn.components.Viewport3D;
 import limn.components.chart.BarChart;
@@ -47,7 +52,10 @@ import limn.components.chart.DonutChart;
 import limn.components.chart.LineChart;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.Currency;
 
+import limn.graphics.Color;
+import limn.input.Keys;
 import limn.math.Quat;
 import limn.math.Transform3D;
 import limn.math.Vec3;
@@ -66,6 +74,9 @@ import limn.render3d.scene.LightNode;
 import limn.render3d.scene.MeshNode;
 import limn.render3d.scene.Scene3D;
 import limn.demo.BundledClip;
+import limn.print.Document;
+import limn.print.Paper;
+import limn.print.PrintPreview;
 import limn.video.Videos;
 import limn.video.decode.SyntheticPattern;
 import limn.video.decode.SyntheticSpec;
@@ -143,7 +154,8 @@ final class GalleryScenes {
      * <p>So adding an entry means deciding where it belongs, and appending is a decision
      * too. The pairs deliberately kept together rather than ranked are ProgressBar and its
      * indeterminate variant, and ComboBox and the same combo holding many: one component, two
-     * pictures.
+     * pictures. ColorPicker and the button that opens one in a dialog are kept together too, as
+     * the two answers to one question: how much of the window a colour may take.
      */
     static List<GalleryEntry> entries() {
         return List.of(
@@ -152,6 +164,7 @@ final class GalleryScenes {
                 new GalleryEntry("label", "Label", "gallery:label", GalleryScenes::label),
                 new GalleryEntry("text-field", "TextField", "gallery:text-field",
                         GalleryScenes::textField),
+                new GalleryEntry("field", "Field", "gallery:field", GalleryScenes::field),
                 new GalleryEntry("checkbox", "Checkbox and switch", "gallery:checkbox",
                         GalleryScenes::checkbox),
                 new GalleryEntry("combo-box", "ComboBox", "gallery:combo-box",
@@ -167,6 +180,8 @@ final class GalleryScenes {
                 new GalleryEntry("dialog", "Dialog", "gallery:dialog", GalleryScenes::dialog),
                 new GalleryEntry("menu-bar", "MenuBar", "gallery:menu-bar",
                         GalleryScenes::menuBar),
+                new GalleryEntry("popup-menu", "PopupMenu and ContextMenus", "gallery:popup-menu",
+                        GalleryScenes::popupMenu),
                 new GalleryEntry("tool-bar", "ToolBar", "gallery:tool-bar",
                         GalleryScenes::toolBar),
 
@@ -220,8 +235,12 @@ final class GalleryScenes {
                         GalleryScenes::donutChart),
 
                 // The specialised surfaces: an application asks for these by name.
+                new GalleryEntry("print-preview", "PrintPreview", "gallery:print-preview",
+                        GalleryScenes::printPreview),
                 new GalleryEntry("color-picker", "ColorPicker", "gallery:color-picker",
                         GalleryScenes::colorPicker),
+                new GalleryEntry("color-picker-button", "ColorPickerButton",
+                        "gallery:color-picker-button", GalleryScenes::colorPickerButton),
                 new GalleryEntry("surface", "Surface", "gallery:surface",
                         GalleryScenes::surface),
                 new GalleryEntry("backdrop-panel", "BackdropPanel", "gallery:backdrop-panel",
@@ -297,6 +316,27 @@ final class GalleryScenes {
         PasswordField masked = new PasswordField();
         masked.setText("correct horse");
         return scene(masked);
+    }
+    // #endregion
+
+    // #region gallery:field
+    static Built field() {
+        // The caption names the control, to a screen reader too. The line under it is the helper
+        // text until the application decides a state, and then the message, after the state's
+        // glyph, so the state never rests on colour alone.
+        Field email = new Field("Email", new TextField().setText("ana.lima@"))
+                .setRequired(true)
+                .setValidation(Validation.ERROR, "Enter an address like ana@example.com");
+        Field phone = new Field("Phone", new TextField().setPlaceholder("+55 11 91234-5678"))
+                .setHelperText("Only if a delivery goes wrong");
+        Field user = new Field("Username", new TextField().setText("ana.lima"))
+                .setValidation(Validation.SUCCESS, "Available");
+        Column form = new Column();
+        form.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
+        form.add(email);
+        form.add(phone);
+        form.add(user);
+        return scene(new SizedBox(300, SizedBox.UNSET, form));
     }
     // #endregion
 
@@ -688,6 +728,31 @@ final class GalleryScenes {
     }
     // #endregion
 
+    // #region gallery:popup-menu
+    static Built popupMenu() {
+        ListView<String> files = new ListView<>(
+                name -> new Padding(limn.scene.Insets.symmetric(8, 12), new Label(name)));
+        files.setItems(List.of("Contract.pdf", "Invoice 1042.pdf", "Logo.svg", "Notes.txt"));
+        files.setSelectedIndex(1);
+        // Wrapped, not set: the wrapper answers the right button, the Menu key and Shift+F10
+        // alike, and asks for the menu at the moment of the gesture, so its rows can name what
+        // is selected then. Each column is a window of its own and may leave this one.
+        Widget<?> withMenu = ContextMenus.attach(files, () -> {
+            Menu moveTo = new Menu();
+            moveTo.addItem("Documents", () -> { });
+            moveTo.addItem("Archive", () -> { });
+            Menu menu = new Menu();
+            menu.addItem("Open " + files.selectedItem(), () -> { });
+            menu.add(MenuItem.of("Rename…", () -> { }).setAccelerator(Accelerator.of(Keys.F2)));
+            menu.addSubmenu("Move to", moveTo);
+            menu.addSeparator();
+            menu.addItem("Delete", () -> { });
+            return menu;
+        });
+        return scene(new SizedBox(320, 240, withMenu));
+    }
+    // #endregion
+
     // #region gallery:list-view
     static Built listView() {
         // Rows are materialised on demand: the list only ever builds what the viewport
@@ -854,6 +919,53 @@ final class GalleryScenes {
         // the sliders read as ticks. The box is what bounds it, and every rail then gets
         // the room left over on its line.
         return scene(new SizedBox(380, SizedBox.UNSET, picker));
+    }
+    // #endregion
+
+    // #region gallery:color-picker-button
+    static Built colorPickerButton() {
+        // A chip and its hex, the picker in a dialog on a click. Every move in the picker is a
+        // change, and so is Cancel, which puts the colour back: color() is always the answer.
+        ColorPickerButton accent = new ColorPickerButton(Color.rgb(0xAF7AFF));
+        accent.onChange(colour -> { });
+        // A caption of the application's own, and none at all: a square chip for a dense column.
+        ColorPickerButton highlight = new ColorPickerButton(Color.rgb(0xF59E0B)).setText("Highlight");
+        ColorPickerButton chipOnly = new ColorPickerButton(Color.rgb(0x2BB673)).setText("");
+        Row row = new Row();
+        row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+        row.add(accent);
+        row.add(highlight);
+        row.add(chipOnly);
+        return scene(row);
+    }
+    // #endregion
+
+    // #region gallery:print-preview
+    static Built printPreview() {
+        // The document is widgets cut into pages, and the preview shows the recording its PDF is
+        // written from, so what it shows is what the printer and the file get.
+        record Line(String item, int quantity, double price) {
+        }
+        limn.components.table.Table<Line> items = limn.components.table.Table.of(
+                limn.components.table.Column.<Line>text("Item", Line::item).width(150).weight(1),
+                limn.components.table.Column.<Line>numeric("Quantity", Line::quantity).width(100),
+                limn.components.table.Column.<Line>currency("Price", Line::price,
+                        Currency.getInstance("EUR")).width(110));
+        items.setRows(List.of(new Line("Desk, oak", 2, 420), new Line("Office chair", 4, 189),
+                new Line("Monitor arm", 4, 64.5), new Line("Cable tray", 6, 18.9),
+                new Line("Filing cabinet", 1, 245), new Line("Desk lamp", 4, 39.9),
+                new Line("Whiteboard", 1, 129)));
+        Document order = Document.of(Paper.A5)
+                .marginsMm(14, 12, 14, 12)
+                .title("Order 4512")
+                .header(page -> new Label("Harbor Lane Supplies").setStrong(true))
+                .footer(page -> new Label("Page " + page.number() + " of " + page.count()).setMuted(true))
+                .add(new Label("Order 4512, placed on 9 September 2026"))
+                .add(items)
+                .keepTogether(new Label("Total €2,501.00").setStrong(true));
+        // A whole sheet in the view; FIT_WIDTH, the default, fills the width and scrolls.
+        PrintPreview preview = new PrintPreview(order).setZoom(PrintPreview.Zoom.FIT_PAGE);
+        return scene(new SizedBox(300, 400, preview));
     }
     // #endregion
 
