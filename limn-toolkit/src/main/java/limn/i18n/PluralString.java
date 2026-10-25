@@ -125,6 +125,24 @@ public final class PluralString {
         }
     }
 
+    /**
+     * The sentence for {@code count}, as a text that follows the language: {@link #format} formats
+     * it again, form and digits included, each time it is read in another language. What a label
+     * showing a count is given, so that a change of language reaches it; {@link #format} answers
+     * the sentence of the moment as a {@code String}. An argument that is an {@code I18nString} is
+     * read in that language too.
+     *
+     * @param count how many; it chooses the form and is appended to {@code args} as text
+     * @param args  the caller's arguments, which keep their own positions
+     * @return the sentence as a text that follows the language
+     */
+    public I18nString forCount(long count, @Nullable Object @Nullable ... args) {
+        @Nullable Object[] held = args == null ? new Object[0] : args.clone();
+        String fallback = english.get(PluralRules.select(Locale.ENGLISH, count));
+        return new I18nString(null, fallback, () -> format(count, I18nString.resolveEach(held)),
+                new Object[] {key, count, held});
+    }
+
     /** The lookup key, without a form suffix. */
     public String key() {
         return key;

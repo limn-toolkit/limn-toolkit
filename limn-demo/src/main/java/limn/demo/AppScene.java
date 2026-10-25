@@ -651,8 +651,10 @@ final class AppScene {
             status.setText(ShowcaseStrings.STATUS_WINDOW_RESTORED);
         } else {
             window.enterFullscreen(width, height, 0);
-            status.setText(width <= 0 ? ShowcaseStrings.STATUS_FULLSCREEN_CURRENT.get()
-                    : ShowcaseStrings.STATUS_FULLSCREEN_AT.format(String.valueOf(width), String.valueOf(height)));
+            // Sentences that follow a change of language; a size is a spelling, not a quantity.
+            status.setText(width <= 0 ? ShowcaseStrings.STATUS_FULLSCREEN_CURRENT
+                    : ShowcaseStrings.STATUS_FULLSCREEN_AT.withArguments(
+                            String.valueOf(width), String.valueOf(height)));
         }
     }
 
@@ -1154,8 +1156,8 @@ final class AppScene {
             statuses.setPlaceholder(ShowcaseStrings.ORDERS_ANY_STATUS);
             statuses.setAccessibleName(ShowcaseStrings.ORDERS_STATUS);
             Label count = new Label("").setMuted(true);
-            Runnable counted = () -> count.setText(ShowcaseStrings.ORDERS_COUNT.format(
-                    String.valueOf(shown.size()), String.valueOf(all.size())));
+            Runnable counted = () -> count.setText(ShowcaseStrings.ORDERS_COUNT.withArguments(
+                    shown.size(), all.size()));
 
             // What the rows area says when the filter leaves nothing, and the way back.
             Button clearFilter = new Button(Text.CLEAR_FILTER).setStyle(Button.Style.SECONDARY);
@@ -1388,7 +1390,7 @@ final class AppScene {
                 if (row >= 0) {
                     table.setSelectedRow(row);
                 }
-                status.setText(ShowcaseStrings.ORDERS_CREATED.format(String.valueOf(next)));
+                status.setText(ShowcaseStrings.ORDERS_CREATED.withArguments(String.valueOf(next)));
             });
             return dialog;
         }

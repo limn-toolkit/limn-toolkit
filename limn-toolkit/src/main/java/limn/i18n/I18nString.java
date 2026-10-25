@@ -68,6 +68,13 @@ public final class I18nString {
      * where two languages are genuinely on one screen.
      */
     private Locale cachedLocale;
+    /**
+     * What a text made by {@link #withArguments} or {@link PluralString#forCount} is made of each
+     * time it resolves; {@code null} for a declared string or a literal. With {@link #parts}, which
+     * its equality reads, so the same sentence made twice is one value.
+     */
+    private final java.util.function.@Nullable Supplier<String> composed;
+    private final @Nullable Object @Nullable [] parts;
 
     /**
      * Declares a localizable string.
@@ -85,6 +92,8 @@ public final class I18nString {
         this.key = Objects.requireNonNull(key, "key");
         this.english = Objects.requireNonNull(english, "english");
         this.wordsOnly = false;
+        this.composed = null;
+        this.parts = null;
         I18n.declare(key, english);
     }
 
@@ -92,6 +101,8 @@ public final class I18nString {
         this.key = null;
         this.english = literal;
         this.wordsOnly = false;
+        this.composed = null;
+        this.parts = null;
     }
 
     /** {@link #withoutAccessLetter()} of a string already declared, or of a literal. */
@@ -99,6 +110,18 @@ public final class I18nString {
         this.key = key;
         this.english = english;
         this.wordsOnly = wordsOnly;
+        this.composed = null;
+        this.parts = null;
+    }
+
+    /** A text made afresh from {@code parts} at each resolution: see {@link #withArguments}. */
+    I18nString(@Nullable String key, String english, java.util.function.Supplier<String> composed,
+               @Nullable Object @Nullable [] parts) {
+        this.key = key;
+        this.english = english;
+        this.wordsOnly = false;
+        this.composed = composed;
+        this.parts = parts;
     }
 
     /**
@@ -117,6 +140,16 @@ public final class I18nString {
      * reads correctly from every subtree without the caller doing anything.
      */
     public String get() {
+        if (composed != null) {
+            long epoch = I18n.epoch();
+            Locale locale = I18n.locale();
+            if (cachedEpoch != epoch || !locale.equals(cachedLocale)) {
+                cached = composed.get();
+                cachedEpoch = epoch;
+                cachedLocale = locale;
+            }
+            return cached;
+        }
         if (key == null) {
             if (!wordsOnly) {
                 return english;
@@ -156,6 +189,11 @@ public final class I18nString {
      * @return the words; {@code this} when it is already words
      */
     public I18nString withoutAccessLetter() {
+        if (composed != null) {
+            I18nString whole = this;
+            return new I18nString(key, english, () -> AccessMarks.parse(whole.get(), true).text(),
+                    new Object[] {"words", whole});
+        }
         return wordsOnly ? this : new I18nString(key, english, true);
     }
 
@@ -199,6 +237,38 @@ public final class I18nString {
         }
     }
 
+    /**
+     * This text with {@code {0}}-style arguments, as a text that follows the language: where
+     * {@link #format} answers a {@code String} in the language of the moment, which a label
+     * given it keeps after the language changes, this answers an {@code I18nString} that formats
+     * again in the language in effect wherever and whenever it is read. Give it to anything that
+     * takes an {@code I18nString} ({@code Label.setText}, a button, an accessible name) and a
+     * change of language reaches it as it reaches a plain declared string.
+     *
+     * <p>An argument that is itself an {@code I18nString} is read in that language too; numbers
+     * are written as {@link #format} writes them. The arguments are held as given, so a mutable
+     * one is read at each resolution. Two texts made from the same string and equal arguments are
+     * equal, so setting the same sentence again is no change.
+     *
+     * @param args the arguments, in their positions
+     * @return the text with its arguments
+     */
+    public I18nString withArguments(@Nullable Object @Nullable ... args) {
+        @Nullable Object[] held = args == null ? new Object[0] : args.clone();
+        return new I18nString(key, english, () -> format(resolveEach(held)), new Object[] {this, held});
+    }
+
+    /** The arguments with every {@code I18nString} among them read in the language in effect. */
+    static @Nullable Object[] resolveEach(@Nullable Object[] args) {
+        @Nullable Object[] out = args.clone();
+        for (int i = 0; i < out.length; i++) {
+            if (out[i] instanceof I18nString text) {
+                out[i] = text.get();
+            }
+        }
+        return out;
+    }
+
     /** The lookup key, or {@code null} for a {@linkplain #literal literal}. */
     public @Nullable String key() {
         return key;
@@ -214,7 +284,7 @@ public final class I18nString {
 
     /** Whether this is a literal, which no bundle can ever change. */
     public boolean isLiteral() {
-        return key == null;
+        return key == null && composed == null;
     }
 
     /** The resolved text, so logging and debugging read as the user sees it. */
@@ -238,11 +308,12 @@ public final class I18nString {
         if (!(o instanceof I18nString other)) {
             return false;
         }
-        return Objects.equals(key, other.key) && english.equals(other.english) && wordsOnly == other.wordsOnly;
+        return Objects.equals(key, other.key) && english.equals(other.english) && wordsOnly == other.wordsOnly
+                && java.util.Arrays.deepEquals(parts, other.parts);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, english, wordsOnly);
+        return Objects.hash(key, english, wordsOnly) * 31 + java.util.Arrays.deepHashCode(parts);
     }
 }

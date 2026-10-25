@@ -268,6 +268,23 @@ falls back to that language's `other` and then to the English declared in code, 
 toolkit's own catalogs are checked against CLDR so a language never carries a form it does not
 use. The tree's "*folder*, 12 items" announcement is one of these.
 
+## A sentence that follows a change of language
+
+`format(…)`, on an `I18nString` or a `PluralString`, answers a `String`: the sentence in the
+language of that moment. A label given it keeps that text when the user switches language. Give
+the label the sentence itself instead: `withArguments(…)` on an `I18nString`, and
+`forCount(count, …)` on a `PluralString`, answer an `I18nString` that is formatted again in
+whatever language is in effect when it is read.
+
+```java
+status.setText(SAVED.withArguments(document.name(), time));   // "Saved {0} at {1}"
+count.setText(FILES.forCount(files.size()));                  // "{0} file" / "{0} files"
+```
+
+An argument that is itself an `I18nString` is read in the new language too, and the count's form
+and digits follow the language as well. Use `format(…)` when you need the text of the moment
+as a `String`: for a log line, a file name, or a message to another program.
+
 ## If you draw text yourself
 
 A custom widget that calls `canvas.drawText(text, x, y, font, ink)` gets shaped text: the
