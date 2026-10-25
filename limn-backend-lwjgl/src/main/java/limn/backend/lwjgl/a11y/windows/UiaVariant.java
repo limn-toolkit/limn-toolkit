@@ -138,22 +138,6 @@ final class UiaVariant {
     }
 
     /**
-     * A {@code SAFEARRAY} of 32-bit integers, which is the form a runtime id takes.
-     *
-     * @param at      the buffer
-     * @param offset  where the structure begins
-     * @param pointer the array the caller now owns, or {@code 0}
-     */
-    static void i4Array(ByteBuffer at, int offset, long pointer) {
-        empty(at, offset);
-        if (pointer == 0) {
-            return;
-        }
-        at.putShort(offset, (short) (VT_ARRAY | VT_I4));
-        at.putLong(offset + PAYLOAD, pointer);
-    }
-
-    /**
      * A {@code SAFEARRAY} of {@code IUnknown*}, which is the form {@code DescribedBy} and
      * {@code ControllerFor} take.
      *

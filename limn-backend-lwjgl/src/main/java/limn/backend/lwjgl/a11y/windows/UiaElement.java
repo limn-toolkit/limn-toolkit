@@ -4,18 +4,15 @@ package limn.backend.lwjgl.a11y.windows;
  * One COM object standing for one node of the published tree, as far as the registry is concerned.
  *
  * <p>Deliberately this small. The registry's whole job is identity and lifetime, and neither needs
- * to know what a provider answers — so an element here is a node identifier, the interface pointer
- * a client holds, and the one operation the registry performs on it. That is also what makes the
- * registry testable on a machine with no COM at all: the rules it enforces are about maps and
- * threads, and those are the rules that bite.
+ * to know what a provider answers — so an element here is the interface pointer a client holds
+ * and the one operation the registry performs on it. That is also what makes the registry
+ * testable on a machine with no COM at all: the rules it enforces are about maps and threads, and
+ * those are the rules that bite.
  *
  * <p><b>No element ever holds a widget</b>: a client can hold an element for minutes, and one that
  * reached a widget would pin a detached subtree for exactly that long.
  */
 interface UiaElement {
-
-    /** @return the identifier of the node this element stands for, stable across republishes */
-    long nodeId();
 
     /**
      * @return the {@code IRawElementProviderSimple} pointer handed to clients, and the key a call

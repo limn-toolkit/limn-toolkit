@@ -122,11 +122,6 @@ final class GlCapabilitiesCache<C> {
         return os == Platform.Os.MACOS || os == Platform.Os.LINUX || os == Platform.Os.WINDOWS;
     }
 
-    /** Whether this cache keeps what it creates. */
-    boolean reuses() {
-        return reuses;
-    }
-
     /**
      * The capabilities for a new window's context, which must be current: those a living window of
      * the same {@code key} holds, or new ones from {@code create}. Each call is one hold, given back

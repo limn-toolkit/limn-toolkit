@@ -81,7 +81,6 @@ public final class WindowsDrag {
     // IDataObject and IEnumFORMATETC, by their places in the tables
     private static final int RELEASE = 2;
     private static final int GET_DATA = 3;
-    private static final int SET_DATA = 7;
     private static final int ENUM_FORMAT_ETC = 8;
     private static final int ENUM_NEXT = 3;
 
@@ -857,19 +856,6 @@ public final class WindowsDrag {
         memPutAddress(object, lazyTable);
         LAZY.put(object, new Lazy(formats, bytes));
         return object;
-    }
-
-    private static void put(MemoryStack stack, long data, int format, byte[] bytes) {
-        long handle = global(bytes);
-        if (handle == NULL) {
-            return;
-        }
-        long medium = stack.ncalloc(8, 24, 1);
-        memPutInt(medium, TYMED_HGLOBAL);
-        memPutAddress(medium + 8, handle);
-        if ((int) method(data, SET_DATA, "ppi>i", formatEtc(stack, format), medium, 1) < 0) {
-            call(KERNEL32, "GlobalFree", "p>p", handle); // not taken: still ours to free
-        }
     }
 
     /**

@@ -251,11 +251,6 @@ final class AxElementClass {
 
     private static final System.Logger LOG = System.getLogger(AxElementClass.class.getName());
 
-    /** @return the listed selectors the running AppKit declared nothing for, and that were skipped. */
-    List<String> missingSelectors() {
-        return selectors.missing();
-    }
-
     /** @return a new, retained instance; the caller owns it until it releases it. */
     long newInstance() {
         return ObjC.msg(ObjC.msg(elementClass, "alloc"), "init");

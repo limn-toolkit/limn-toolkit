@@ -154,10 +154,6 @@ final class GlRenderTarget implements RenderTarget {
         return Math.max(1, height / 2);
     }
 
-    boolean bloomAllocated() {
-        return bloomFboA != 0;
-    }
-
     int bloomFramebufferA() {
         return bloomFboA;
     }

@@ -68,7 +68,6 @@ final class GlLayerPool {
 
     private final List<Picture> pictures = new ArrayList<>();
     private long frame;
-    private int takenThisFrame;
 
     /**
      * A frame starts: what a framebuffer of this size can no longer hold is let go, since a layer is
@@ -78,7 +77,6 @@ final class GlLayerPool {
      */
     boolean beginFrame(int framebufferWidth, int framebufferHeight) {
         frame++;
-        takenThisFrame = 0;
         boolean deleted = false;
         for (int i = pictures.size() - 1; i >= 0; i--) {
             Picture p = pictures.get(i);
@@ -115,18 +113,12 @@ final class GlLayerPool {
         }
         best.taken = true;
         best.usedInFrame = frame;
-        takenThisFrame++;
         return best;
     }
 
     /** Gives a picture back for the next layer of this frame, or of the next. */
     void give(Picture picture) {
         picture.taken = false;
-    }
-
-    /** @return how many layers this frame has opened through the pool */
-    int takenThisFrame() {
-        return takenThisFrame;
     }
 
     /**

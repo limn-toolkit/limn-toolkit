@@ -87,10 +87,6 @@ final class LwjglDisplay implements Display {
         return listed.test(monitor);
     }
 
-    long handle() {
-        return monitor;
-    }
-
     @Override
     public String id() {
         return "display-" + index;

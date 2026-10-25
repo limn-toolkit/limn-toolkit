@@ -51,12 +51,10 @@ final class EglIoSurfaces {
     private EglIoSurfaces() {
     }
 
-    /** @return whether the ES profile's display can bind an IOSurface; macOS and ANGLE only */
-    static boolean isAvailable() {
-        return unavailableReason() == null;
-    }
-
-    /** @return why {@link #isAvailable()} is false, or null when it is true */
+    /**
+     * @return why the ES profile's display cannot bind an IOSurface, or null when it can; it can on
+     *         macOS and ANGLE only
+     */
     static @Nullable String unavailableReason() {
         if (Platform.current().os() != Platform.Os.MACOS) {
             return "IOSurfaces exist on macOS only";

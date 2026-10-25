@@ -6,10 +6,9 @@ import java.nio.ByteOrder;
 /**
  * Packs values into a uniform-buffer following the OpenGL <b>std140</b> layout
  * rules, so the bytes match what a GLSL {@code layout(std140)} block expects. It
- * writes at absolute offsets and advances a cursor with the correct base
- * alignment for each type (scalar 4, vec2 8, vec3/vec4/array-element/mat-column
- * 16); a {@code vec3} occupies 12 bytes so a trailing {@code float} packs into its
- * 4th slot, exactly as std140 specifies.
+ * writes at absolute offsets and advances a cursor with the base alignment std140
+ * gives each type it writes: 16 for a {@code vec4}, an {@code ivec4}, an array
+ * element and a matrix column, the only members the shader's blocks declare.
  *
  * <p>Pure {@link ByteBuffer} arithmetic (no GL), so the layout is unit-testable
  * headless. {@link Gl3DContext} fills one of these per frame and uploads it with
@@ -32,37 +31,6 @@ final class Std140Buffer {
 
     private void align(int alignment) {
         cursor = (cursor + alignment - 1) & ~(alignment - 1);
-    }
-
-    Std140Buffer putFloat(float v) {
-        align(4);
-        buffer.putFloat(cursor, v);
-        cursor += 4;
-        return this;
-    }
-
-    Std140Buffer putInt(int v) {
-        align(4);
-        buffer.putInt(cursor, v);
-        cursor += 4;
-        return this;
-    }
-
-    Std140Buffer putVec2(float x, float y) {
-        align(8);
-        buffer.putFloat(cursor, x);
-        buffer.putFloat(cursor + 4, y);
-        cursor += 8;
-        return this;
-    }
-
-    Std140Buffer putVec3(float x, float y, float z) {
-        align(16);
-        buffer.putFloat(cursor, x);
-        buffer.putFloat(cursor + 4, y);
-        buffer.putFloat(cursor + 8, z);
-        cursor += 12; // no trailing pad: the next member aligns itself
-        return this;
     }
 
     Std140Buffer putVec4(float x, float y, float z, float w) {
@@ -111,9 +79,5 @@ final class Std140Buffer {
         buffer.position(0);
         buffer.limit(buffer.capacity());
         return buffer;
-    }
-
-    int capacity() {
-        return buffer.capacity();
     }
 }

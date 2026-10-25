@@ -537,12 +537,8 @@ final class GlslCodegen {
             return variables;
         }
 
-        /** What under {@code node} this generator cannot place in non-uniform control flow, or null. */
-        private @org.jspecify.annotations.Nullable String refusedEarly(Expr node) {
-            return refusedEarly(node, java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
-        }
-
         /**
+         * What under {@code node} this generator cannot place in non-uniform control flow, or null.
          * Visits a node once however many parents share it: a turn that reuses its steps is a DAG
          * whose paths, followed as a tree, grow as a power of its depth.
          */

@@ -27,20 +27,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class UiaElementsTest {
 
-    /** What a real element will be, minus the COM object: an id, a pointer, and one release. */
+    /** What a real element will be, minus the COM object: a pointer and one release. */
     private static final class FakeElement implements UiaElement {
-        private final long nodeId;
         private final long pointer;
         final AtomicInteger releases = new AtomicInteger();
 
-        FakeElement(long nodeId, long pointer) {
-            this.nodeId = nodeId;
+        FakeElement(long pointer) {
             this.pointer = pointer;
-        }
-
-        @Override
-        public long nodeId() {
-            return nodeId;
         }
 
         @Override
@@ -59,7 +52,7 @@ class UiaElementsTest {
 
     private UiaElement mint(long nodeId) {
         minted.incrementAndGet();
-        return new FakeElement(nodeId, nextPointer.getAndAdd(0x40));
+        return new FakeElement(nextPointer.getAndAdd(0x40));
     }
 
     /**

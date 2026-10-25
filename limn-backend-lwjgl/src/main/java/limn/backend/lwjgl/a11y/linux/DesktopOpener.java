@@ -38,17 +38,10 @@ public final class DesktopOpener {
      * @param sessionAddress {@code DBUS_SESSION_BUS_ADDRESS}, or null
      * @param parent         the portal's name for the window that asks, or {@code ""}
      * @param address        the address
-     * @return whether the portal, or {@code xdg-open} where none answers, took it
-     */
-    public static boolean openAddress(@Nullable String sessionAddress, String parent, URI address) {
-        return openAddress(sessionAddress, parent, address, "");
-    }
-
-    /**
-     * @param token the user's consent for what opens to come in front, as the desktop spells it
-     *              (an activation token under Wayland, a startup identifier under X11), or
-     *              {@code ""}: a program that is already running then takes the address behind
-     *              the window that asked
+     * @param token          the user's consent for what opens to come in front, as the desktop
+     *                       spells it (an activation token under Wayland, a startup identifier under
+     *                       X11), or {@code ""}: a program that is already running then takes the
+     *                       address behind the window that asked
      * @return whether the portal, or {@code xdg-open} where none answers, took it
      */
     public static boolean openAddress(@Nullable String sessionAddress, String parent, URI address, String token) {
@@ -70,14 +63,7 @@ public final class DesktopOpener {
     }
 
     /**
-     * @param file an absolute path
-     * @return whether {@code xdg-open} took it
-     */
-    public static boolean openFile(Path file) {
-        return openFile(file, "");
-    }
-
-    /**
+     * @param file  an absolute path
      * @param token the user's consent for what opens to come in front, or {@code ""}
      * @return whether {@code xdg-open} took it
      */
@@ -88,15 +74,8 @@ public final class DesktopOpener {
     /**
      * @param sessionAddress {@code DBUS_SESSION_BUS_ADDRESS}, or null
      * @param file           an absolute path
-     * @return whether a file manager was asked to show it, or its folder was opened where none
-     *         answers to the name
-     */
-    public static boolean showInFolder(@Nullable String sessionAddress, Path file) {
-        return showInFolder(sessionAddress, file, "");
-    }
-
-    /**
-     * @param token the user's consent for the file manager to come in front, or {@code ""}
+     * @param token          the user's consent for the file manager to come in front, or
+     *                       {@code ""}
      * @return whether a file manager was asked to show it, or its folder was opened where none
      *         answers to the name
      */
@@ -135,12 +114,7 @@ public final class DesktopOpener {
      * {@code xdg-open}, which exits once it has handed its argument to a program: zero is taken,
      * anything else is not, and one still running after ten seconds is a desktop whose opener
      * stays for as long as what it opened, which is taken too.
-     */
-    static boolean xdgOpen(String target) {
-        return xdgOpen(target, "");
-    }
-
-    /**
+     *
      * @param token handed to what opens by the two names a program reads the user's consent
      *              under, one for each windowing system; {@code ""} for none
      */

@@ -271,7 +271,6 @@ final class DBus {
             }
             return n;
         }
-        boolean hasRemaining() { return b.hasRemaining(); }
     }
 
     /** The longest line of the authentication exchange that is read before giving up. */
@@ -1042,7 +1041,6 @@ final class DBus {
         void export(String path, Handler h) { exports.put(path, h); }
         /** Answers calls on any path with no exact export — used to serve the node tree. */
         void exportFallback(Handler h) { fallback = h; }
-        public java.util.Set<String> exportedPaths() { return exports.keySet(); }
         private volatile Handler fallback;
 
         /** Blocking method call. Throws DBusError on an ERROR reply. */
@@ -1092,12 +1090,6 @@ final class DBus {
             writerThread = Threads.daemon("limn-a11y-dbus-writer", this::writeLoop);
             readerThread = Threads.daemon("limn-a11y-dbus-reader", this::loop);
         }
-
-        /** The thread that answers inbound calls; nothing else may write to the connection. */
-        Thread readerThread() { return readerThread; }
-
-        /** The thread that performs every write. */
-        Thread writerThread() { return writerThread; }
 
         /**
          * Pump messages until closed. Replies go to waiters; calls go to exported handlers.
@@ -1297,14 +1289,6 @@ final class DBus {
                         "no handler for " + call.iface + "." + call.member + " on " + call.path);
             }
             return reply;
-        }
-
-        /** Drive the loop on the caller's thread until the deadline (used by the probe's main). */
-        void pump(long millis) {
-            long end = System.nanoTime() + millis * 1_000_000L;
-            while (running && System.nanoTime() < end) {
-                try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
-            }
         }
 
         @Override public void close() {

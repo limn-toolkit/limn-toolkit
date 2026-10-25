@@ -2269,7 +2269,7 @@ public final class UiaBridge extends PlatformBridge {
             }
             UiaObject object = UiaObject.create(served, new PatternsOf(id), () -> { });
             object.pointers().forEach(pointer -> objects.put(pointer, object));
-            return new Element(id, object, objects);
+            return new Element(object, objects);
         });
     }
 
@@ -2347,7 +2347,7 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /** One node's COM object, as the registry sees it. */
-    private record Element(long nodeId, UiaObject object, Map<Long, UiaObject> objects) implements UiaElement {
+    private record Element(UiaObject object, Map<Long, UiaObject> objects) implements UiaElement {
 
         @Override
         public long pointer() {

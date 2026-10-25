@@ -272,11 +272,6 @@ final class AtspiApplication {
         }
     }
 
-    /** @return what the application object is called now */
-    String name() {
-        return name;
-    }
-
     /** @return the handler every inbound call is answered by */
     AtspiTree objects() {
         return objects;

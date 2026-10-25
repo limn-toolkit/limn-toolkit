@@ -107,11 +107,6 @@ final class BufferAgeQuery {
         return false;
     }
 
-    /** Whether this window's driver answers at all. */
-    boolean known() {
-        return kind != Kind.NONE;
-    }
-
     /**
      * @return how many presents old the back buffer is (0 when its contents are undefined, which
      *         repaints the window), or {@link #UNKNOWN}. Call it with the window's context current

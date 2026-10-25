@@ -3,7 +3,6 @@ package limn.backend.lwjgl;
 import limn.concurrent.Subscription;
 import limn.graphics.Font;
 import limn.graphics.Fonts;
-import limn.graphics.Image;
 import limn.graphics.TextMetrics;
 
 import java.lang.System.Logger.Level;
@@ -165,7 +164,6 @@ final class FontStore implements AutoCloseable {
     // the FIRST listing request (or unknown-family resolve). An app that shows
     // only Latin text in bundled families never pays for either.
     private boolean heavyFallbacksRequested;
-    private Throwable heavyFallbacksFailure;
     /**
      * Completed once the heavy fallbacks have landed or failed; null until they are asked for.
      * What a printed page waits on before it records its text for good.
@@ -337,7 +335,6 @@ final class FontStore implements AutoCloseable {
         if (failed != null) {
             // Without this the exception ends inside a future nobody observes, and the only
             // symptom is CJK text rendering as boxes for the rest of the process.
-            heavyFallbacksFailure = failed;
             LOG.log(Level.WARNING,
                     "fallback fonts failed to load; CJK and emoji stay .notdef", failed);
             return;
@@ -373,11 +370,6 @@ final class FontStore implements AutoCloseable {
     /** @return whether the heavy-fallback load was kicked (tests). */
     boolean heavyFallbacksRequested() {
         return heavyFallbacksRequested;
-    }
-
-    /** @return why the boxes are not healing: what the background parse threw, or null (tests). */
-    Throwable heavyFallbacksFailure() {
-        return heavyFallbacksFailure;
     }
 
     /** @return whether the OS enumeration was kicked (tests). */
@@ -1133,16 +1125,6 @@ final class FontStore implements AutoCloseable {
             boldTwins.put(face, twin);
         }
         return twin;
-    }
-
-    /**
-     * @return the color-emoji image for {@code cp}, or {@code null}. Used by the
-     *         renderer for code points the primary lacks; the color font supplies
-     *         both the bitmap and (via {@link #colorEmojiAdvance}) the advance.
-     */
-    Image colorEmojiImage(int cp) {
-        ColorEmojiFont.Emoji emoji = colorEmojiGlyph(cp);
-        return emoji == null ? null : emoji.image();
     }
 
     /**

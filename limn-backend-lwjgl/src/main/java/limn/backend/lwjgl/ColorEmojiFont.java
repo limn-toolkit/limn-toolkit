@@ -182,16 +182,6 @@ final class ColorEmojiFont implements AutoCloseable {
         return new Emoji(image, bitmap.width() / ppem, bitmap.height() / ppem, bitmap.bearingY() / ppem);
     }
 
-    /**
-     * @return whether this font has a color glyph for {@code cp}, answered by
-     *         decoding it, so a miss costs a PNG decode. Anything asking during
-     *         measure or layout wants {@link #covers} instead, which reads the
-     *         cmap and decodes nothing.
-     */
-    boolean has(int cp) {
-        return image(cp) != null;
-    }
-
     /** Cheap coverage check (cmap only, no bitmap decode), for measure and the draw trigger. */
     boolean covers(int cp) {
         return glyphId(cp) > 0;

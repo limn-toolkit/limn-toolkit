@@ -14,26 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class Std140BufferTest {
 
     @Test
-    void scalarThenVec3ThenScalarPacks() {
-        Std140Buffer b = new Std140Buffer(64);
-        assertEquals(0, b.position());
-        b.putFloat(1f);              // [0, 4)
-        assertEquals(4, b.position());
-        b.putVec3(1f, 2f, 3f);       // vec3 aligns to 16 → [16, 28)
-        assertEquals(28, b.position());
-        b.putFloat(9f);              // packs into the vec3's 4th slot → [28, 32)
-        assertEquals(32, b.position());
-    }
-
-    @Test
-    void vec2AlignsToEight() {
-        Std140Buffer b = new Std140Buffer(64);
-        b.putFloat(1f);              // [0, 4)
-        b.putVec2(1f, 2f);           // aligns to 8 → [8, 16)
-        assertEquals(16, b.position());
-    }
-
-    @Test
     void mat4ThenVec4MatchesFrameBlock() {
         Std140Buffer b = new Std140Buffer(80);
         b.putMat4(new float[16]);    // [0, 64)
@@ -61,13 +41,17 @@ class Std140BufferTest {
     @Test
     void writesValuesAtTheComputedOffsets() {
         Std140Buffer b = new Std140Buffer(32);
-        b.putFloat(1.5f);            // offset 0
-        b.putVec3(2f, 3f, 4f);       // offsets 16, 20, 24
+        b.putVec4(1.5f, 2f, 3f, 4f); // offsets 0, 4, 8, 12
+        b.putIVec4(5, 6, 7, 8);      // offsets 16, 20, 24, 28
         ByteBuffer buf = b.buffer();
         assertEquals(1.5f, buf.getFloat(0), 0f);
-        assertEquals(2f, buf.getFloat(16), 0f);
-        assertEquals(3f, buf.getFloat(20), 0f);
-        assertEquals(4f, buf.getFloat(24), 0f);
+        assertEquals(2f, buf.getFloat(4), 0f);
+        assertEquals(3f, buf.getFloat(8), 0f);
+        assertEquals(4f, buf.getFloat(12), 0f);
+        assertEquals(5, buf.getInt(16));
+        assertEquals(6, buf.getInt(20));
+        assertEquals(7, buf.getInt(24));
+        assertEquals(8, buf.getInt(28));
     }
 
     @Test

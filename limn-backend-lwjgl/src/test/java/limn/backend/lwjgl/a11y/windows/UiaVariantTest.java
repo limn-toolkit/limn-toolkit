@@ -140,23 +140,6 @@ class UiaVariantTest {
     }
 
     /**
-     * A runtime id travels as an array of integers, and the tag is the two flags together — the
-     * array bit over the element type, which is one number and not two fields.
-     */
-    @Test
-    void anArrayTagCarriesItsElementTypeInTheSameNumber() {
-        ByteBuffer memory = poisoned();
-
-        UiaVariant.i4Array(memory, 0, 0x1000);
-
-        assertEquals((short) (UiaVariant.VT_ARRAY | UiaVariant.VT_I4),
-                UiaVariant.tagOf(memory, 0));
-        assertEquals(0x1000L, payloadAt(memory, 0));
-        assertEquals((short) 8195, UiaVariant.tagOf(memory, 0),
-                "8192 for the array and 3 for the element type, which is what the guest numbered");
-    }
-
-    /**
      * What the trace says a client was handed, one tag at a time.
      *
      * <p>{@code describe} had no test on any branch when it was written (2026-09-16 review) and its
@@ -185,7 +168,9 @@ class UiaVariantTest {
         UiaVariant.unknown(memory, 0, 0x1f4a20);
         assertEquals("VT_UNKNOWN(0x1f4a20)", UiaVariant.describe(memory, 0, 40));
 
-        UiaVariant.i4Array(memory, 0, 0x1000);
+        // An array of integers, which this bridge never writes, so the tag is written by hand.
+        memory.putShort(0, (short) (UiaVariant.VT_ARRAY | UiaVariant.VT_I4));
+        memory.putLong(UiaVariant.PAYLOAD, 0x1000L);
         assertEquals("tag8195(0x1000)", UiaVariant.describe(memory, 0, 40),
                 "an array is named by its number, which is the two flags together");
 
