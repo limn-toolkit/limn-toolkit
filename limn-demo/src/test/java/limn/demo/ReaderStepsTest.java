@@ -86,7 +86,10 @@ class ReaderStepsTest {
             "tab-list",
             // Added 2026-10-18: a field's two states (ADR 074 §7), required and invalid, which no
             // reader had heard from this toolkit. The guest recipes owe a section for it.
-            "field-states");
+            "field-states",
+            // Added 2026-10-25: ADR 075 section 11, a table's empty content (a button that is not a
+            // row) and a popover walked in a window of its own.
+            "empty-table", "popover");
 
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(

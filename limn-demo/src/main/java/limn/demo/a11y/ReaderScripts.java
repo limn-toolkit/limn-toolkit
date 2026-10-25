@@ -7,6 +7,7 @@ import limn.input.Keys;
 import java.util.List;
 
 import static limn.accessibility.Accessible.Role.BUTTON;
+import static limn.accessibility.Accessible.Role.CHECK_BOX;
 import static limn.accessibility.Accessible.Role.CHECK_MENU_ITEM;
 import static limn.accessibility.Accessible.Role.CELL;
 import static limn.accessibility.Accessible.Role.COMBO_BOX;
@@ -134,6 +135,40 @@ public final class ReaderScripts {
                     .expecting(cursor(SWITCH, "Visited").inRow("Andes")),
             Step.chord(Keys.A, Step.COMMAND, "selects every row")
                     .expecting(row("Andes").with(SELECTED), row("Urals").with(SELECTED))));
+
+    /**
+     * "Table with nothing to show": what a table with no rows shows. The run starts on the table,
+     * which a reader hears described by its message; Tab reaches the button under the message,
+     * which is not a row, and Shift+Tab comes back to the table. Reaching the button by the
+     * reader's own navigation (browse mode, VO+Right, flat review) is the recipe's, not a step's.
+     */
+    public static final ReaderScript EMPTY_TABLE = new ReaderScript("empty-table", List.of(
+            Step.press(Keys.TAB, "moves to Clear filter, under the table's message")
+                    .expecting(focused(BUTTON, "Clear filter")),
+            Step.chord(Keys.TAB, Keys.MOD_SHIFT, "moves back to the table, described by its message")
+                    .expecting(focused(limn.accessibility.Accessible.Role.TABLE, "Orders")
+                            .described("No orders match the filter"))));
+
+    /**
+     * "Popover, driven": the Filter button opens the popover in a window of its own where the
+     * platform allows, the keyboard in its field; a letter typed there, Tab to the check box and
+     * Space on it, Tab back round to the field, and Escape closes it and gives the keyboard back to
+     * the button.
+     */
+    public static final ReaderScript POPOVER = new ReaderScript("popover", List.of(
+            Step.press(Keys.SPACE, "opens the popover, the keyboard in its field")
+                    .expecting(shown(GROUP, "Filter orders"),
+                            focused(TEXT_FIELD, "Customer contains")),
+            Step.type('k', "types a letter into the field")
+                    .expecting(focused(TEXT_FIELD, "Customer contains")),
+            Step.press(Keys.TAB, "moves to the check box")
+                    .expecting(focused(CHECK_BOX, "Overdue only").without(CHECKED)),
+            Step.press(Keys.SPACE, "checks it")
+                    .expecting(focused(CHECK_BOX, "Overdue only").with(CHECKED)),
+            Step.press(Keys.TAB, "goes round to the field, inside the popover")
+                    .expecting(focused(TEXT_FIELD, "Customer contains")),
+            Step.press(Keys.ESCAPE, "closes the popover, the keyboard back on Filter")
+                    .expecting(focused(BUTTON, "Filter"))));
 
     /**
      * "List view, several selected": a list in {@code MULTI}, starting with Atlas selected and

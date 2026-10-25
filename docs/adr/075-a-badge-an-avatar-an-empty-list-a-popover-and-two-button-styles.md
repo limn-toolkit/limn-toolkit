@@ -8,7 +8,8 @@
   tertiary button's ink after a print of the palettes it failed in (section 12.1). Built
   2026-10-18 and 2026-10-19 (section 12), with dated notes where the build departs from the
   text; the input method in a popover's window measured on the macOS guest (section 12.6), and on
-  Windows, GNOME and KDE on 2026-10-25 (section 12.8). Owed: the reader runs of section 11.
+  Windows, GNOME and KDE on 2026-10-25, and the readers of section 11 heard the same day (section
+  12.8).
 - **Date:** 2026-10-18
 - **Scope:** five additions of the same size, each written as ADR 067 wrote its four: what it is,
   its API, layout and paint, tokens, right to left, what a frame repaints, what each platform's
@@ -944,15 +945,29 @@ site's component gallery three, the guides their sections from `StatusExample`, 
 
 ### 12.8 Owed
 
-- **Readers, as section 11 says.** The empty content: one script per reader (NVDA on the Windows
-  guest, VoiceOver on the macOS guest, Orca on Fedora) over the Showcase's orders with the filter
-  typed to nothing: reach the table and hear "table, 0 rows, No orders match the filter", Tab to
-  Clear filter and hear it, and reach the button by the reader's own navigation (NVDA browse mode
-  down arrow, VoiceOver VO+Right, Orca's flat review). The loading state: `table.setLoading(true)`
-  then rows and `setLoading(false)` from a lab key, hearing "Loading Orders" and "Orders, 48 items",
-  and whether `BUSY` alone is spoken anywhere. The popover in a window: the orders' Filter popover
-  (or `--scene popover`), Tab through its controls, type into its field, Escape, hearing the focus
-  move inside the group and come back to the button.
+- ~~**Readers, as section 11 says.**~~ Heard 2026-10-25 with two scripts of the accessibility
+  gallery, `empty-table` and `popover`, in pt-BR, keys from each guest's presser: NVDA 2024.4.2 on
+  Windows 11, VoiceOver on macOS 26.6, Orca 46.1 on GNOME (X11) and Orca 50.3 on KDE (Wayland).
+  - **The empty table**, on all four: reached, it is heard as a table of no rows described by its
+    message ("Pedidos, grade de dados, Nenhum pedido corresponde ao filtro" on Windows, "Pedidos,
+    tabela com 0 linha 2 colunas Nenhum pedido corresponde ao filtro" on KDE, "Pedidos, vazio,
+    tabela" with the message on macOS); Tab reaches "Limpar filtro, botão", and Shift+Tab the table
+    and its message again. Reaching the button by the reader's own navigation was not driven.
+  - **The popover**, on all four after the fix below: the button says it opens a popup and is
+    collapsed; Space opens it, the group is named ("Filtrar pedidos, grupo"/"painel") and the
+    field is reached; the letter typed is echoed where the reader echoes typing (Windows, GNOME);
+    Tab reaches the check box and Space checks it; Tab goes round to the field, with its text;
+    Escape closes it, and the button is heard collapsed again. On macOS VoiceOver speaks the group
+    as the popover opens and leaves its cursor there, although the application's focused element
+    is the field (read with the accessibility API at that moment); Tab and Shift+Tab then land on
+    each control as they should.
+  - **Found and fixed:** in the scene (KDE on Wayland, where the popover cannot have a window of
+    its own) Tab from the check box went to the layer that holds the keyboard, an empty group, and
+    Orca said only "Filtrar pedidos" there. The layer is now no tab stop when the content has
+    controls of its own (`AnchoredPopup.Host.contentTakesKeyboard`). The headless reader steps had
+    not seen it because their "in the scene" pass never reached a popover, which hangs from its
+    button outside the tree; the gallery now presents a button's popover too, and that pass and
+    `PopoverTest` fail without the fix.
 - ~~**The input method on Windows, GNOME and KDE**~~, measured 2026-10-25 as section 12.6 on
   each, "nihon" Space Space Return, with the system's own text editor under the same presser as
   the control and the lab's log of the field's text as the oracle; every guest was put back after

@@ -175,6 +175,10 @@ class PopoverTest extends ComponentTestBase {
         for (Widget<?> w : visited) {
             assertFalse(w == anchor, "Tab never leaves the popover for the window beneath");
         }
+        // And stops only on its controls: the layer that holds the keyboard in the scene was a stop
+        // of its own, an empty group that no key typed into, after the last field (a reader run on
+        // the Wayland guest heard "Filter orders" there instead of the field, 2026-10-25).
+        assertEquals(List.of(second, first, second, first), visited, "Tab goes round the two fields");
         drive(scene).keyEvent(Keys.ESCAPE, true, false, 0);
         drive(scene).inputBatchEnded();
         assertSame(anchor, scene.focusedWidget(), "back to the anchor on close");

@@ -288,6 +288,10 @@ Maven Central say which number that was.
   and sounded for up to a tenth of a second before the next poll silenced it. The gain is now the
   player's (`MediaPlayer.setGain`, see New), and the track takes it as it arrives; the bar and the
   demo's volume set it there.
+- Tab in a `Popover` drawn in the scene (on Wayland, or with `DisplayMode.IN_SCENE`) goes round its
+  controls only. The layer that holds the keyboard while it is open was a tab stop of its own
+  after the last control, an empty group a reader announced by the popover's name and that took
+  nothing typed; it is no stop now when the content has controls.
 - Placing the 3D listener no longer opens the audio device. `Sounds.setListener` opened it when it
   was the first call to reach the engine, on the thread that called it: a page that placed its
   listener while it was built held the UI thread 120 to 590 ms on a Mac. The place is kept, and

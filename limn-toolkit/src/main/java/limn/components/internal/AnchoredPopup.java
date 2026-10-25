@@ -122,6 +122,15 @@ public final class AnchoredPopup {
         }
 
         /**
+         * @return whether the popup's own content has widgets that take the keyboard, as a
+         *         popover's controls do: in the scene the layer then holds it only until one of them
+         *         has it, and is no tab stop of its own beside them
+         */
+        default boolean contentTakesKeyboard() {
+            return false;
+        }
+
+        /**
          * @return whether, in a window of its own, the owner's keyboard is routed to the popup:
          *         for a popup opened from a widget that does not hold the keyboard, whose keys
          *         would otherwise go to whatever the owner has focused
@@ -712,7 +721,9 @@ public final class AnchoredPopup {
             // Only when it takes the keyboard: a layer that leaves it below (an editable combo's
             // list) took the focus from a press beside the card through click-to-focus, outside
             // the keyboard's layer, and once it was removed the keyboard was nobody's.
-            setFocusable(!host.keepsKeyboard());
+            // Nor when the content has controls of its own: the layer was then a tab stop beside
+            // them, an empty group after the last one that took no key typed into it.
+            setFocusable(!host.keepsKeyboard() && !host.contentTakesKeyboard());
             add(content);
         }
 

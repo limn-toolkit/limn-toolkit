@@ -637,6 +637,11 @@ public final class AccessibilityGallery {
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL,
                                 Role.SWITCH),
                         AccessibilityGallery::table, ReaderScripts.TABLE),
+                // What a table shows when it holds no row (ADR 075): its message, which describes
+                // it, and a button that is not a row, reached by Tab and by the reader's own moves.
+                new Entry("Table with nothing to show", List.of(Table.class),
+                        List.of(Role.TABLE, Role.COLUMN_HEADER, Role.BUTTON),
+                        AccessibilityGallery::emptyTable, ReaderScripts.EMPTY_TABLE),
                 // TREE and TREE_ITEM since the AT-SPI numbers came off the Fedora guest on
                 // 2026-09-13 (ADR 044 §4). The static outline; the entry after it is the one a
                 // reader run drives.
@@ -696,6 +701,11 @@ public final class AccessibilityGallery {
                 new Entry("Popover, open", List.of(Popover.class, Button.class),
                         List.of(Role.BUTTON, Role.GROUP, Role.TEXT_FIELD),
                         AccessibilityGallery::popover),
+                // The same popover closed, opened by its button and walked in its window of its
+                // own: Tab cycling inside, a field typed into, Escape back to the button (ADR 075).
+                new Entry("Popover, driven", List.of(Popover.class, Button.class),
+                        List.of(Role.BUTTON),
+                        AccessibilityGallery::popoverDriven, ReaderScripts.POPOVER),
                 new Entry("Dialog, in its own window", List.of(Dialog.class),
                         List.of(Role.DIALOG),
                         () -> dialog(false)),
@@ -760,10 +770,17 @@ public final class AccessibilityGallery {
     }
 
     /**
+     * The popovers of the entries that hang one from a button, which is all of them the tree holds:
+     * a popover is no widget until it is open, so {@link #present} reaches it through its button.
+     */
+    private static final java.util.Map<Button, Popover> POPOVERS = new java.util.WeakHashMap<>();
+
+    /**
      * Presents every surface under {@code root} that can float above the page — a combo's list,
-     * a date picker's calendar, a menu bar's cascade, a colour button's dialog — in {@code mode}:
-     * what a reader run's {@code --presentation} asks, and what the verb ratchet's second run
-     * does. Set before the scene is bound, so whatever opens later opens there.
+     * a date picker's calendar, a menu bar's cascade, a colour button's dialog, a button's
+     * popover — in {@code mode}: what a reader run's {@code --presentation} asks, and what the verb
+     * ratchet's second run does. Set before the scene is bound, so whatever opens later opens
+     * there.
      *
      * @param root the entry's root
      * @param mode where those surfaces open
@@ -777,6 +794,8 @@ public final class AccessibilityGallery {
             bar.setDisplayMode(mode);
         } else if (root instanceof ColorPickerButton button) {
             button.setPickerDisplayMode(mode);
+        } else if (root instanceof Button button && POPOVERS.containsKey(button)) {
+            POPOVERS.get(button).setDisplayMode(mode);
         }
         for (Widget<?> child : root.children()) {
             present(child, mode);
@@ -965,6 +984,37 @@ public final class AccessibilityGallery {
         Popover popover = new Popover(panel).setAccessibleName("Filter orders").attachTo(filter);
         page.add(filter);
         return new Built(page, () -> popover.showFor(filter));
+    }
+
+    private static Built popoverDriven() {
+        Column page = page();
+        Button filter = new Button(GalleryStrings.FILTER);
+        Column panel = new Column();
+        panel.gap(8);
+        panel.add(new Field(GalleryStrings.CUSTOMER_CONTAINS, new TextField()));
+        panel.add(new Checkbox(Checkbox.Variant.BOX, GalleryStrings.OVERDUE_ONLY));
+        POPOVERS.put(filter, new Popover(panel).setAccessibleName(GalleryStrings.FILTER_ORDERS).attachTo(filter));
+        page.add(filter);
+        return Built.focusing(page, filter);
+    }
+
+    private static Built emptyTable() {
+        Column page = page();
+        record Order(String number, String customer) {
+        }
+        Table<Order> table = new Table<>(List.of(
+                limn.components.table.Column.text(GalleryStrings.ORDER_NUMBER, Order::number).width(120),
+                limn.components.table.Column.text(GalleryStrings.CUSTOMER, Order::customer)
+                        .width(240).weight(1)));
+        table.setRows(List.of());
+        Column nothing = new Column();
+        nothing.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+        Label noMatch = new Label(GalleryStrings.NO_MATCH).setStrong(true);
+        nothing.add(noMatch);
+        nothing.add(new Button(GalleryStrings.CLEAR_FILTER).setStyle(Button.Style.SECONDARY));
+        table.setEmptyContent(nothing, noMatch);
+        page.add(new Field(GalleryStrings.ORDERS, table, new SizedBox(SizedBox.UNSET, 240, table)));
+        return Built.focusing(page, table);
     }
 
     private static Built cards() {

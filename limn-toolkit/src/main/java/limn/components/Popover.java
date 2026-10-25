@@ -679,6 +679,11 @@ public final class Popover {
         }
 
         @Override
+        public boolean contentTakesKeyboard() {
+            return firstFocusable(content) != null;
+        }
+
+        @Override
         public boolean alignsTrailing() {
             return alignment == Alignment.END;
         }

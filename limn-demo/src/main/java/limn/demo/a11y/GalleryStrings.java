@@ -90,6 +90,12 @@ public final class GalleryStrings {
             new I18nString("gallery.entry.fields", "Fields, required and invalid");
     /** "Tab list". */
     public static final I18nString ENTRY_TAB_LIST = new I18nString("gallery.entry.tabList", "Tab list");
+    /** "Table with nothing to show". */
+    public static final I18nString ENTRY_EMPTY_TABLE =
+            new I18nString("gallery.entry.emptyTable", "Table with nothing to show");
+    /** "Popover, driven". */
+    public static final I18nString ENTRY_POPOVER =
+            new I18nString("gallery.entry.popover", "Popover, driven");
 
     // ------------------------------------------------------------------ what the entries say
 
@@ -180,6 +186,29 @@ public final class GalleryStrings {
     public static final I18nString POSTAL_CODE_SHORT = new I18nString("gallery.field.postalCodeShort",
             "Five digits are needed, and {0} are typed");
 
+    // ------------------------------------------------------ the empty table and the popover (ADR 075)
+
+    /** The orders table's caption. */
+    public static final I18nString ORDERS = new I18nString("gallery.orders.caption", "Orders");
+    /** Its first column. */
+    public static final I18nString ORDER_NUMBER = new I18nString("gallery.orders.number", "Number");
+    /** Its second column. */
+    public static final I18nString CUSTOMER = new I18nString("gallery.orders.customer", "Customer");
+    /** What the table says when the filter leaves no row. */
+    public static final I18nString NO_MATCH =
+            new I18nString("gallery.orders.noMatch", "No orders match the filter");
+    /** The way back from it. */
+    public static final I18nString CLEAR_FILTER = new I18nString("gallery.orders.clearFilter", "Clear filter");
+    /** The button that opens the popover. */
+    public static final I18nString FILTER = new I18nString("gallery.orders.filter", "Filter");
+    /** The popover's name. */
+    public static final I18nString FILTER_ORDERS = new I18nString("gallery.orders.filterOrders", "Filter orders");
+    /** Its field's caption. */
+    public static final I18nString CUSTOMER_CONTAINS =
+            new I18nString("gallery.orders.customerContains", "Customer contains");
+    /** Its check box. */
+    public static final I18nString OVERDUE_ONLY = new I18nString("gallery.orders.overdueOnly", "Overdue only");
+
     /** Every constant above, for a test that holds the catalogue to both languages. */
     public static final List<I18nString> ALL = List.of(
             ENTRY_TABLE, ENTRY_TREE_LOADING, ENTRY_ANNOUNCEMENTS, ENTRY_CALENDAR, ENTRY_DATE_FIELD,
@@ -188,7 +217,8 @@ public final class GalleryStrings {
             MOUNTAIN_RANGES, RANGE, CONTINENT, SUMMIT,
             VISITED, FILES, OPEN, SAVE, SAVED, STOP, STOPPED, DELIVERY_DATE, HOLIDAY, INVOICE_DATE, APPOINTMENT,
             DUE_DATE, STAY, NOTES, FILE, NEW, OPEN_FILE, QUIT, VIEW, STATUS_BAR, DRAFT, CUT, COPY,
-            PASTE, TRANSFORM, UPPER_CASE, LOWER_CASE);
+            PASTE, TRANSFORM, UPPER_CASE, LOWER_CASE, ENTRY_EMPTY_TABLE, ENTRY_POPOVER, ORDERS, ORDER_NUMBER,
+            CUSTOMER, NO_MATCH, CLEAR_FILTER, FILTER, FILTER_ORDERS, CUSTOMER_CONTAINS, OVERDUE_ONLY);
 
     /**
      * The name of every entry a reader run drives, keyed by the English name
@@ -206,6 +236,8 @@ public final class GalleryStrings {
             Map.entry(ENTRY_DATE_PICKER_CLOSED.english(), ENTRY_DATE_PICKER_CLOSED),
             Map.entry(ENTRY_LIST_MULTI.english(), ENTRY_LIST_MULTI),
             Map.entry(ENTRY_TAB_LIST.english(), ENTRY_TAB_LIST),
+            Map.entry(ENTRY_EMPTY_TABLE.english(), ENTRY_EMPTY_TABLE),
+            Map.entry(ENTRY_POPOVER.english(), ENTRY_POPOVER),
             Map.entry(ENTRY_COMBO.english(), ENTRY_COMBO),
             Map.entry(ENTRY_MENU_BAR.english(), ENTRY_MENU_BAR),
             Map.entry(ENTRY_CONTEXT_MENU.english(), ENTRY_CONTEXT_MENU),
