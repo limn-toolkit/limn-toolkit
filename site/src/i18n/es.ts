@@ -93,12 +93,12 @@ export const es: Catalog = {
 
   "home.features.components.heading": "Un conjunto de componentes que no tienes que construir",
   "home.features.components.body":
-    "Botones, campos, listas, pestañas, menús, diálogos, paneles divididos, un selector de color, gráficos de barras, de líneas y de anillo, y una lista virtualizada donde un millón de filas cuesta lo mismo que veinte. Cada uno lee su color, su forma y su densidad del tema, así que nada queda fijado en el código y un modo compacto es una línea.",
+    "Botones, campos, listas, tablas, árboles, selectores de fecha, pestañas, menús, diálogos, tarjetas, paneles divididos, un selector de color, gráficos de barras, de líneas y de anillo, y una lista virtualizada donde un millón de filas cuesta lo mismo que veinte. Cada uno lee su color, su forma y su densidad del tema, así que nada queda fijado en el código y un modo compacto es una línea. Más allá de sus ventanas, una aplicación imprime en papel o en PDF, deja un icono en la bandeja del sistema, pone sus menús en la barra de menús de macOS e intercambia contenido con otros programas arrastrando y soltando.",
   "home.features.components.link": "Verlos todos",
 
   "home.features.layout.heading": "Una disposición que cabe en la cabeza",
   "home.features.layout.body":
-    "Cuatro widgets y un marcador: una columna apila, una fila reparte, una pila superpone, el relleno separa y Expanded dice quién se queda con el espacio sobrante. Ese es todo el vocabulario; no hay solucionador de restricciones que configurar ni gestor de disposición que instalar.",
+    "Seis widgets y un marcador: una columna apila, una fila reparte, un wrap pasa a la línea siguiente cuando se acaba el ancho, una cuadrícula alinea las celdas en ambos sentidos, una pila superpone, el relleno separa y Expanded dice quién se queda con el espacio sobrante. Opacity y Transform desvanecen, desplazan, escalan y giran una parte de la ventana sin alterar la disposición que la rodea. No hay solucionador de restricciones que configurar ni gestor de disposición que instalar.",
   "home.features.layout.link": "Leer la guía de disposición",
   "home.features.layout.caption":
     "Una ventana hecha de una columna, una fila, un divisor y un Expanded.",
@@ -154,7 +154,7 @@ export const es: Catalog = {
 
   "home.accessibility.heading": "Leído en voz alta, en esos mismos idiomas",
   "home.accessibility.body":
-    "NVDA, VoiceOver y Orca leen una ventana Limn a través de la API de accesibilidad de cada plataforma, sin código de plataforma en tu aplicación. Cada control se describe con su rol, su nombre y su estado, en el idioma en que se muestra la interfaz. Nombrar un control es una llamada.",
+    "Un lector de pantalla en Windows, VoiceOver en macOS y Orca en Linux leen una ventana Limn a través de la API de accesibilidad de cada plataforma, sin código de plataforma en tu aplicación. Cada control se describe con su rol, su nombre y su estado, en el idioma en que se muestra la interfaz. Nombrar un control es una llamada.",
   "home.accessibility.link": "Lee la guía de accesibilidad",
   "home.accessibility.caption":
     "El formulario de arriba, tal como se lo cuentan a un lector de pantalla, capturado durante esta compilación.",
@@ -164,7 +164,7 @@ export const es: Catalog = {
   "home.built.intro":
     "El código de Limn lo escribe Claude, el modelo de Anthropic, en Claude Code, y lo dirigen y verifican personas. Lo decimos de entrada porque querrías saberlo.",
   "home.built.method":
-    "Dirigido significa que cada decisión de diseño es un registro escrito en <code>docs/adr</code>, argumentado y aceptado antes del código. Verificado significa que cada cambio pasa por una batería de pruebas más extensa que el propio código; que la accesibilidad se escuchó en lugar de suponerse, con NVDA, VoiceOver y Orca leyendo ventanas reales en Windows, macOS y Linux; y que el código ha pasado por auditorías repetidas de corrección, rendimiento y diseño de API.",
+    "Dirigido significa que cada decisión de diseño es un registro escrito en <code>docs/adr</code>, argumentado y aceptado antes del código. Verificado significa que cada cambio pasa por una batería de pruebas más extensa que el propio código; que la accesibilidad se escuchó en lugar de suponerse, con un lector de pantalla en Windows, VoiceOver en macOS y Orca en Linux leyendo ventanas reales; y que el código ha pasado por auditorías repetidas de corrección, rendimiento y diseño de API.",
   "home.built.cost":
     "Llegar hasta aquí llevó miles de llamadas al modelo y millones de tokens generados. Según el modelo de estimación COCOMO II, sus más de cien mil líneas de código, sin contar las pruebas, equivalen al trabajo de un equipo de unas veinte personas durante más de dos años. Ese trabajo está hecho. Puedes construir sobre él en lugar de rehacerlo.",
   "home.built.link": "Lee los registros de diseño",
@@ -233,13 +233,13 @@ export const es: Catalog = {
     "Apache License 2.0, con concesión explícita de patentes. El uso comercial, la modificación y la redistribución están todos permitidos.",
   "licence.core.heading": "El kit en sí",
   "licence.core.body":
-    "<code>limn-toolkit</code> depende de una sola biblioteca además del JDK, un decodificador de WebP escrito en Java (<code>org.glavo:webp</code>), también Apache-2.0, así que para él Apache-2.0 es toda la historia. El backend de renderizado añade LWJGL, que es BSD-3-Clause, y el renderizador de SVG lunasvg con la plutovg con la que dibuja, ambos MIT.",
-  "licence.fonts.heading": "Tipografías",
+    "<code>limn-toolkit</code> depende de dos bibliotecas además del JDK, las anotaciones de nulabilidad de JSpecify, que solo lee un compilador, y un decodificador de WebP escrito en Java (<code>org.glavo:webp</code>), ambas también Apache-2.0, así que para él Apache-2.0 es toda la historia. El backend de renderizado añade LWJGL, que es BSD-3-Clause; el renderizador de SVG lunasvg con la plutovg con la que dibuja, ambos MIT; y ANGLE, el respaldo OpenGL ES para un equipo Windows o macOS sin controlador OpenGL, que es BSD-3-Clause y enumera en cada uno de sus jars el código fuente compilado en él, con sus licencias. Las bibliotecas nativas que trae LWJGL también son permisivas, salvo OpenAL Soft, la salida de audio, que es LGPL-2.0-or-later: una biblioteca compartida propia, cargada en tiempo de ejecución y reemplazable.",
+  "licence.fonts.heading": "Tipografías e iconos",
   "licence.fonts.body":
-    "Roboto y las tipografías de respaldo Noto se distribuyen bajo la SIL Open Font License. Cada componente incluido aparece con su licencia en el archivo NOTICE del proyecto.",
+    "Roboto, la tipografía predeterminada, es Apache-2.0. Las tipografías de respaldo Noto, para otras escrituras y para emoji, y la pequeña tipografía de símbolos con la que los menús escriben sus atajos se distribuyen bajo la SIL Open Font License 1.1. El paquete opcional de iconos, <code>limn-icons-tabler</code>, es MIT. Cada componente incluido aparece con su licencia en el archivo NOTICE del proyecto.",
   "licence.mp3.heading": "La decodificación de MP3 es LGPL",
   "licence.mp3.body":
-    "La compatibilidad con MP3 viene de JLayer, que es LGPL-2.1 y se mantiene como un jar aislado detrás de la interfaz de decodificación de audio. Excluye esa única dependencia si tu distribución necesita evitar obligaciones LGPL; WAV y Ogg Vorbis siguen funcionando.",
+    "La compatibilidad con MP3 viene de JLayer, que es LGPL-2.1, se usa sin modificar y se mantiene como un jar aislado detrás de la interfaz de decodificación de audio. Excluye esa única dependencia y WAV y Ogg Vorbis siguen funcionando, aunque el backend sigue llevando OpenAL Soft, la salida de audio LGPL mencionada arriba.",
   "licence.ffmpeg.heading": "Vídeo con FFmpeg, y qué se distribuye con él",
   "licence.ffmpeg.body":
     "El decodificador de vídeo opcional, para H.264, HEVC, VP9 y VP8 en MP4 y Matroska, enlaza dinámicamente un FFmpeg reducido, compilado como LGPL-2.1-o-posterior. <b>Sus bibliotecas nativas son un artefacto propio, <code>limn-ffmpeg-natives</code>, con un classifier por cada destino de escritorio, y <code>limn-video-ffmpeg-natives-all</code> los nombra a todos para un paquete que sirve en todas partes</b>, así que una distribución que incluya <code>limn-video-ffmpeg</code> y esas bibliotecas está distribuyendo FFmpeg, y cada uno de esos jars lleva el texto de la licencia y el aviso que exige. Están enlazadas dinámicamente y son reemplazables, que es lo que esa licencia pide. Nada más depende de este módulo: déjalo fuera y todos los demás formatos siguen funcionando.",

@@ -93,12 +93,12 @@ export const ko: Catalog = {
 
   "home.features.components.heading": "직접 만들지 않아도 되는 컴포넌트 모음",
   "home.features.components.body":
-    "버튼, 입력란, 목록, 탭, 메뉴, 대화상자, 분할 패널, 색 선택기, 막대·선·도넛 차트, 그리고 100만 행이 20행과 같은 비용으로 끝나는 가상화 목록. 모두 색과 모양과 밀도를 테마에서 읽으므로 코드에 박아 넣은 값이 없고, 조밀 모드는 한 줄입니다.",
+    "버튼, 입력란, 목록, 표, 트리, 날짜 선택기, 탭, 메뉴, 대화상자, 카드, 분할 패널, 색 선택기, 막대·선·도넛 차트, 그리고 100만 행이 20행과 같은 비용으로 끝나는 가상화 목록. 모두 색과 모양과 밀도를 테마에서 읽으므로 코드에 박아 넣은 값이 없고, 조밀 모드는 한 줄입니다. 창 밖에서도 애플리케이션은 종이나 PDF로 인쇄하고, 트레이에 아이콘을 두고, macOS 메뉴 막대에 메뉴를 올리고, 다른 프로그램과 끌어서 놓기로 내용을 주고받습니다.",
   "home.features.components.link": "전부 보기",
 
   "home.features.layout.heading": "머릿속에 들어오는 레이아웃",
   "home.features.layout.body":
-    "위젯 넷과 표시자 하나. 열은 쌓고, 행은 펼치고, 스택은 겹치고, 패딩은 안쪽으로 들이고, Expanded가 남은 공간을 누가 가질지 정합니다. 어휘는 이게 전부이며, 설정할 제약 해결기도 설치할 레이아웃 매니저도 없습니다.",
+    "위젯 여섯과 표시자 하나. 열은 쌓고, 행은 펼치고, 랩은 너비가 다하면 다음 줄로 넘기고, 그리드는 셀을 가로세로로 맞추고, 스택은 겹치고, 패딩은 안쪽으로 들이고, Expanded가 남은 공간을 누가 가질지 정합니다. Opacity와 Transform은 주변 레이아웃을 흐트러뜨리지 않고 창의 일부를 페이드시키고, 옮기고, 확대·축소하고, 회전시킵니다. 설정할 제약 해결기도 설치할 레이아웃 매니저도 없습니다.",
   "home.features.layout.link": "레이아웃 가이드 읽기",
   "home.features.layout.caption": "열 하나, 행 하나, 분할 하나, Expanded 하나로 만든 창.",
   "home.features.layout.alt": "Limn으로 배치한 창",
@@ -152,7 +152,7 @@ export const ko: Catalog = {
 
   "home.accessibility.heading": "같은 언어로, 소리 내어 읽힙니다",
   "home.accessibility.body":
-    "NVDA·VoiceOver·Orca는 각 플랫폼 고유의 접근성 API를 통해 Limn 창을 읽습니다. 애플리케이션에 플랫폼 코드는 없습니다. 모든 컨트롤은 인터페이스가 표시되는 언어로 역할·이름·상태를 스스로 알립니다. 컨트롤에 이름을 붙이는 것은 호출 한 번입니다.",
+    "Windows용 스크린 리더, macOS의 VoiceOver, Linux의 Orca는 각 플랫폼 고유의 접근성 API를 통해 Limn 창을 읽습니다. 애플리케이션에 플랫폼 코드는 없습니다. 모든 컨트롤은 인터페이스가 표시되는 언어로 역할·이름·상태를 스스로 알립니다. 컨트롤에 이름을 붙이는 것은 호출 한 번입니다.",
   "home.accessibility.link": "접근성 가이드 읽기",
   "home.accessibility.caption":
     "위의 폼을 화면 낭독기가 전달받는 그대로, 이 빌드 중에 캡처했습니다.",
@@ -162,7 +162,7 @@ export const ko: Catalog = {
   "home.built.intro":
     "Limn의 코드는 Anthropic의 모델인 Claude가 Claude Code 안에서 쓰고, 사람들이 방향을 정하고 검증합니다. 알고 싶으실 테니 처음부터 밝혀 둡니다.",
   "home.built.method":
-    "방향을 정한다는 것은 모든 설계 결정을 코드보다 먼저 <code>docs/adr</code>에 글로 남기고, 논의하고, 승인한다는 뜻입니다. 검증한다는 것은 모든 변경을 코드 자체보다 큰 테스트 스위트에 돌리고, 접근성을 짐작하지 않고 직접 들어 보고(NVDA·VoiceOver·Orca가 Windows, macOS, Linux의 실제 창을 읽게 해서), 정확성과 성능과 API 설계를 거듭 감사한다는 뜻입니다.",
+    "방향을 정한다는 것은 모든 설계 결정을 코드보다 먼저 <code>docs/adr</code>에 글로 남기고, 논의하고, 승인한다는 뜻입니다. 검증한다는 것은 모든 변경을 코드 자체보다 큰 테스트 스위트에 돌리고, 접근성을 짐작하지 않고 직접 들어 보고(Windows용 스크린 리더, macOS의 VoiceOver, Linux의 Orca가 실제 창을 읽게 해서), 정확성과 성능과 API 설계를 거듭 감사한다는 뜻입니다.",
   "home.built.cost":
     "여기까지 오는 데 수천 번의 모델 호출과 수백만 개의 생성 토큰이 들었습니다. 추정 모델 COCOMO II에 따르면, 테스트를 빼고도 10만 줄이 넘는 코드는 약 20명의 팀이 2년 넘게 해야 할 일에 해당합니다. 그 일은 끝났습니다. 다시 하는 대신 그 위에 만들 수 있습니다.",
   "home.built.link": "설계 기록 읽기",
@@ -231,13 +231,13 @@ export const ko: Catalog = {
     "Apache License 2.0이며 명시적 특허 허여를 포함합니다. 상업적 이용, 수정, 재배포가 모두 허용됩니다.",
   "licence.core.heading": "툴킷 자체",
   "licence.core.body":
-    "<code>limn-toolkit</code>이 JDK 외에 의존하는 것은 Java로 작성된 WebP 디코더(<code>org.glavo:webp</code>) 하나뿐이고 이것도 Apache-2.0이므로, 이에 대해서는 Apache-2.0이 전부입니다. 렌더링 백엔드는 BSD-3-Clause인 LWJGL과, SVG 렌더러 lunasvg 및 그것이 그리는 데 쓰는 plutovg(둘 다 MIT)를 더합니다.",
-  "licence.fonts.heading": "글꼴",
+    "<code>limn-toolkit</code>이 JDK 외에 의존하는 것은 컴파일러만 읽는 JSpecify의 널 가능성 애너테이션과 Java로 작성된 WebP 디코더(<code>org.glavo:webp</code>) 두 가지이고, 둘 다 Apache-2.0이므로 이에 대해서는 Apache-2.0이 전부입니다. 렌더링 백엔드는 BSD-3-Clause인 LWJGL, SVG 렌더러 lunasvg 및 그것이 그리는 데 쓰는 plutovg(둘 다 MIT), 그리고 OpenGL 드라이버가 없는 Windows나 macOS 컴퓨터를 위한 OpenGL ES 대체 경로인 ANGLE(BSD-3-Clause이며, 각 jar에 그 안에 컴파일된 소스와 그 라이선스의 목록이 들어 있습니다)을 더합니다. LWJGL이 가져오는 네이티브 라이브러리도 허용적인 라이선스이지만, 오디오 출력을 맡는 OpenAL Soft만은 LGPL-2.0-or-later입니다. 이것은 별도의 공유 라이브러리로, 실행 시점에 로드되며 교체할 수 있습니다.",
+  "licence.fonts.heading": "글꼴과 아이콘",
   "licence.fonts.body":
-    "Roboto와 Noto 대체 글꼴은 SIL Open Font License로 배포됩니다. 함께 배포되는 구성 요소는 모두 라이선스와 함께 프로젝트의 NOTICE 파일에 적혀 있습니다.",
+    "기본 글꼴인 Roboto는 Apache-2.0입니다. 다른 문자 체계와 이모지를 위한 Noto 대체 글꼴, 그리고 메뉴가 단축키를 적을 때 쓰는 작은 기호 글꼴은 SIL Open Font License 1.1로 배포됩니다. 선택 사항인 아이콘 팩 <code>limn-icons-tabler</code>는 MIT입니다. 함께 배포되는 구성 요소는 모두 라이선스와 함께 프로젝트의 NOTICE 파일에 적혀 있습니다.",
   "licence.mp3.heading": "MP3 디코딩은 LGPL",
   "licence.mp3.body":
-    "MP3 지원은 LGPL-2.1인 JLayer에서 오며, 오디오 디코더 인터페이스 뒤에 독립된 jar로 유지됩니다. 배포판이 LGPL 의무를 피해야 한다면 이 의존성 하나만 제외하세요. WAV와 Ogg Vorbis는 그대로 동작합니다.",
+    "MP3 지원은 LGPL-2.1인 JLayer에서 오며, 수정 없이 쓰고 오디오 디코더 인터페이스 뒤에 독립된 jar로 유지됩니다. 이 의존성 하나만 제외해도 WAV와 Ogg Vorbis는 그대로 동작하지만, 백엔드에는 위에서 말한 LGPL 오디오 출력인 OpenAL Soft가 남습니다.",
   "licence.ffmpeg.heading": "FFmpeg 영상과, 함께 배포되는 것",
   "licence.ffmpeg.body":
     "선택적인 동영상 디코더는 MP4와 Matroska의 H.264, HEVC, VP9, VP8을 다루며, 축소한 FFmpeg을 LGPL-2.1-or-later로 동적 링크합니다. <b>그 네이티브 라이브러리는 별도의 아티팩트인 <code>limn-ffmpeg-natives</code>로, 데스크톱 대상마다 classifier가 하나씩 있고, 어디서나 쓸 수 있는 묶음으로는 <code>limn-video-ffmpeg-natives-all</code>이 그 모두를 지정합니다.</b> 따라서 <code>limn-video-ffmpeg</code>과 그 라이브러리를 포함한 배포물은 FFmpeg을 배포하는 것이며, 각 jar는 라이선스 본문과 요구되는 고지를 함께 담고 있습니다. 동적으로 링크되어 교체할 수 있고, 그것이 이 라이선스가 요구하는 바입니다. 이 모듈에 의존하는 것은 아무것도 없습니다. 빼버려도 다른 미디어 형식은 모두 그대로 동작합니다.",

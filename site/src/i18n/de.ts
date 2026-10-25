@@ -93,12 +93,12 @@ export const de: Catalog = {
 
   "home.features.components.heading": "Ein Komponentensatz, den Sie nicht selbst bauen müssen",
   "home.features.components.body":
-    "Schaltflächen, Felder, Listen, Reiter, Menüs, Dialoge, geteilte Bereiche, ein Farbwähler, Balken-, Linien- und Ringdiagramme sowie eine virtualisierte Liste, in der eine Million Zeilen so viel kostet wie zwanzig. Jede davon liest Farbe, Form und Dichte aus dem Design, also ist nichts fest verdrahtet und ein kompakter Modus ist eine Zeile.",
+    "Schaltflächen, Felder, Listen, Tabellen, Bäume, Datumsauswahlen, Reiter, Menüs, Dialoge, Karten, geteilte Bereiche, ein Farbwähler, Balken-, Linien- und Ringdiagramme sowie eine virtualisierte Liste, in der eine Million Zeilen so viel kostet wie zwanzig. Jede davon liest Farbe, Form und Dichte aus dem Design, also ist nichts fest verdrahtet und ein kompakter Modus ist eine Zeile. Über ihre Fenster hinaus druckt eine Anwendung auf Papier oder als PDF, hält ein Symbol im System-Tray, setzt ihre Menüs in die Menüleiste von macOS und tauscht per Drag-and-drop Inhalte mit anderen Programmen aus.",
   "home.features.components.link": "Alle ansehen",
 
   "home.features.layout.heading": "Layout, das in den Kopf passt",
   "home.features.layout.body":
-    "Vier Widgets und ein Marker: eine Spalte stapelt, eine Zeile verteilt, ein Stapel überlagert, Padding rückt ein, und Expanded sagt, wer den übrigen Platz bekommt. Das ist das ganze Vokabular; es gibt keinen Constraint-Solver zu konfigurieren und keinen Layout-Manager zu installieren.",
+    "Sechs Widgets und ein Marker: eine Spalte stapelt, eine Zeile verteilt, ein Wrap bricht in die nächste Zeile um, wenn die Breite ausgeht, ein Grid richtet Zellen in beide Richtungen aus, ein Stapel überlagert, Padding rückt ein, und Expanded sagt, wer den übrigen Platz bekommt. Opacity und Transform blenden einen Teil des Fensters ein und aus, verschieben, skalieren und drehen ihn, ohne das Layout um ihn herum zu stören. Es gibt keinen Constraint-Solver zu konfigurieren und keinen Layout-Manager zu installieren.",
   "home.features.layout.link": "Layout-Anleitung lesen",
   "home.features.layout.caption":
     "Ein Fenster aus einer Spalte, einer Zeile, einem Split und einem Expanded.",
@@ -154,7 +154,7 @@ export const de: Catalog = {
 
   "home.accessibility.heading": "Vorgelesen, in denselben Sprachen",
   "home.accessibility.body":
-    "NVDA, VoiceOver und Orca lesen ein Limn-Fenster über die Barrierefreiheits-API der jeweiligen Plattform, ohne Plattformcode in Ihrer Anwendung. Jedes Steuerelement beschreibt sich mit Rolle, Name und Zustand, in der Sprache, in der die Oberfläche angezeigt wird. Ein Steuerelement zu benennen ist ein Aufruf.",
+    "Ein Screenreader unter Windows, VoiceOver unter macOS und Orca unter Linux lesen ein Limn-Fenster über die Barrierefreiheits-API der jeweiligen Plattform, ohne Plattformcode in Ihrer Anwendung. Jedes Steuerelement beschreibt sich mit Rolle, Name und Zustand, in der Sprache, in der die Oberfläche angezeigt wird. Ein Steuerelement zu benennen ist ein Aufruf.",
   "home.accessibility.link": "Zum Leitfaden zur Barrierefreiheit",
   "home.accessibility.caption":
     "Das Formular oben, so wie es einem Screenreader mitgeteilt wird, aufgenommen während dieses Builds.",
@@ -164,7 +164,7 @@ export const de: Catalog = {
   "home.built.intro":
     "Der Code von Limn wird von Claude, dem Modell von Anthropic, in Claude Code geschrieben und von Menschen gesteuert und geprüft. Wir sagen das gleich vorweg, weil Sie es wissen wollen würden.",
   "home.built.method":
-    "Gesteuert heißt: Jede Entwurfsentscheidung ist ein schriftlicher Beschluss in <code>docs/adr</code>, begründet und angenommen, bevor der Code entsteht. Geprüft heißt: Jede Änderung läuft gegen eine Testsuite, die umfangreicher ist als der Code selbst; die Barrierefreiheit wurde angehört statt angenommen, mit NVDA, VoiceOver und Orca, die echte Fenster unter Windows, macOS und Linux vorlesen; und der Code ist durch wiederholte Audits zu Korrektheit, Leistung und API-Design gegangen.",
+    "Gesteuert heißt: Jede Entwurfsentscheidung ist ein schriftlicher Beschluss in <code>docs/adr</code>, begründet und angenommen, bevor der Code entsteht. Geprüft heißt: Jede Änderung läuft gegen eine Testsuite, die umfangreicher ist als der Code selbst; die Barrierefreiheit wurde angehört statt angenommen, mit einem Screenreader unter Windows, VoiceOver unter macOS und Orca unter Linux, die echte Fenster vorlesen; und der Code ist durch wiederholte Audits zu Korrektheit, Leistung und API-Design gegangen.",
   "home.built.cost":
     "Bis hierher waren viele tausend Modellaufrufe und Millionen erzeugter Tokens nötig. Nach dem Schätzmodell COCOMO II entsprechen die über hunderttausend Codezeilen, Tests nicht mitgezählt, der Arbeit eines Teams von etwa zwanzig Personen über mehr als zwei Jahre. Diese Arbeit ist getan. Sie können darauf aufbauen, statt sie zu wiederholen.",
   "home.built.link": "Die Entwurfsentscheidungen lesen",
@@ -233,13 +233,13 @@ export const de: Catalog = {
     "Apache License 2.0, einschließlich einer ausdrücklichen Patentgewährung. Kommerzielle Nutzung, Änderung und Weitergabe sind allesamt erlaubt.",
   "licence.core.heading": "Das Toolkit selbst",
   "licence.core.body":
-    "<code>limn-toolkit</code> hängt außer vom JDK nur von einer Bibliothek ab, einem in Java geschriebenen WebP-Decoder (<code>org.glavo:webp</code>), ebenfalls Apache-2.0, dafür ist Apache-2.0 also die ganze Geschichte. Das Render-Backend fügt LWJGL hinzu, das unter BSD-3-Clause steht, und den SVG-Renderer lunasvg mit dem plutovg, mit dem er zeichnet, beide MIT.",
-  "licence.fonts.heading": "Schriften",
+    "<code>limn-toolkit</code> hängt außer vom JDK von zwei Bibliotheken ab, den Nullability-Annotationen von JSpecify, die nur ein Compiler liest, und einem in Java geschriebenen WebP-Decoder (<code>org.glavo:webp</code>), beide ebenfalls Apache-2.0, dafür ist Apache-2.0 also die ganze Geschichte. Das Render-Backend fügt LWJGL hinzu, das unter BSD-3-Clause steht; den SVG-Renderer lunasvg mit dem plutovg, mit dem er zeichnet, beide MIT; und ANGLE, den OpenGL-ES-Fallback für einen Windows- oder macOS-Rechner ohne OpenGL-Treiber, der unter BSD-3-Clause steht und in jedem seiner Jars die hineinkompilierten Quellen mit ihren Lizenzen aufführt. Die nativen Bibliotheken, die LWJGL mitbringt, sind ebenfalls freizügig lizenziert, bis auf OpenAL Soft, die Audioausgabe, die unter LGPL-2.0-or-later steht: eine eigene gemeinsam genutzte Bibliothek, zur Laufzeit geladen und austauschbar.",
+  "licence.fonts.heading": "Schriften und Icons",
   "licence.fonts.body":
-    "Roboto und die Noto-Fallback-Schriften stehen unter der SIL Open Font License. Jede mitgelieferte Komponente ist mit ihrer Lizenz in der NOTICE-Datei des Projekts aufgeführt.",
+    "Roboto, die Standardschrift, steht unter Apache-2.0. Die Noto-Fallback-Schriften für weitere Schriftsysteme und für Emoji sowie die kleine Symbolschrift, mit der Menüs ihre Tastenkürzel schreiben, stehen unter der SIL Open Font License 1.1. Das optionale Icon-Paket <code>limn-icons-tabler</code> steht unter MIT. Jede mitgelieferte Komponente ist mit ihrer Lizenz in der NOTICE-Datei des Projekts aufgeführt.",
   "licence.mp3.heading": "MP3-Decodierung ist LGPL",
   "licence.mp3.body":
-    "Die MP3-Unterstützung stammt von JLayer, das unter LGPL-2.1 steht und als isoliertes Jar hinter der Audio-Decoder-Schnittstelle gehalten wird. Schließen Sie diese eine Abhängigkeit aus, wenn Ihre Distribution LGPL-Pflichten vermeiden muss; WAV und Ogg Vorbis funktionieren weiter.",
+    "Die MP3-Unterstützung stammt von JLayer, das unter LGPL-2.1 steht, unverändert verwendet und als isoliertes Jar hinter der Audio-Decoder-Schnittstelle gehalten wird. Schließen Sie diese eine Abhängigkeit aus, und WAV und Ogg Vorbis funktionieren weiter; das Backend bringt aber weiterhin OpenAL Soft mit, die oben genannte LGPL-Audioausgabe.",
   "licence.ffmpeg.heading": "FFmpeg-Video, und was damit ausgeliefert wird",
   "licence.ffmpeg.body":
     "Der optionale Video-Decoder für H.264, HEVC, VP9 und VP8 in MP4 und Matroska bindet ein reduziertes FFmpeg dynamisch ein, gebaut als LGPL-2.1-oder-später. <b>Seine nativen Bibliotheken sind ein eigenes Artefakt, <code>limn-ffmpeg-natives</code>, mit je einem Classifier pro Desktop-Ziel, und <code>limn-video-ffmpeg-natives-all</code> nennt sie alle für ein Bundle, das überall hin geht</b>. Eine Distribution, die <code>limn-video-ffmpeg</code> und diese Bibliotheken enthält, verteilt also FFmpeg, und jedes dieser Jars führt den Lizenztext und den erforderlichen Hinweis mit. Sie sind dynamisch gebunden und austauschbar, genau das verlangt diese Lizenz. Nichts sonst hängt von diesem Modul ab: lassen Sie es weg, und jedes andere Medienformat funktioniert weiter.",

@@ -91,12 +91,12 @@ export const zhHant: Catalog = {
 
   "home.features.components.heading": "一套不必自己做的元件",
   "home.features.components.body":
-    "按鈕、輸入欄、清單、分頁、選單、對話框、分割窗格、選色器，長條圖、折線圖與環圈圖，還有一個虛擬化清單，其中一百萬列的成本與二十列相同。每一個都從主題讀取顏色、形狀與密度，所以沒有寫死的值，緊湊模式只要一行。",
+    "按鈕、輸入欄、清單、表格、樹狀結構、日期選擇器、分頁、選單、對話框、卡片、分割窗格、選色器，長條圖、折線圖與環圈圖，還有一個虛擬化清單，其中一百萬列的成本與二十列相同。每一個都從主題讀取顏色、形狀與密度，所以沒有寫死的值，緊湊模式只要一行。在視窗之外，應用程式還能列印到紙上或輸出 PDF，在系統匣放一個圖示，把選單放進 macOS 的選單列，並與其他程式互相拖放。",
   "home.features.components.link": "查看全部",
 
   "home.features.layout.heading": "裝得進腦袋的版面",
   "home.features.layout.body":
-    "四個元件加一個標記：欄往下堆疊，列往旁鋪開，堆疊層層相覆，內距往內縮，Expanded 決定誰拿走剩下的空間。整套語彙就這些。沒有約束求解器要設定，也沒有版面管理員要安裝。",
+    "六個元件加一個標記：欄往下堆疊，列往旁鋪開，折行容器在寬度用盡時另起一行，網格讓各個格子橫豎對齊，堆疊層層相覆，內距往內縮，Expanded 決定誰拿走剩下的空間。Opacity 與 Transform 讓視窗的一部分淡入淡出、移動、縮放與旋轉，而不打亂周圍的版面。沒有約束求解器要設定，也沒有版面管理員要安裝。",
   "home.features.layout.link": "閱讀版面指南",
   "home.features.layout.caption": "由一欄、一列、一個分割與一個 Expanded 組成的視窗。",
   "home.features.layout.alt": "用 Limn 排版的視窗",
@@ -150,7 +150,7 @@ export const zhHant: Catalog = {
 
   "home.accessibility.heading": "用同樣的語言，讀出來",
   "home.accessibility.body":
-    "NVDA、VoiceOver 和 Orca 透過各平台自己的無障礙 API 讀取 Limn 視窗，你的應用程式無需任何平台程式碼。每個控制項都以介面所用的語言，自己說出角色、名稱和狀態。為控制項命名只需一次呼叫。",
+    "Windows 上的螢幕閱讀器、macOS 的 VoiceOver 和 Linux 的 Orca 透過各平台自己的無障礙 API 讀取 Limn 視窗，你的應用程式無需任何平台程式碼。每個控制項都以介面所用的語言，自己說出角色、名稱和狀態。為控制項命名只需一次呼叫。",
   "home.accessibility.link": "閱讀無障礙指南",
   "home.accessibility.caption":
     "上面的表單，正如螢幕閱讀器被告知的那樣，在本次建置中擷取。",
@@ -160,7 +160,7 @@ export const zhHant: Catalog = {
   "home.built.intro":
     "Limn 的程式碼由 Anthropic 的模型 Claude 在 Claude Code 中撰寫，由人來掌握方向並加以驗證。我們一開始就說明這一點，因為你會想知道。",
   "home.built.method":
-    "掌握方向，指的是每一項設計決定都先在 <code>docs/adr</code> 裡寫成文字、經過論證並被接受，然後才有程式碼。加以驗證，指的是每一次變更都要跑過比程式碼本身還龐大的測試套件；無障礙不靠假設，而是真的去聽——讓 NVDA、VoiceOver 和 Orca 在 Windows、macOS 和 Linux 上朗讀真實的視窗；程式碼也經過多輪關於正確性、效能與 API 設計的稽核。",
+    "掌握方向，指的是每一項設計決定都先在 <code>docs/adr</code> 裡寫成文字、經過論證並被接受，然後才有程式碼。加以驗證，指的是每一次變更都要跑過比程式碼本身還龐大的測試套件；無障礙不靠假設，而是真的去聽——讓 Windows 上的螢幕閱讀器、macOS 的 VoiceOver 和 Linux 的 Orca 朗讀真實的視窗；程式碼也經過多輪關於正確性、效能與 API 設計的稽核。",
   "home.built.cost":
     "走到這一步，用了成千上萬次模型呼叫和數以百萬計的生成 token。依 COCOMO II 估算模型，不計測試，這十餘萬行程式碼相當於一支約二十人的團隊兩年多的工作量。這份工作已經做完了。你可以在它之上建構，而不必重做一遍。",
   "home.built.link": "閱讀設計紀錄",
@@ -229,13 +229,13 @@ export const zhHant: Catalog = {
     "Apache License 2.0，含明確的專利授權。商業使用、修改與再散布皆獲允許。",
   "licence.core.heading": "工具組本身",
   "licence.core.body":
-    "<code>limn-toolkit</code> 除 JDK 外只相依一個函式庫：以 Java 撰寫的 WebP 解碼器（<code>org.glavo:webp</code>），它同樣採用 Apache-2.0，所以對它而言，Apache-2.0 就是全部。繪製後端會引入採用 BSD-3-Clause 的 LWJGL，以及 SVG 繪製器 lunasvg 和它用來繪製的 plutovg，兩者皆採用 MIT。",
-  "licence.fonts.heading": "字型",
+    "<code>limn-toolkit</code> 除 JDK 外相依兩個函式庫：只有編譯器會讀取的 JSpecify 空值註記，以及以 Java 撰寫的 WebP 解碼器（<code>org.glavo:webp</code>），兩者同樣採用 Apache-2.0，所以對它而言，Apache-2.0 就是全部。繪製後端會引入採用 BSD-3-Clause 的 LWJGL；SVG 繪製器 lunasvg 和它用來繪製的 plutovg，兩者皆採用 MIT；以及 ANGLE，也就是為沒有 OpenGL 驅動程式的 Windows 或 macOS 電腦準備的 OpenGL ES 備援方案，採用 BSD-3-Clause，它的每個 jar 都列出編譯進其中的原始碼及其授權。LWJGL 帶來的原生函式庫同樣採用寬鬆授權，唯一的例外是負責音訊輸出的 OpenAL Soft，它採用 LGPL-2.0-or-later：它是一個獨立的共享函式庫，在執行時載入，可以替換。",
+  "licence.fonts.heading": "字型與圖示",
   "licence.fonts.body":
-    "Roboto 與 Noto 遞補字型以 SIL Open Font License 散布。每個隨附元件及其授權都列在專案的 NOTICE 檔案中。",
+    "預設字型 Roboto 採用 Apache-2.0。用於其他文字與表情符號的 Noto 遞補字型，以及選單用來書寫快速鍵的小型符號字型，以 SIL Open Font License 1.1 散布。選用的圖示套件 <code>limn-icons-tabler</code> 採用 MIT。每個隨附元件及其授權都列在專案的 NOTICE 檔案中。",
   "licence.mp3.heading": "MP3 解碼採用 LGPL",
   "licence.mp3.body":
-    "MP3 支援來自 JLayer，它是 LGPL-2.1，並作為一個獨立的 jar 保存在音訊解碼介面之後。若你的散布需要避開 LGPL 義務，只排除這一個相依套件即可。WAV 與 Ogg Vorbis 照常可用。",
+    "MP3 支援來自 JLayer，它是 LGPL-2.1，未經修改地使用，並作為一個獨立的 jar 保存在音訊解碼介面之後。只排除這一個相依套件，WAV 與 Ogg Vorbis 照常可用，不過後端仍帶有上文提到的 LGPL 音訊輸出 OpenAL Soft。",
   "licence.ffmpeg.heading": "FFmpeg 影片，以及隨之散布的東西",
   "licence.ffmpeg.body":
     "選用的影片解碼器支援 MP4 與 Matroska 中的 H.264、HEVC、VP9 與 VP8，動態連結一份精簡的 FFmpeg，以 LGPL-2.1-或更高版本 建置。<b>它的原生庫是一個獨立的構件 <code>limn-ffmpeg-natives</code>，每個桌面目標一個 classifier，另有 <code>limn-video-ffmpeg-natives-all</code> 列出全部，作為涵蓋所有平台的整套依賴</b>，因此包含 <code>limn-video-ffmpeg</code> 及這些庫的散布就是在散布 FFmpeg，而這些 jar 各自帶著授權條款全文與必要的聲明。它們是動態連結且可替換的，這正是該授權的要求。沒有別的東西依賴這個模組：拿掉它，其他媒體格式照舊運作。",

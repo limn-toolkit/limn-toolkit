@@ -92,12 +92,12 @@ export const ja: Catalog = {
 
   "home.features.components.heading": "自分で作らなくていいコンポーネント一式",
   "home.features.components.body":
-    "ボタン、入力欄、リスト、タブ、メニュー、ダイアログ、分割ペイン、カラーピッカー、棒・折れ線・ドーナツのチャート、そして 100 万行でも 20 行と同じコストで済む仮想化リスト。どれも色・形・密度をテーマから読むので、ハードコードされた値はなく、コンパクトモードは 1 行です。",
+    "ボタン、入力欄、リスト、テーブル、ツリー、日付ピッカー、タブ、メニュー、ダイアログ、カード、分割ペイン、カラーピッカー、棒・折れ線・ドーナツのチャート、そして 100 万行でも 20 行と同じコストで済む仮想化リスト。どれも色・形・密度をテーマから読むので、ハードコードされた値はなく、コンパクトモードは 1 行です。ウィンドウの外でも、アプリケーションは紙や PDF に印刷し、トレイにアイコンを置き、macOS のメニューバーにメニューを出し、ほかのプログラムとドラッグ＆ドロップでやり取りします。",
   "home.features.components.link": "すべて見る",
 
   "home.features.layout.heading": "頭に収まるレイアウト",
   "home.features.layout.body":
-    "ウィジェット 4 つとマーカー 1 つ。列は積み、行は並べ、スタックは重ね、パディングは内側に寄せ、Expanded が残りの空間を誰が取るかを決めます。語彙はこれだけで、設定すべき制約ソルバーも、導入すべきレイアウトマネージャーもありません。",
+    "ウィジェット 6 つとマーカー 1 つ。列は積み、行は並べ、ラップは幅が尽きると次の行へ折り返し、グリッドはセルを縦横にそろえ、スタックは重ね、パディングは内側に寄せ、Expanded が残りの空間を誰が取るかを決めます。Opacity と Transform は、周りのレイアウトを乱さずに、ウィンドウの一部をフェードさせ、動かし、拡大縮小し、回転させます。設定すべき制約ソルバーも、導入すべきレイアウトマネージャーもありません。",
   "home.features.layout.link": "レイアウトガイドを読む",
   "home.features.layout.caption": "列、行、分割、そして Expanded 1 つで組んだウィンドウ。",
   "home.features.layout.alt": "Limn でレイアウトしたウィンドウ",
@@ -151,7 +151,7 @@ export const ja: Catalog = {
 
   "home.accessibility.heading": "同じ言語で、読み上げられる",
   "home.accessibility.body":
-    "NVDA・VoiceOver・Orca は各プラットフォーム自身のアクセシビリティ API を通して Limn のウィンドウを読み上げます。アプリケーションにプラットフォーム固有のコードは不要です。各コントロールは、インターフェースの表示言語で、ロール・名前・状態を自分で伝えます。コントロールに名前を付けるのは呼び出しひとつです。",
+    "Windows 上のスクリーンリーダー、macOS の VoiceOver、Linux の Orca は、各プラットフォーム自身のアクセシビリティ API を通して Limn のウィンドウを読み上げます。アプリケーションにプラットフォーム固有のコードは不要です。各コントロールは、インターフェースの表示言語で、ロール・名前・状態を自分で伝えます。コントロールに名前を付けるのは呼び出しひとつです。",
   "home.accessibility.link": "アクセシビリティガイドを読む",
   "home.accessibility.caption":
     "上のフォームを、スクリーンリーダーに伝えられるとおりに。このビルド中に取得。",
@@ -161,7 +161,7 @@ export const ja: Catalog = {
   "home.built.intro":
     "Limn のコードは、Anthropic のモデルである Claude が Claude Code の中で書き、人間が方向を決めて検証しています。知っておきたいはずのことなので、最初にお伝えします。",
   "home.built.method":
-    "方向を決めるとは、設計上の決定をすべてコードより先に <code>docs/adr</code> の文書として書き、議論し、承認することです。検証するとは、すべての変更を、コード本体より大きなテストスイートにかけること、アクセシビリティを推測ではなく実際に聞いて確かめること（NVDA・VoiceOver・Orca に Windows・macOS・Linux 上の実際のウィンドウを読ませて）、そして正しさ・性能・API 設計について監査を繰り返すことです。",
+    "方向を決めるとは、設計上の決定をすべてコードより先に <code>docs/adr</code> の文書として書き、議論し、承認することです。検証するとは、すべての変更を、コード本体より大きなテストスイートにかけること、アクセシビリティを推測ではなく実際に聞いて確かめること（Windows 上のスクリーンリーダー、macOS の VoiceOver、Linux の Orca に実際のウィンドウを読ませて）、そして正しさ・性能・API 設計について監査を繰り返すことです。",
   "home.built.cost":
     "ここまでに、何千回ものモデル呼び出しと何百万もの生成トークンを費やしました。見積もりモデル COCOMO II によれば、テストを除いても 10 万行を超えるコードは、約 20 人のチームが 2 年以上かけて行う仕事に相当します。その仕事はもう済んでいます。やり直す代わりに、その上に作ることができます。",
   "home.built.link": "設計記録を読む",
@@ -230,13 +230,13 @@ export const ja: Catalog = {
     "Apache License 2.0。明示的な特許許諾を含みます。商用利用も改変も再配布も、すべて認められています。",
   "licence.core.heading": "ツールキット本体",
   "licence.core.body":
-    "<code>limn-toolkit</code> が JDK 以外に依存するのは、Java で書かれた WebP デコーダ（<code>org.glavo:webp</code>）ひとつだけで、これも Apache-2.0 なので、これについては Apache-2.0 がすべてです。描画バックエンドは BSD-3-Clause の LWJGL と、SVG レンダラーの lunasvg およびそれが描画に使う plutovg（どちらも MIT）を追加します。",
-  "licence.fonts.heading": "フォント",
+    "<code>limn-toolkit</code> が JDK 以外に依存するのは、コンパイラーだけが読む JSpecify の null 許容性アノテーションと、Java で書かれた WebP デコーダ（<code>org.glavo:webp</code>）の 2 つで、どちらも Apache-2.0 なので、これについては Apache-2.0 がすべてです。描画バックエンドは、BSD-3-Clause の LWJGL、SVG レンダラーの lunasvg とそれが描画に使う plutovg（どちらも MIT）、そして OpenGL ドライバーのない Windows や macOS のマシンのための OpenGL ES フォールバックである ANGLE（BSD-3-Clause。各 jar に、組み込まれたソースとそのライセンスの一覧があります）を追加します。LWJGL が持ち込むネイティブライブラリも寛容なライセンスですが、音声出力を担う OpenAL Soft だけは LGPL-2.0-or-later です。これは独立した共有ライブラリで、実行時に読み込まれ、差し替えることができます。",
+  "licence.fonts.heading": "フォントとアイコン",
   "licence.fonts.body":
-    "Roboto と Noto のフォールバックフォントは SIL Open Font License で配布されています。同梱コンポーネントはすべて、ライセンスとともにプロジェクトの NOTICE ファイルに記載しています。",
+    "既定のフォントである Roboto は Apache-2.0 です。ほかの文字体系と絵文字のための Noto のフォールバックフォント、そしてメニューがショートカットを書くのに使う小さな記号フォントは、SIL Open Font License 1.1 で配布されています。オプションのアイコンパック <code>limn-icons-tabler</code> は MIT です。同梱コンポーネントはすべて、ライセンスとともにプロジェクトの NOTICE ファイルに記載しています。",
   "licence.mp3.heading": "MP3 のデコードは LGPL",
   "licence.mp3.body":
-    "MP3 対応は LGPL-2.1 の JLayer によるもので、音声デコーダーのインターフェイスの背後に独立した jar として保たれています。配布物で LGPL の義務を避ける必要があれば、この依存だけを除外してください。WAV と Ogg Vorbis はそのまま動きます。",
+    "MP3 対応は LGPL-2.1 の JLayer によるもので、改変せずに使い、音声デコーダーのインターフェイスの背後に独立した jar として保たれています。この依存だけを除外しても WAV と Ogg Vorbis はそのまま動きますが、バックエンドには上で触れた LGPL の音声出力、OpenAL Soft が残ります。",
   "licence.ffmpeg.heading": "FFmpeg による動画と、一緒に配布されるもの",
   "licence.ffmpeg.body":
     "任意の動画デコーダは、MP4 と Matroska の H.264、HEVC、VP9、VP8 を扱い、削り込んだ FFmpeg を LGPL-2.1-or-later として動的にリンクします。<b>そのネイティブライブラリは独立したアーティファクト <code>limn-ffmpeg-natives</code> で、デスクトップ対象ごとに 1 つの classifier があり、どこにでも配れる一括版として <code>limn-video-ffmpeg-natives-all</code> がそのすべてを指定します</b>。したがって <code>limn-video-ffmpeg</code> とそれらのライブラリを含む配布物は FFmpeg を配布していることになり、それぞれの jar がライセンス本文と必要な告知を併せて運びます。動的リンクで差し替え可能であり、それがこのライセンスの求めるところです。この module に依存しているものは他にありません。外してしまえば、ほかのメディア形式はすべてそのまま動きます。",
