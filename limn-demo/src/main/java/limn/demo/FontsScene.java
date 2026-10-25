@@ -93,7 +93,9 @@ final class FontsScene {
 
     /**
      * Live UI-font switcher: a combo of all available families (bundled + system,
-     * enumerated in the background) that drives {@link Fonts#setDefaultFamily}. It
+     * enumerated in the background) that drives {@link Fonts#setDefaultFamilyWhenResident},
+     * so a pick is worn once its faces have been read on a worker and the frame that shows
+     * it reads no file, and stepping through the list ends on the last entry. It
      * rebuilds the combo only when the family <em>list</em> changes (the async
      * system-font scan finishing), not on every selection, and un/subscribes with
      * the widget lifecycle so it holds no listener while detached.
@@ -151,9 +153,9 @@ final class FontsScene {
             }
             ComboBox<String> combo = new ComboBox<>(list);
             // A caller's write, so it reaches no handler: the family already in force is not
-            // pushed back through Fonts.setDefaultFamily on every rebuild, wherever this sits.
+            // asked for again on every rebuild, wherever this sits.
             combo.setSelectedIndex(indexOfDefault(list));
-            combo.onSelect(() -> Fonts.setDefaultFamily(combo.selectedItem()));
+            combo.onSelect(() -> Fonts.setDefaultFamilyWhenResident(combo.selectedItem()));
 
             Row row = new Row();
             row.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);

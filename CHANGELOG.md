@@ -634,6 +634,17 @@ Maven Central say which number that was.
 
 ### New
 
+- An application can switch its UI font without reading a font file inside a frame:
+  `Fonts.setDefaultFamilyWhenResident(family)` reads the family's regular and bold faces on a
+  worker and switches the UI font on the UI thread once they are in, answering a stage there with
+  whether it switched. A later choice overtakes an earlier one still reading, so a picker stepped
+  through a list ends on its last entry, and the overtaken one answers `false`.
+  `Fonts.preload(family)` reads a family ahead without switching to it. Both answer on a later
+  turn, never inside the call, and also when there is nothing to read. `Fonts.setDefaultFamily`
+  still switches at once and leaves the read to the next frame, and now checks the UI thread when
+  a runtime is installed, as the other process-wide settings do. The demo's font picker and the
+  theme editor's now switch this way, and the theming guide shows a picker. A backend's
+  `FontLoader` reads ahead in `preload`, whose default reads nothing.
 - `DateFormats` writes a date in the calendar its locale names with `-u-ca-`, as the date widgets
   already drew it: `ja-JP-u-ca-japanese` writes "R7/10/25", `th-TH-u-ca-buddhist` the year 2568,
   `zh-TW-u-ca-roc` the Republic of China's year, `ar-SA-u-ca-islamic-umalqura` the Hijri date. The

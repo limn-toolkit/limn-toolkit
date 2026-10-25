@@ -41,6 +41,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 
 /**
@@ -59,7 +60,9 @@ import java.util.function.Consumer;
  * honest preview of a change is the window wearing it, including this editor, which
  * re-skins under the user's hands. {@link #setApplyLive} turns that off for a screen that
  * cannot afford it, as the demo's; the {@link ThemePreview} beside the tones shows the edited palette
- * either way, because it paints from the value rather than from {@link Theme#current()}.
+ * either way, because it paints from the value rather than from {@link Theme#current()}. The
+ * palette's typeface goes live through {@link Fonts#setDefaultFamilyWhenResident}: a family picked
+ * in the list is worn from the frame after its faces have been read on a worker.
  *
  * <p><b>What it does not decide is where a palette lives.</b> Copy and Paste move one
  * through the clipboard as {@link ThemeFormat} text and need nothing from the platform; a
@@ -182,6 +185,12 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
     /** What the report is currently showing, so an unchanged verdict rebuilds nothing. */
     private List<ThemeAudit.Finding> shownFindings = List.of();
     private boolean applyLive = true;
+    /**
+     * The family this editor asked {@link Fonts} to switch to and the answer it is waiting for,
+     * both {@code null} when it waits for none; see {@link #askForFont}.
+     */
+    private String fontAsked;
+    private CompletionStage<Boolean> fontAnswer;
     private Consumer<Theme> onChange;
 
     /** An editor on the palette the application is currently wearing. */
@@ -426,7 +435,8 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
 
     /**
      * Puts back the palette the application was wearing when this editor was built, what a
-     * "close without keeping this" button calls. Does nothing if the palette has not moved.
+     * "close without keeping this" button calls. Does nothing if the palette has not moved. Its
+     * typeface comes back as a pick does, once its faces are resident.
      */
     public void detachLive() {
         Ui.checkUiThread();
@@ -434,7 +444,9 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
             Theme.setCurrent(themeAtStart);
             // The typeface is process-wide and outlives the palette that asked for it, so putting
             // the palette back without this leaves the application wearing a font it never chose.
-            themeAtStart.applyFontFamily();
+            // By the same request as a pick, which also overtakes one still waiting for its faces:
+            // the faces worn at the start may have been let go while the user tried others.
+            askForFont(themeAtStart.fontFamily());
         }
     }
 
@@ -545,11 +557,36 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
             return;
         }
         Theme.setCurrent(theme);
-        // Safe on the hot path, and only because Fonts.setDefaultFamily returns immediately when
-        // the name has not moved: this runs on every frame of a colour drag, and the call it makes
-        // is the one act in the toolkit that can read a font file inside the next frame. A palette
-        // whose family did change pays that once, on the frame the picker was used.
-        theme.applyFontFamily();
+        askForFont(theme.fontFamily());
+    }
+
+    /**
+     * Has the application wear {@code family}, through {@link Fonts#setDefaultFamilyWhenResident}
+     * rather than {@link Theme#applyFontFamily()}: the faces are read on a worker and the switch
+     * is made once they are in, so the frame that shows the new font reads no file, and picking
+     * one family after another in the list ends on the last.
+     *
+     * <p>Safe on the hot path, and only because of the comparison: this runs on every frame of a
+     * colour drag, and asking costs a stage, a post and a lookup in the backend's faces. It asks
+     * only when the application is neither wearing the family nor waiting for it, so a palette
+     * whose family did not move asks nothing, and one whose family did asks once. An answer is
+     * forgotten only by the request it belongs to: one that a later pick overtook must not
+     * clear the wait that pick started.
+     */
+    private void askForFont(String family) {
+        boolean wearing = fontAsked == null && family.equals(Fonts.defaultFamily());
+        if (wearing || family.equals(fontAsked)) {
+            return;
+        }
+        CompletionStage<Boolean> answer = Fonts.setDefaultFamilyWhenResident(family);
+        fontAsked = family;
+        fontAnswer = answer;
+        answer.thenRun(() -> {
+            if (fontAnswer == answer) {
+                fontAsked = null;
+                fontAnswer = null;
+            }
+        });
     }
 
     /**

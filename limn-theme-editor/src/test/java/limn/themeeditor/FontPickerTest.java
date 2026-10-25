@@ -4,14 +4,18 @@ import limn.components.ComboBox;
 import limn.components.Theme;
 import limn.components.TokenColumn;
 import limn.components.Tokens;
+import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.FontCatalog;
+import limn.graphics.FontLoader;
 import limn.graphics.Fonts;
 import limn.input.Keys;
 import limn.scene.Scene;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -139,5 +143,72 @@ class FontPickerTest extends EditorTestBase {
         assertEquals(target, combo.selectedIndex());
         assertEquals("Helvetica Neue", editor.theme().fontFamily());
         assertTrue(editor.isModified());
+    }
+
+    /** A backend's loader that records each family asked of it and lands the reads when told. */
+    private static final class HeldLoader implements FontLoader {
+
+        final List<String> asked = new ArrayList<>();
+        private final List<Runnable> waiting = new ArrayList<>();
+
+        @Override
+        public String load(Path file) {
+            throw new UnsupportedOperationException("not a file test");
+        }
+
+        @Override
+        public void preload(String family, Runnable whenResident) {
+            asked.add(family);
+            waiting.add(whenResident);
+        }
+
+        /** Every read out so far has landed: what the backend does on the UI thread. */
+        void land() {
+            List<Runnable> answers = List.copyOf(waiting);
+            waiting.clear();
+            answers.forEach(Runnable::run);
+        }
+    }
+
+    @Test
+    void aPickedFamilyIsWornOnceItsFacesAreReadAndAColourDragAsksForNothingMore() {
+        HeldLoader loader = new HeldLoader();
+        Fonts.installLoader(loader);
+        try {
+            Fonts.installCatalog(ENUMERATED);
+            ThemeEditor editor = new ThemeEditor(Theme.dark()); // applies live, the default
+            Scene scene = new Scene(editor);
+            scene.setTextRuler(RULER);
+            scene.layoutPass(1000, 700);
+
+            ComboBox<?> combo = editor.fontChoice();
+            int target = editor.offeredFontFamilies().indexOf("Menlo");
+            scene.requestFocus(combo);
+            press(scene, Keys.SPACE);
+            for (int i = combo.selectedIndex(); i < target; i++) {
+                press(scene, Keys.DOWN);
+            }
+            press(scene, Keys.ENTER);
+
+            assertEquals("Menlo", editor.theme().fontFamily());
+            assertEquals(List.of("Menlo"), loader.asked, "the pick asks for the faces");
+            assertEquals(Font.DEFAULT_FAMILY, Fonts.defaultFamily(),
+                    "and is not worn before they are read: switching now would read them in a frame");
+
+            // Two frames of a colour drag while the read is out: each pushes the palette.
+            editor.setToken(Theme.Token.PRIMARY, Color.rgb(0x4FD1C5));
+            editor.setToken(Theme.Token.PRIMARY, Color.rgb(0x4FD1C6));
+            assertEquals(List.of("Menlo"), loader.asked, "a family on its way is not asked for again");
+            assertEquals(Font.DEFAULT_FAMILY, Fonts.defaultFamily());
+
+            loader.land();
+            assertEquals("Menlo", Fonts.defaultFamily(), "worn from the frame after the read");
+            editor.setToken(Theme.Token.PRIMARY, Color.rgb(0x4FD1C7));
+            assertEquals(List.of("Menlo"), loader.asked,
+                    "a palette whose family did not move asks for nothing");
+        } finally {
+            Fonts.uninstallLoader(loader);
+            Fonts.setDefaultFamily(null);
+        }
     }
 }

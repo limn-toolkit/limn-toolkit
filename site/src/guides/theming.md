@@ -268,11 +268,23 @@ as that needs, and `outline()` stays the quieter edge of what groups or divides.
 
 ## Fonts
 
-`Fonts.setDefaultFamily("…")` changes the face the whole toolkit uses;
-`Fonts.available()` lists what the backend found. Individual widgets take a `Font` where it
-matters, as `label.setFont(…)` does, but reach for the theme's roles first: a `Label` set to
-`Role.TITLE` gets the right size for its control size step, in every step, without you
-picking a number.
+Letting the user choose the face the whole toolkit uses takes three calls. `Fonts.available()`
+lists the families the backend has found, and the list grows once the operating system's own
+have been read, so a picker rebuilds when `Fonts.observeChanges` says so.
+`Fonts.setDefaultFamilyWhenResident(family)` makes the switch: it reads the family's regular and
+bold faces on a worker and switches once they are in memory, so the frame that shows the new font
+reads no file, and a later pick overtakes one still reading, so stepping through the list ends on
+the last entry.
+
+{% snippet guide:font-picker %}
+
+`Fonts.setDefaultFamily` switches at once and leaves the read to the next frame, which suits a
+switch that has to have happened when it returns, such as before the first window opens.
+`Fonts.preload(family)` reads a family ahead without switching to it.
+
+Individual widgets take a `Font` where it matters, as `label.setFont(…)` does, but reach for the
+theme's roles first: a `Label` set to `Role.TITLE` gets the right size for its control size step,
+in every step, without you picking a number.
 
 ## Elevation
 

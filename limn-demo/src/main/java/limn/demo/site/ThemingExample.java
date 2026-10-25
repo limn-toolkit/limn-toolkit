@@ -4,12 +4,20 @@ import limn.components.ComboBox;
 import limn.components.Label;
 import limn.components.Theme;
 import limn.components.Tone;
+import limn.concurrent.Subscription;
+import limn.graphics.Font;
+import limn.graphics.Fonts;
 import limn.i18n.I18nString;
+import limn.scene.layout.Row;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * The worked example the theming guide shows for switching a palette while the program runs: a
- * picker over the palettes the toolkit ships. Compiled by {@code ./gradlew check}, so the sample
- * a reader copies builds, and tested for what the page says of it.
+ * The worked examples the theming guide shows for switching a palette or the font while the
+ * program runs: a picker over the palettes the toolkit ships, and one over the families the
+ * backend found. Compiled by {@code ./gradlew check}, so the sample a reader copies builds, and
+ * tested for what the page says of it.
  */
 public final class ThemingExample {
 
@@ -26,6 +34,47 @@ public final class ThemingExample {
         // on the palette's background, and applies the palette's own face.
         picker.onSelect(() -> Theme.builtins().get(picker.selectedIndex()).apply());
         return picker;
+    }
+    // #endregion
+
+    // #region guide:font-picker
+    /** A font picker over the families the backend has found, rebuilt as it finds more. */
+    static final class FontPicker extends Row {
+
+        private Subscription listening;
+        private List<String> shown = List.of();
+
+        FontPicker() {
+            rebuild();
+        }
+
+        @Override
+        protected void onAttached() {
+            // The list grows once the operating system's families have been read.
+            listening = Fonts.observeChanges(this::rebuild);
+        }
+
+        @Override
+        protected void onDetached() {
+            listening.cancel();
+        }
+
+        private void rebuild() {
+            List<String> families = new ArrayList<>();
+            families.add(Font.DEFAULT_FAMILY); // the toolkit's own face
+            families.addAll(Fonts.available());
+            if (families.equals(shown)) {
+                return; // the font switched, the list did not
+            }
+            shown = families;
+            ComboBox<String> picker = new ComboBox<>(families,
+                    family -> family.equals(Font.DEFAULT_FAMILY) ? "Default" : family);
+            picker.setSelectedIndex(Math.max(0, families.indexOf(Fonts.defaultFamily())));
+            // Worn once its faces have been read off the UI thread; a later pick overtakes it.
+            picker.onSelect(() -> Fonts.setDefaultFamilyWhenResident(picker.selectedItem()));
+            List.copyOf(children()).forEach(this::remove);
+            add(picker);
+        }
     }
     // #endregion
 
