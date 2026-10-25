@@ -21,11 +21,8 @@ import java.util.List;
  */
 final class StrokeRecordingCanvas extends ComponentTestBase.FakeCanvas {
 
-    /** One recorded stroke: the call that made it and the width it used. */
-    record Stroke(String kind, float width) {
-    }
-
-    private final List<Stroke> strokes = new ArrayList<>();
+    /** The width of every stroke painted, in the order painted. */
+    private final List<Float> widths = new ArrayList<>();
 
     StrokeRecordingCanvas(float width, float height) {
         super(width, height);
@@ -33,36 +30,36 @@ final class StrokeRecordingCanvas extends ComponentTestBase.FakeCanvas {
 
     /** @return every recorded width, sorted: the order-insensitive form for comparing steps */
     List<Float> widths() {
-        return strokes.stream().map(Stroke::width).sorted().toList();
+        return widths.stream().sorted().toList();
     }
 
     @Override
     public void drawRect(float x, float y, float w, float h, float strokeWidth, Paint paint) {
-        strokes.add(new Stroke("rect", strokeWidth));
+        widths.add(strokeWidth);
     }
 
     @Override
     public void drawRoundRect(RoundRect roundRect, float strokeWidth, Paint paint) {
-        strokes.add(new Stroke("roundRect", strokeWidth));
+        widths.add(strokeWidth);
     }
 
     @Override
     public void drawCircle(float cx, float cy, float radius, float strokeWidth, Paint paint) {
-        strokes.add(new Stroke("circle", strokeWidth));
+        widths.add(strokeWidth);
     }
 
     @Override
     public void drawEllipse(float cx, float cy, float rx, float ry, float strokeWidth, Paint paint) {
-        strokes.add(new Stroke("ellipse", strokeWidth));
+        widths.add(strokeWidth);
     }
 
     @Override
     public void drawLine(float x1, float y1, float x2, float y2, float strokeWidth, Paint paint) {
-        strokes.add(new Stroke("line", strokeWidth));
+        widths.add(strokeWidth);
     }
 
     @Override
     public void drawPath(Path2D path, float strokeWidth, Paint paint) {
-        strokes.add(new Stroke("path", strokeWidth));
+        widths.add(strokeWidth);
     }
 }
