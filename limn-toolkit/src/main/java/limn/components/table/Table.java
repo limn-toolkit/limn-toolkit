@@ -2842,6 +2842,16 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return setEmptyMessage(message == null ? null : I18nString.literal(message));
     }
 
+    /**
+     * Takes the message shown with no rows away, as {@code setEmptyMessage(null)} would: that call does not compile, because
+     * {@code null} fits more than one of the overloads.
+     *
+     * @return this table
+     */
+    public Table<T> clearEmptyMessage() {
+        return setEmptyMessage((I18nString) null);
+    }
+
     /** @return the content shown while there are no rows, or {@code null} */
     public @Nullable Widget<?> emptyContent() {
         return placeholder.emptyContent();

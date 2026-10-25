@@ -468,6 +468,16 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
         return self();
     }
 
+    /**
+     * Takes the title away, as {@code setTitle(null)} would: that call does not compile, because
+     * {@code null} fits more than one of the overloads.
+     *
+     * @return this chart
+     */
+    public W clearTitle() {
+        return setTitle((I18nString) null);
+    }
+
     /** The panel color behind the chart, or {@code null} when it paints on what is below. */
     public @Nullable Color background() {
         return background;

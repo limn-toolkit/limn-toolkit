@@ -664,6 +664,16 @@ public final class Column<T> {
         return this;
     }
 
+    /**
+     * Takes the footer cell away, as {@code footer(null)} would: that call does not compile,
+     * because {@code null} fits more than one of the overloads. UI thread only.
+     *
+     * @return this column
+     */
+    public Column<T> clearFooter() {
+        return footer((I18nString) null);
+    }
+
     /** @return whether this column puts something in the footer */
     public boolean hasFooter() {
         return footerText != null || footer != null;

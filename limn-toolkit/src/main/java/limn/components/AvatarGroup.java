@@ -50,12 +50,16 @@ import java.util.Objects;
  */
 public final class AvatarGroup extends Widget<AvatarGroup> {
 
+    private static final System.Logger LOG = System.getLogger(AvatarGroup.class.getName());
+
     /** The most avatars shown by default, the count's circle included. */
     private static final int DEFAULT_MAX_SHOWN = 4;
 
     private final List<Avatar> members = new ArrayList<>();
     private int maxShown = DEFAULT_MAX_SHOWN;
     private final More more = new More();
+    /** Whether the warning for a group with no name was logged; once per group. */
+    private boolean saidNameless;
 
     // Every member's name joined for a reader, built when a member or a name changes, or the
     // language does, with the counter the node's description is diffed by.
@@ -351,6 +355,11 @@ public final class AvatarGroup extends Widget<AvatarGroup> {
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.GROUP);
         a.description(description(), descriptionWitness);
+        if (!saidNameless && !limn.scene.internal.SceneAccess.namedByApplication(this)) {
+            saidNameless = true;
+            LOG.log(System.Logger.Level.WARNING, "an AvatarGroup has no name, so a reader hears a group of "
+                    + "people with nothing to say who they are to the page: setAccessibleName (\"Approvers\")");
+        }
     }
 
     /** The circles inside are not published: the group's description already says every name. */

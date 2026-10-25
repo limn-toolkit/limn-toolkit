@@ -191,6 +191,16 @@ public final class Field extends Widget<Field> {
         return setLabel(I18nString.literal(Objects.requireNonNull(newLabel, "newLabel")));
     }
 
+    /**
+     * Takes the caption away, as {@code setLabel(null)} would: that call does not compile, because
+     * {@code null} fits more than one of the overloads.
+     *
+     * @return this field
+     */
+    public Field clearLabel() {
+        return setLabel((I18nString) null);
+    }
+
     private void applyLabel(@Nullable I18nString newLabel) {
         label = newLabel;
         if (newLabel == null) {
@@ -243,6 +253,16 @@ public final class Field extends Widget<Field> {
     /** {@link #setHelperText(I18nString)} with a fixed string. */
     public Field setHelperText(String text) {
         return setHelperText(I18nString.literal(Objects.requireNonNull(text, "text")));
+    }
+
+    /**
+     * Takes the helper text away, as {@code setHelperText(null)} would: that call does not compile, because
+     * {@code null} fits more than one of the overloads.
+     *
+     * @return this field
+     */
+    public Field clearHelperText() {
+        return setHelperText((I18nString) null);
     }
 
     /** Whether the field is required; see {@link #setRequired}. */
@@ -401,6 +421,41 @@ public final class Field extends Widget<Field> {
 
     // ---------------------------------------------------------------------------- the line
 
+    /** What was last said about the control, so a message is announced when it changes and not again. */
+    private @Nullable I18nString lastSaid;
+
+    /**
+     * Says a new message about the control politely while the keyboard is in it: a reader hears
+     * the description when it arrives at a control, and a message set while the user is in the
+     * control (validating as they type, or as a date field refuses a day) was otherwise heard
+     * only on coming back to it. Once per message: the same message again, a language change and
+     * a message set while the user is elsewhere say nothing.
+     */
+    private void announceIfFocused(@Nullable Said said) {
+        I18nString now = said == null ? null : said.text();
+        if (Objects.equals(now, lastSaid)) {
+            return;
+        }
+        lastSaid = now;
+        limn.scene.Scene scene = scene();
+        if (now == null || scene == null || !holdsTheKeyboard(scene.focusedWidget())) {
+            return;
+        }
+        String spoken = validationMessage();
+        if (spoken != null && !spoken.isEmpty()) {
+            scene.announce(spoken, limn.accessibility.Accessible.Politeness.POLITE);
+        }
+    }
+
+    private boolean holdsTheKeyboard(@Nullable Widget<?> focused) {
+        for (Widget<?> at = focused; at != null; at = at.parent()) {
+            if (at == control) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Whether the line shows a message about the control, which reads in the control's language. */
     private boolean lineSpeaksForControl;
 
@@ -433,6 +488,7 @@ public final class Field extends Widget<Field> {
             shown = Validation.NONE;
         }
         line.setText(text);
+        announceIfFocused(said);
         lineSpeaksForControl = shown != Validation.NONE;
         lineInControlsLanguage();
         line.setTone(shown == Validation.NONE ? null : toneOf(shown));

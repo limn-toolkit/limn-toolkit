@@ -627,6 +627,16 @@ Maven Central say which number that was.
 
 ### New
 
+- Typed `clear…()` methods beside the setters whose `null` takes something away but does not
+  compile, because `null` fits two of their overloads: `Card.clearTitle`, `clearSubtitle` and
+  `clearMedia`, `Expander.clearSummary`, `Field.clearLabel` and `clearHelperText`, `clearEmptyMessage`
+  on `ListView`, `Table` and `Tree`, `Popover.clearAccessibleName`, `Chart.clearTitle` and
+  `Column.clearFooter`.
+- A `Field`'s message set while the keyboard is in its control is announced politely, once. A
+  reader heard it only as the control's description on arriving there, so a message set as the
+  user typed was missed until they came back.
+- An `AvatarGroup` with no accessible name logs a warning once, as a clickable `Card` with no title
+  does: a reader hears a group of people with nothing to say who they are.
 - `I18nString.withArguments(…)` and `PluralString.forCount(count, …)`: a sentence with arguments as an
   `I18nString` that is formatted again in the language in effect wherever it is read, so a label
   given one follows a change of language as a plain declared string does. `format(…)` still
@@ -1830,6 +1840,8 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `PasswordField.setMask` refuses a pattern with `UnsupportedOperationException`. A password is not
+  formatted: a mask's literals were drawn as dots, and "masked" meant two things on one field.
 - `Insets` names its sides by the reading direction: `(top, end, bottom, start)`, with `start()`
   and `end()` in place of `left()` and `right()`. Every layout already mirrored them under a
   right-to-left subtree, so `left` was the start side and `right` the end one; the names now say

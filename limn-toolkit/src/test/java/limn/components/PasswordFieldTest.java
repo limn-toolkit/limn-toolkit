@@ -361,4 +361,14 @@ class PasswordFieldTest extends ComponentTestBase {
         scene.renderFrame(canvas);
         return canvas.circles.get(0).radius();
     }
+
+    /** A password is not formatted: a pattern is refused, and taking one away is no change. */
+    @Test
+    void aPasswordFieldTakesNoMask() {
+        PasswordField field = new PasswordField();
+        org.junit.jupiter.api.Assertions.assertThrows(UnsupportedOperationException.class,
+                () -> field.setMask("000-000"));
+        field.setMask(null);
+        org.junit.jupiter.api.Assertions.assertNull(field.mask());
+    }
 }

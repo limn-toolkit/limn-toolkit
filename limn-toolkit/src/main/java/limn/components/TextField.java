@@ -355,8 +355,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * its own words say otherwise. The field's icons, its trailing button and its pads still
      * follow the layout direction.
      *
-     * <p>The text already in the field is fitted at once. {@code null} takes the mask away and
-     * leaves the text as it is.
+     * <p>The text already in the field is fitted at once. When fitting changes it, the text is
+     * replaced as {@link #setText} replaces it: the undo history starts again from the fitted
+     * text, and the caret goes to its end; a text that already fits is left alone, history and
+     * caret included. {@code null} takes the mask away and leaves the text as it is.
      *
      * @param pattern the pattern, or {@code null}
      * @return this field

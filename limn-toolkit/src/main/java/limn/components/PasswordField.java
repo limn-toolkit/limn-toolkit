@@ -10,6 +10,7 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.scene.Change;
+import org.jspecify.annotations.Nullable;
 
 /**
  * {@link TextField} that renders every character as a mask dot, with an optional reveal toggle.
@@ -348,5 +349,23 @@ public final class PasswordField extends TextField {
      */
     private static float cell(Font font) {
         return DOT_ADVANCE * font.size();
+    }
+
+    /**
+     * Refused: a password is not formatted. A pattern's literals and sections would be drawn as
+     * dots like everything else, and its "masked" would mean two things on one field, so a
+     * password field takes no input mask. {@code null}, which takes a mask away, is accepted and
+     * does nothing. {@link #unmaskedText()} is therefore the password as typed.
+     *
+     * @param pattern {@code null}
+     * @return this field
+     * @throws UnsupportedOperationException for any pattern
+     */
+    @Override
+    public TextField setMask(@Nullable String pattern) {
+        if (pattern != null) {
+            throw new UnsupportedOperationException("a PasswordField takes no input mask: " + pattern);
+        }
+        return this;
     }
 }

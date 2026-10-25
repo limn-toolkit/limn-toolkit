@@ -165,6 +165,16 @@ public final class Expander extends Widget<Expander> {
         return this;
     }
 
+    /**
+     * Takes the summary away, as {@code setSummary(null)} would: that call does not compile, because
+     * {@code null} fits more than one of the overloads.
+     *
+     * @return this expander
+     */
+    public Expander clearSummary() {
+        return setSummary((I18nString) null);
+    }
+
     /** @return the summary, resolved in this widget's own language, or null */
     public @Nullable String summary() {
         return summary == null ? null : summary.get();

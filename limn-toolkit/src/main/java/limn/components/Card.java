@@ -269,6 +269,16 @@ public final class Card extends Widget<Card> {
         return this;
     }
 
+    /**
+     * Takes the media away, as {@code setMedia(null)} would: that call does not compile, because
+     * {@code null} fits more than one of the overloads.
+     *
+     * @return this card
+     */
+    public Card clearMedia() {
+        return setMedia((Widget<?>) null);
+    }
+
     /** @return the media widget, or {@code null} when there is none or the media is an icon */
     public @Nullable Widget<?> media() {
         return media;
@@ -336,6 +346,16 @@ public final class Card extends Widget<Card> {
         return this;
     }
 
+    /**
+     * Takes the title away, as {@code setTitle(null)} would: that call does not compile, because
+     * {@code null} fits more than one of the overloads.
+     *
+     * @return this card
+     */
+    public Card clearTitle() {
+        return setTitle((I18nString) null);
+    }
+
     /** @return the title, resolved in this card's own language, or {@code null} */
     public @Nullable String title() {
         return title == null ? null : title.get();
@@ -376,6 +396,16 @@ public final class Card extends Widget<Card> {
         markNeedsLayout();
         notifyChange(Change.of(Change.Aspect.DESCRIPTION, Change.Origin.CODE));
         return this;
+    }
+
+    /**
+     * Takes the subtitle away, as {@code setSubtitle(null)} would: that call does not compile, because
+     * {@code null} fits more than one of the overloads.
+     *
+     * @return this card
+     */
+    public Card clearSubtitle() {
+        return setSubtitle((I18nString) null);
     }
 
     /** @return the subtitle, resolved in this card's own language, or {@code null} */

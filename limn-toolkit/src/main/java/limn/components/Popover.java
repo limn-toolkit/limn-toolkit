@@ -254,6 +254,16 @@ public final class Popover {
     }
 
     /**
+     * Takes the accessible name away, as {@code setAccessibleName(null)} would: that call does not compile, because
+     * {@code null} fits more than one of the overloads.
+     *
+     * @return this popover
+     */
+    public Popover clearAccessibleName() {
+        return setAccessibleName((I18nString) null);
+    }
+
+    /**
      * Hears the panel close, with who closed it: {@code USER} for a press outside or Escape,
      * {@code ADJUSTMENT} for the application losing the keyboard, the owner's fullscreen changing
      * or the anchor leaving the window (with a dialog it was in, say, or a popover it was in
