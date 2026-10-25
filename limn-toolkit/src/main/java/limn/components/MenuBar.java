@@ -460,9 +460,10 @@ public final class MenuBar extends Widget<MenuBar> {
      *
      * <p>{@link #openMenu} records the index and builds the popup <em>before</em> asking it to
      * show, and {@link PopupMenu} refuses to show an empty menu, or one over a scene with no
-     * window or no display. So {@code isOpen()} means "the bar believes a menu is down" and this
-     * means "one is". The accessible tree publishes the expanded bit from here, because a reader
-     * told a menu is open when nothing was drawn has been told the one thing it cannot check.
+     * window or with a closed one. So {@code isOpen()} means "the bar believes a menu is down"
+     * and this means "one is". The accessible tree publishes the expanded bit from here, because
+     * a reader told a menu is open when nothing was drawn has been told the one thing it cannot
+     * check.
      */
     private boolean isShowingDropdown() {
         return openPopup != null && openPopup.isOpen();

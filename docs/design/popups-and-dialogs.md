@@ -105,7 +105,7 @@ clamp against the monitor's work area like a real OS menu. So the whole cascade 
 one undecorated, transparent native window, sized to the open cascade's bounding box and
 re-fit as submenus open and close.
 
-Two cases are not given one. A fullscreen window, of either kind: at a named mode, the
+Three cases are not given one. A fullscreen window, of either kind: at a named mode, the
 fullscreen a game asks for, GLFW minimizes the window when another takes the focus, on Windows,
 X11 and macOS alike, and the menu's window takes it at once; at the mode the display is in, the
 fullscreen an application asks for, the window stays fullscreen when it loses the focus, as a
@@ -120,11 +120,17 @@ window reporting no `supportsAbsolutePositioning()` cannot say *where* the secon
 goes, so the menu
 would open near the middle of the display wearing whatever frame the compositor puts on
 toplevels; that is Wayland, where absolute position is absent from the protocol rather
-than missing from an implementation. Both fall back to an in-scene overlay, with the same
-cascade, flip, clamp and navigation. A platform fallback, not a public mode: the API stays
-native and the application chooses nothing.
+than missing from an implementation. And a window that reports no display, as one does where
+GLFW lists no monitor (the only one asleep, a session with none; a capture process on a Mac saw
+none with its screen on, on 2026-10-25), leaves no work area to flip and clamp the cascade
+against. Until that day the menu opened nothing there, the in-scene overlay included, which
+needs nothing of a display; only a window that has closed is refused now. A combo's list, a
+calendar and a dialog open their windows there as anywhere, with no edge of a display to keep
+inside. All three fall back to an in-scene overlay, with the same cascade, flip, clamp and
+navigation. A platform fallback, not a public mode: the API stays native and the application
+chooses nothing.
 
-The case is decided when the menu opens, and the first of the two can arrive later: the
+The case is decided when the menu opens, and the first of the three can arrive later: the
 application can make its window fullscreen, and on macOS so can the person, with the green
 button or Control-Command-F while a combo's list or a date picker's calendar is open, since
 neither takes the focus. So the backend tells the scene each time `isFullscreen()` changes its

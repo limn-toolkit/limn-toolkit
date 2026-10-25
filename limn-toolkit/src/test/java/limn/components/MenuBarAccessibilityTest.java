@@ -4,7 +4,6 @@ import limn.testing.StubWindow;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
-import limn.backend.Display;
 import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.scene.LayoutDirection;
@@ -138,7 +137,7 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         bindBar(threeMenus(), new StubWindow());
     }
 
-    /** The same bar, over a window that cannot place a popup. */
+    /** The same bar, over a window that cannot host a popup. */
     private void bindBar(StubWindow over) {
         bindBar(threeMenus(), over);
     }
@@ -155,24 +154,26 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * A window on a platform that cannot place a popup: the bar builds one, records that it is
-     * open, and {@link PopupMenu} refuses to show it. Nothing else in the suite reaches that
-     * state, and it is the state every existing {@link MenuBarTest} assertion is written in.
+     * A window that has closed under a scene not yet told of it, the one window a menu with rows
+     * is refused over: the bar builds a popup, records that it is open, and {@link PopupMenu}
+     * refuses to show it. Nothing else in the suite reaches that state, and it is the state every
+     * existing {@link MenuBarTest} assertion is written in. Until 2026-10-25 a window reporting no
+     * display stood for it; a menu is drawn in the scene there now.
      */
-    private static final class NoPopupWindow extends StubWindow {
+    private static final class ClosedWindow extends StubWindow {
         @Override
-        public Display display() {
-            return null;
+        public boolean isClosed() {
+            return true;
         }
     }
 
-    /** A window that cannot place a popup until it is told it can. */
-    private static final class LateDisplayWindow extends StubWindow {
+    /** A window that cannot host a popup until it is told it can, answering closed until then. */
+    private static final class LateWindow extends StubWindow {
         boolean canHost;
 
         @Override
-        public Display display() {
-            return canHost ? super.display() : null;
+        public boolean isClosed() {
+            return !canHost;
         }
     }
 
@@ -342,7 +343,7 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void aTitleWhoseCascadeWasRefusedPublishesTheVerbsOfAClosedTitle() throws Exception {
-        LateDisplayWindow late = new LateDisplayWindow();
+        LateWindow late = new LateWindow();
         bindBar(late);
         clickTitle(0);
         assertTrue(bar.isOpen(), "the bar believes a menu is down; nothing is on screen");
@@ -607,7 +608,7 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theOpenTitleStaysCurrentWhenThePointerLeavesTheStrip() {
-        bindBar(new NoPopupWindow());
+        bindBar(new ClosedWindow());
         clickTitle(0);
         assertEquals(List.of("File"), activeNames(), describe(tree()));
 
@@ -625,7 +626,7 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theExpandedBitNeverOutlivesTheCascade() {
-        bindBar(new NoPopupWindow());
+        bindBar(new ClosedWindow());
 
         clickTitle(0);
 
