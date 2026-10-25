@@ -676,9 +676,12 @@ Maven Central say which number that was.
   column or the rows of a grid, and, for a `ListView`, `Table` or `Tree` added as a block of its
   own, between rows: every row is printed, a page's worth realized at a time, and a table's header
   is on every page. A header and a footer are made per page from a `PageInfo` (the number, the
-  count, the paper). The pages are painted in a scene of their own, with no focus, hover, caret or
-  scroll bar, every animation at its end, and the light palette of the theme's family unless
-  `theme(...)` says otherwise; a document unit is 1/96 inch. `writePdf(Path)` and
+  count, the paper). What the margins, the header and the footer leave of a page is at least a
+  quarter inch each way, a line of body text; less is refused as the pages are recorded, with an
+  `IllegalStateException` that names the paper, the margins and the two heights (`print(window)`
+  answers `FAILED` and logs it). The pages are painted in a scene of their own, with no focus,
+  hover, caret or scroll bar, every animation at its end, and the light palette of the theme's
+  family unless `theme(...)` says otherwise; a document unit is 1/96 inch. `writePdf(Path)` and
   `writePdf(OutputStream)` hand back a `Work` that writes a PDF 1.7 file in Java, text kept as text
   (each glyph its outline in a Type 3 font that maps back to its characters, so the PDF can be
   selected, copied and searched in every script), soft shadows and icons as pictures at 300 dpi, a

@@ -44,6 +44,17 @@ final class Pages {
     /** How many times the header and footer may grow the reserved space before the cut is final. */
     private static final int MAX_PASSES = 3;
 
+    /**
+     * The smallest content box a page lays anything out in, each way, in document units: a
+     * quarter inch, 18 points. A line of body text fits in it with its leading at every control
+     * size (the largest body face is 19 units), so every page can take at least a line, and every
+     * page moves the flow on by at least this much: a block's pages are bounded by its height over
+     * a quarter inch. What a header and a footer that fill the page leave, or margins nearly as
+     * wide or as tall as the paper, is less than any line, and was cut forever: an empty page sliced
+     * a block by the room it had, and a room of nothing never moved on.
+     */
+    static final float MIN_CONTENT = 24;
+
     /** The pages of a document, recorded, with the glyphs their text draws. */
     record Result(List<Recording> pages, GlyphBank glyphs, float widthPt, float heightPt) {
     }
@@ -78,6 +89,7 @@ final class Pages {
     private final float pageH;
     private final float left;
     private final float top;
+    private final float right;
     private final float contentW;
     private final float bottomMargin;
     private final float rasterScale;
@@ -91,7 +103,7 @@ final class Pages {
         this.pageH = paper.height() * UNITS_PER_POINT;
         float[] margins = document.marginsPoints();
         this.top = margins[0] * UNITS_PER_POINT;
-        float right = margins[1] * UNITS_PER_POINT;
+        this.right = margins[1] * UNITS_PER_POINT;
         this.bottomMargin = margins[2] * UNITS_PER_POINT;
         this.left = margins[3] * UNITS_PER_POINT;
         this.contentW = Math.max(1, pageW - left - right);
@@ -143,9 +155,10 @@ final class Pages {
     // ------------------------------------------------------------------ cutting
 
     private List<List<Placement>> cut(List<Block> blocks, float header, float footer) {
+        checkRoom(header, footer);
         float contentTop = top + header;
         float contentBottom = pageH - bottomMargin - footer;
-        float contentH = Math.max(1, contentBottom - contentTop);
+        float contentH = contentBottom - contentTop;
         List<List<Placement>> pages = new ArrayList<>();
         List<Placement> page = new ArrayList<>();
         float y = contentTop;
@@ -214,9 +227,12 @@ final class Pages {
                     from = cut;
                 } else if (page.isEmpty()) {
                     // Nothing can be cut, and a whole page is not enough: the last resort, a slice
-                    // at the page's height.
-                    page.add(new Placement(block, from, room, y, -1));
-                    from += room;
+                    // at the page's height. A page with nothing on it has the whole content box,
+                    // which checkRoom holds to MIN_CONTENT, so the slice moves on; the floor makes
+                    // that true here too, whatever room a page is ever offered.
+                    float slice = Math.max(room, MIN_CONTENT);
+                    page.add(new Placement(block, from, slice, y, -1));
+                    from += slice;
                 }
                 pages.add(page);
                 page = new ArrayList<>();
@@ -227,6 +243,34 @@ final class Pages {
             pages.add(page);
         }
         return pages;
+    }
+
+    /**
+     * Refuses a content box smaller than {@link #MIN_CONTENT} either way: the paper less its
+     * margins, and less the header and the footer as tall as they measure.
+     *
+     * @throws IllegalStateException naming the paper, the margins, and the header's and the
+     *         footer's heights
+     */
+    private void checkRoom(float header, float footer) {
+        float wide = pageW - left - right;
+        float tall = pageH - top - bottomMargin - header - footer;
+        if (wide >= MIN_CONTENT && tall >= MIN_CONTENT) {
+            return;
+        }
+        Paper paper = document.paper();
+        float[] margins = document.marginsPoints();
+        throw new IllegalStateException(String.format(Locale.ROOT,
+                "%s (%.1f x %.1f pt) with margins of %.1f, %.1f, %.1f and %.1f pt (top, right, bottom, left),"
+                        + " %s and %s leaves a content box of %.1f x %.1f units, and a page lays nothing out"
+                        + " in less than %.0f units either way (a quarter inch): shorten the header or the"
+                        + " footer, narrow the margins, or choose larger paper",
+                paper.name(), paper.width(), paper.height(), margins[0], margins[1], margins[2], margins[3],
+                edge("header", header), edge("footer", footer), wide, tall, MIN_CONTENT));
+    }
+
+    private static String edge(String name, float height) {
+        return height > 0 ? String.format(Locale.ROOT, "a %s %.1f units tall", name, height) : "no " + name;
     }
 
     private static float lastCut(float[] cuts, float from, float limit) {

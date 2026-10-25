@@ -63,6 +63,15 @@ import java.util.function.Function;
  * a page's worth realized at a time, and a table's header is on every page. Inside another block it
  * prints the box it measures to.
  *
+ * <p><b>The smallest content box.</b> What the margins, the header and the footer leave of a page
+ * is at least a quarter inch (24 units, 18 points) each way, room for a line of body text: a
+ * document that leaves less, a letterhead and a disclaimer filling a small label, or the default
+ * three-quarter-inch margins on paper less than an inch and three quarters across or down, is
+ * refused with an
+ * {@link IllegalStateException} that names the paper, the margins and the header's and the
+ * footer's heights, when its pages are recorded. The header and the footer are measured then,
+ * since they are made per page.
+ *
  * <p><b>What a page holds that a PDF cannot.</b> A soft shadow is a picture at the document's raster
  * resolution ({@link #rasterDpi}, 300 by default), as is an icon; a backdrop effect is its tint; a
  * video or a 3D view is left out, with a warning.
@@ -320,6 +329,8 @@ public final class Document {
      * Cuts the document into pages now and says how many there are.
      *
      * @return the number of pages, at least 1
+     * @throws IllegalStateException if the margins, the header and the footer leave a content box
+     *         smaller than a quarter inch either way (the class says why)
      */
     public int pageCount() {
         return record().pages().size();
@@ -427,6 +438,9 @@ public final class Document {
      *
      * @param file where to write it
      * @return the work, not started; its value is {@code file}
+     * @throws IllegalStateException if the margins, the header and the footer leave a content box
+     *         smaller than a quarter inch either way (the class says why); thrown here, as the
+     *         pages are recorded, before any work exists
      */
     public Work<Path> writePdf(Path file) {
         Objects.requireNonNull(file, "file");
@@ -464,6 +478,7 @@ public final class Document {
      *
      * @param out where to write it
      * @return the work, not started
+     * @throws IllegalStateException as {@link #writePdf(Path)} does
      */
     public Work<OutputStream> writePdf(OutputStream out) {
         Objects.requireNonNull(out, "out");
@@ -481,6 +496,10 @@ public final class Document {
      * written on a worker, and the window's {@link limn.backend.Printer}
      * hands it to the system. The dialog chooses the printer and may save the job as PDF
      * where the system offers it; it scales a page to other paper, never re-flowing it.
+     *
+     * <p>Pages that cannot be recorded, a content box smaller than a quarter inch among them (the
+     * class says why), show no dialog: the answer is {@link PrintResult#FAILED}, and the
+     * {@link IllegalStateException} is logged as a warning.
      *
      * @param window the window that owns the dialog
      * @return what became of it, completed on the UI thread

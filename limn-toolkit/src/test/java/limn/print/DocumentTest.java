@@ -4,6 +4,7 @@ import limn.backend.spi.GlyphOutlines;
 import limn.components.Label;
 import limn.components.table.Column;
 import limn.components.table.Table;
+import limn.graphics.Canvas;
 import limn.graphics.Font;
 import limn.graphics.Paint;
 import limn.graphics.Path2D;
@@ -11,6 +12,9 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextRulers;
 import limn.print.internal.Outlines;
 import limn.print.internal.Recording;
+import limn.scene.Constraints;
+import limn.scene.Size;
+import limn.scene.Widget;
 import limn.testing.HeadlessUi;
 import limn.testing.NoopCanvas;
 import limn.testing.TestRulers;
@@ -18,14 +22,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -259,6 +267,83 @@ class DocumentTest {
         } finally {
             limn.components.Theme.setCurrent(was);
         }
+    }
+
+    /** A leaf as tall as it is made: a letterhead, a disclaimer, a block with nowhere to cut. */
+    private static final class Tall extends Widget<Tall> {
+        private final float tall;
+
+        Tall(float tall) {
+            this.tall = tall;
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(10, tall);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+        }
+    }
+
+    /**
+     * A header and a footer that together fill the content box: A6 on its side keeps 252.9 units
+     * between its default margins, and a letterhead and a disclaimer of 130 each leave nothing.
+     * Refused at once, by every door that records the pages, naming what to change; the cut went
+     * on forever, an empty page a turn on the UI thread until the heap ran out. Default margins
+     * on a tag smaller than they are leave nothing either, with no header at all. Run on a thread
+     * of its own with a deadline, so that a regression fails instead of hanging the build.
+     */
+    @Test
+    void aContentBoxTooSmallToLayAnythingOutIsRefusedAtOnce() {
+        List<String> refusals;
+        try {
+            refusals = assertTimeoutPreemptively(Duration.ofSeconds(30), () -> {
+                ui.runtime().bindToCurrentThread();
+                List<String> messages = new ArrayList<>();
+                Document letterhead = Document.of(Paper.A6.landscape())
+                        .header(page -> new Tall(130))
+                        .footer(page -> new Tall(130))
+                        .add(new Label("Invoice 4512"));
+                messages.add(assertThrows(IllegalStateException.class, letterhead::pageCount).getMessage());
+                messages.add(assertThrows(IllegalStateException.class,
+                        () -> letterhead.writePdf(new ByteArrayOutputStream())).getMessage());
+                messages.add(assertThrows(IllegalStateException.class, () -> new PrintPreview(letterhead))
+                        .getMessage());
+                Document tag = Document.of(Paper.ofPoints("Tag", 120, 100)).add(new Label("A-17"));
+                messages.add(assertThrows(IllegalStateException.class, tag::pageCount).getMessage());
+                return messages;
+            });
+        } finally {
+            ui.runtime().bindToCurrentThread();
+        }
+        for (String letterhead : refusals.subList(0, 3)) {
+            assertTrue(letterhead.startsWith("A6 (419.5 x 297.6 pt) with margins of 54.0, 54.0, 54.0 and 54.0 pt"),
+                    letterhead);
+            assertTrue(letterhead.contains("a header 130.0 units tall and a footer 130.0 units tall"), letterhead);
+            assertTrue(letterhead.contains("x -7.1 units") && letterhead.contains("quarter inch"), letterhead);
+        }
+        String tag = refusals.get(3);
+        assertTrue(tag.startsWith("Tag (120.0 x 100.0 pt) with margins of 54.0, 54.0, 54.0 and 54.0 pt"), tag);
+        assertTrue(tag.contains("no header and no footer") && tag.contains("16.0 x -10.7 units"), tag);
+    }
+
+    /**
+     * What a header and a footer leave, however little above the quarter inch, still lays the
+     * document out: a block that cannot be cut is sliced by that room, page after page, and runs
+     * to as many pages as the room divides it into.
+     */
+    @Test
+    void aBlockWithNowhereToCutIsSlicedByTheRoomTheHeaderAndFooterLeave() {
+        Paper paper = Paper.A6.landscape();
+        float room = (paper.height() - 2 * 54) * Pages.UNITS_PER_POINT - 2 * 114;
+        assertTrue(room >= Pages.MIN_CONTENT && room < Pages.MIN_CONTENT + 1, "just above the floor: " + room);
+        Document document = Document.of(paper)
+                .header(page -> new Tall(114))
+                .footer(page -> new Tall(114))
+                .add(new Tall(300));
+        assertEquals((int) Math.ceil(300 / room), document.pageCount());
     }
 
     @Test

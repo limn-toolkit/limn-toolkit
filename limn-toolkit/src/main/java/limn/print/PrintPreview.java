@@ -96,6 +96,8 @@ public final class PrintPreview extends Widget<PrintPreview> {
 
     /**
      * @param document the document to show; its pages are recorded now
+     * @throws IllegalStateException if the document's margins, header and footer leave a content
+     *         box smaller than a quarter inch either way ({@link Document} says why)
      */
     public PrintPreview(Document document) {
         Ui.checkUiThread();
@@ -112,6 +114,8 @@ public final class PrintPreview extends Widget<PrintPreview> {
      * widgets show, or the document's paper.
      *
      * @return this preview
+     * @throws IllegalStateException as the constructor does, for what the document's widgets show
+     *         now
      */
     public PrintPreview refresh() {
         Ui.checkUiThread();
