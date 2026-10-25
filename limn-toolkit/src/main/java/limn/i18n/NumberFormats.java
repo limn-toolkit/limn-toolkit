@@ -84,9 +84,16 @@ public final class NumberFormats {
                 : "-";
     }
 
+    /** The suffixes {@link #compact()} folds into, smallest first, and what each stands for. */
+    private static final String[] COMPACT_SUFFIXES = {"k", "M", "B", "T"};
+    private static final double[] COMPACT_UNITS = {1e3, 1e6, 1e9, 1e12};
+
     /**
      * Thousands folded into a suffix: {@code 27600} reads {@code "27.6k"},
-     * {@code 1_200_000} reads {@code "1.2M"}. Values below 1000 are left alone.
+     * {@code 1_200_000} reads {@code "1.2M"}, {@code 1.5e12} reads {@code "1.5T"}. Values below
+     * 1000 are left alone. The suffix is chosen after the one decimal is rounded, so a value
+     * that rounds up to a thousand of one unit is written in the next: {@code 999950} reads
+     * {@code "1M"}, never {@code "1000k"}.
      */
     public static DoubleFunction<String> compact() {
         DoubleFunction<String> body = number();
@@ -95,17 +102,19 @@ public final class NumberFormats {
                 return "-";
             }
             double abs = Math.abs(v);
-            Locale numbers = NumberLocale.inEffect();
-            if (abs >= 1e9) {
-                return localized(trimZeros(String.format(numbers, "%.1f", v / 1e9))) + "B";
+            if (abs < COMPACT_UNITS[0]) {
+                return body.apply(v);
             }
-            if (abs >= 1e6) {
-                return localized(trimZeros(String.format(numbers, "%.1f", v / 1e6))) + "M";
+            int unit = 0;
+            while (unit + 1 < COMPACT_UNITS.length && abs >= COMPACT_UNITS[unit + 1]) {
+                unit++;
             }
-            if (abs >= 1e3) {
-                return localized(trimZeros(String.format(numbers, "%.1f", v / 1e3))) + "k";
+            // %.1f rounds half up; one that reaches a thousand of this unit is the next unit's one
+            if (unit + 1 < COMPACT_UNITS.length && Math.round(abs / COMPACT_UNITS[unit] * 10) >= 10_000) {
+                unit++;
             }
-            return body.apply(v);
+            String text = String.format(NumberLocale.inEffect(), "%.1f", v / COMPACT_UNITS[unit]);
+            return localized(trimZeros(text)) + COMPACT_SUFFIXES[unit];
         };
     }
 
@@ -297,7 +306,24 @@ public final class NumberFormats {
      * own digits.
      */
     private static String localized(String text) {
-        return I18n.localizeDigits(I18n.toAsciiDigits(text));
+        return I18n.localizeDigits(withoutNegativeZero(I18n.toAsciiDigits(text)));
+    }
+
+    /**
+     * Drops the minus of a number that rounded to zero: {@code -0.004} at two decimals is
+     * {@code "0"}, as a reader expects, where the platform writes {@code "-0"} because the value
+     * it was given was negative. A text with any digit other than zero keeps its sign.
+     */
+    private static String withoutNegativeZero(String ascii) {
+        boolean minus = false;
+        for (int i = 0; i < ascii.length(); i++) {
+            char c = ascii.charAt(i);
+            if (c >= '1' && c <= '9') {
+                return ascii;
+            }
+            minus |= c == '-' || c == '\u2212';
+        }
+        return minus ? ascii.replace("-", "").replace("\u2212", "") : ascii;
     }
 
     /**
