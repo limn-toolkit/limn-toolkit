@@ -82,7 +82,7 @@ class BadgeTest extends AccessibleComponentTestBase {
             Recorder drawn = paint(new Badge("Overdue").setTone(tone), LayoutDirection.LTR);
             Color c = tone.colorIn(theme);
             assertEquals(2, drawn.fills.size(), tone + ": the pill and the dot");
-            assertEquals(c.withAlpha(c.a() * (theme.isDark() ? 0.26f : 0.16f)), drawn.fills.get(0).paint(),
+            assertEquals(c.timesAlpha((theme.isDark() ? 0.26f : 0.16f)), drawn.fills.get(0).paint(),
                     tone + ": the pill is the tone's tint");
             assertEquals(c, drawn.fills.get(1).paint(), tone + ": the dot is the tone");
             assertEquals(List.of(theme.text()), drawn.inks, tone + ": the word is the palette's text");

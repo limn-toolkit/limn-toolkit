@@ -262,7 +262,7 @@ public final class LineChart extends CartesianChart<LineChart> {
             computePoints(i);
             Color color = seriesColor(i);
             if (alpha < 1) {
-                color = color.withAlpha(color.a() * alpha);
+                color = color.timesAlpha(alpha);
             }
             int runStart = -1;
             for (int c = 0; c <= count; c++) {
@@ -302,8 +302,8 @@ public final class LineChart extends CartesianChart<LineChart> {
      * the gradient, which is a fill nobody can see.
      */
     private LinearGradient fillPaint(Color color, int first, int last) {
-        Color near = color.withAlpha(color.a() * FILL_TOP_ALPHA);
-        Color away = color.withAlpha(color.a() * FILL_BOTTOM_ALPHA);
+        Color near = color.timesAlpha(FILL_TOP_ALPHA);
+        Color away = color.timesAlpha(FILL_BOTTOM_ALPHA);
         float base = valuePosition(animationBaseline());
         float far = base;
         for (int i = first; i <= last; i++) {

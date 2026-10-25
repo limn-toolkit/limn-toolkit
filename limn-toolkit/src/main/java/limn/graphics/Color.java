@@ -35,6 +35,20 @@ public record Color(float r, float g, float b, float a) implements Paint {
         return new Color(base.r, base.g, base.b, alpha);
     }
 
+    /**
+     * This colour made more transparent by {@code factor}: its alpha multiplied, so a translucent
+     * colour faded to half is half as opaque as it was, where {@link #withAlpha} would set it to
+     * one half whatever it was. The form to fade a tone by an animation's value, or to draw a tint
+     * of a tone that may itself be translucent.
+     *
+     * @param factor from 0 (clear) to 1 (this colour); values outside are clamped
+     * @return the colour with its alpha times {@code factor}
+     */
+    public Color timesAlpha(float factor) {
+        float k = Scalars.clamp01(factor);
+        return k == 1f ? this : new Color(r, g, b, a * k);
+    }
+
     /** @return this color with its alpha replaced by {@code alpha} */
     public Color withAlpha(float alpha) {
         // The same colour when nothing changes, which is what a widget painting at rest asks for

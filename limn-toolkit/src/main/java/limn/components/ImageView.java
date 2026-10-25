@@ -27,9 +27,11 @@ import java.util.Objects;
 
 /**
  * Displays an {@link Image}: a full-color picture, or a monochrome/mask icon
- * when a {@link #setTint tint} is set (the image's alpha becomes the shape,
- * recolored by the tint, so an icon follows the theme). {@link Fit} controls
- * how the image maps into the widget bounds.
+ * when a {@link #setTint tint} is set. A tint recolours an {@link Icon}'s shape (its alpha
+ * becomes the shape, drawn in the tint, so an icon follows the theme); on an {@code Image} it
+ * multiplies each pixel's colour, so white takes the tint and black stays black. A picture to
+ * be recoloured as a shape is given as an icon, {@link limn.graphics.BitmapIcon#mask}.
+ * {@link Fit} controls how the image maps into the widget bounds.
  *
  * <p><b>Or an {@link Icon}</b>, drawn at the view's own size and density each time either changes:
  * an SVG illustration stays sharp at any size and on any screen. An icon's natural size is an
@@ -420,7 +422,12 @@ public final class ImageView extends Widget<ImageView> {
         return this;
     }
 
-    /** Tints the image (icon mode); {@code null} draws it in full color. */
+    /**
+     * Tints what is shown; {@code null} draws it in full color. An {@link Icon} is recoloured: its
+     * shape drawn in the tint. An {@code Image} is multiplied by it, pixel by pixel, so a white
+     * picture takes the tint and a dark one stays dark; {@link limn.graphics.BitmapIcon#mask} turns
+     * an image into an icon that recolours.
+     */
     public ImageView setTint(@Nullable Color newTint) {
         Ui.checkUiThread();
         this.tint = newTint;

@@ -477,7 +477,7 @@ public final class ScrollBar extends Widget<ScrollBar> {
         // colour under the pointer and while dragged; the fade dims it only as it comes and goes.
         Theme theme = Theme.of(this);
         Color ink = theme.controlBorder().lerp(theme.text(), dragging ? 0.5f : hoverBar ? 0.25f : 0f);
-        canvas.fillRoundRect(t[0], t[1], t[2], t[3], radius, ink.withAlpha(ink.a() * op));
+        canvas.fillRoundRect(t[0], t[1], t[2], t[3], radius, ink.timesAlpha(op));
     }
 
     /** Whether this bar is on a printed page, where nothing scrolls and no bar is drawn. */

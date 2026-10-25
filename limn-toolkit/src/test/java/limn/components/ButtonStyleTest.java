@@ -139,13 +139,13 @@ class ButtonStyleTest extends ComponentTestBase {
         assertEquals(theme().primaryText(), rest.ink(), "the caption carries the accent as text");
         press();
         Color ink = theme().primaryText();
-        assertEquals(ink.withAlpha(ink.a() * 0.16f), frame().fill(), "pressed: the ink at 16 %");
+        assertEquals(ink.timesAlpha(0.16f), frame().fill(), "pressed: the ink at 16 %");
 
         lone(Button.Style.TERTIARY, true);
         assertEquals(theme().danger(), frame().ink());
         press();
         Color danger = theme().danger();
-        assertEquals(danger.withAlpha(danger.a() * 0.16f), frame().fill());
+        assertEquals(danger.timesAlpha(0.16f), frame().fill());
     }
 
     @Test

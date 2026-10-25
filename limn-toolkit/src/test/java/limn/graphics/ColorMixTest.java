@@ -55,4 +55,14 @@ class ColorMixTest {
         assertColor(0, 0, 0, 0.64f, veil.compositeOver(Color.rgba(0x000000, 0.4f)));
         assertSame(Color.TRANSPARENT, Color.TRANSPARENT.compositeOver(Color.TRANSPARENT));
     }
+
+    /** Fading by a factor multiplies the alpha a colour has; withAlpha replaces it. */
+    @Test
+    void timesAlphaMultipliesWhatTheColourHas() {
+        Color tint = Color.rgba(0x336699, 0.5f);
+        assertColor(tint.r(), tint.g(), tint.b(), 0.25f, tint.timesAlpha(0.5f));
+        assertSame(tint, tint.timesAlpha(1f));
+        assertEquals(0f, tint.timesAlpha(-2f).a(), EPS);
+        assertSame(tint, tint.timesAlpha(3f), "clamped to 1: never more opaque than it was");
+    }
 }

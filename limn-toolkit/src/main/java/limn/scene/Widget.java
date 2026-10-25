@@ -2568,8 +2568,11 @@ public abstract class Widget<W extends Widget<W>> {
      * Requests a repaint (event-driven: the loop wakes and redraws once). Also
      * records this widget's bounds as damage so a scene with
      * {@linkplain Scene#setPartialRendering(boolean) partial rendering} on, which is the
-     * default, repaints only the changed region. A widget whose painting can extend
-     * beyond its bounds must widen the region via {@link Scene#damage(Rect)}.
+     * default, repaints only the changed region. The region is the bounds grown by
+     * {@link #paintOutset()}: a widget whose painting extends beyond its bounds by a fixed
+     * reach (a shadow, a focus ring) answers that reach there, and this covers it.
+     * {@link Scene#damage(Rect)} is for painting somewhere else in the scene, outside any
+     * such reach.
      */
     public final void invalidate() {
         if (scene != null) {

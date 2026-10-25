@@ -380,7 +380,7 @@ public final class Badge extends Widget<Badge> {
         // The tint the Showcase's status pills were drawn with: strong enough to read as the
         // tone, light enough that the palette's text keeps its own contrast on it.
         canvas.fillRoundRect(0, 0, width(), height(), height() / 2,
-                ink.withAlpha(ink.a() * (theme.isDark() ? 0.26f : 0.16f)));
+                ink.timesAlpha((theme.isDark() ? 0.26f : 0.16f)));
         ShapedText shaped = line(textRuler(), t.label());
         TextMetrics metrics = shaped.metrics();
         float baseline = textRuler().centredBaseline(t.label(), height());

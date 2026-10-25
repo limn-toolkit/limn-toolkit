@@ -273,7 +273,7 @@ public final class BarChart extends CartesianChart<BarChart> {
                 canvas.fillRoundRect(
                         rounded(rect[0], rect[1], rect[2], rect[3], negative,
                                 isOuterSegment(i, c, negative)),
-                        alpha >= 1 ? color : color.withAlpha(color.a() * alpha));
+                        alpha >= 1 ? color : color.timesAlpha(alpha));
             }
         }
     }

@@ -293,6 +293,9 @@ Maven Central say which number that was.
   nothing, so a pulse set up while a page was built (the animation guide's breathing dot told to
   wait before it was shown) never moved. A transition that settles still jumps when its widget is
   in no scene.
+- `NumberFormats.compact()` chooses its suffix after rounding, so 999,950 reads "1M" and no longer
+  "1000k", and it writes trillions as "T" where it wrote "1500B". No format writes "-0" any more:
+  a negative value that rounds to zero reads "0", "0%" or "0.0".
 - Tab in a `Popover` drawn in the scene (on Wayland, or with `DisplayMode.IN_SCENE`) goes round its
   controls only. The layer that holds the keyboard while it is open was a tab stop of its own
   after the last control, an empty group a reader announced by the popover's name and that took
@@ -624,6 +627,12 @@ Maven Central say which number that was.
 
 ### New
 
+- `I18nString.withArguments(…)` and `PluralString.forCount(count, …)`: a sentence with arguments as an
+  `I18nString` that is formatted again in the language in effect wherever it is read, so a label
+  given one follows a change of language as a plain declared string does. `format(…)` still
+  answers the sentence of the moment as a `String`, which a label kept in the old language.
+- `Color.timesAlpha(factor)`: the colour made more transparent by a factor, its alpha multiplied,
+  where `withAlpha` replaces it. The toolkit's own fades and tints of a tone use it.
 - `MediaPlayer.setGain(float)` and `gain()`: the soundtrack's gain, from 0 to 1, kept by the player.
   It applies to the track sounding now and to one still on its way to the engine, which arrives
   with it, and overrides the gain of the `PlayOptions` given to `setAudio`.
@@ -1496,6 +1505,10 @@ Maven Central say which number that was.
 
 ### Changed
 
+- A column's setters take effect on a table already made. `Column.width`, `minWidth`, `weight`,
+  `align`, `visible`, `sortable`, `comparator`, `resetWidth` and the footer setters only stored a
+  field, and the table showed the change only once something else asked it to lay out or refresh;
+  the table now asks for the layout itself and computes a changed footer at once.
 - `Color.lerp` mixes premultiplied, as the renderer's gradients do. Between opaque colours nothing
   changes; toward a translucent one a fade keeps its colour as it thins, where a fade from white to
   `Color.TRANSPARENT` went grey midway. `Color.compositeOver(backdrop)` is new, and is the colour a

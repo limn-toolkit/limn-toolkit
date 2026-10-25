@@ -358,7 +358,7 @@ public final class Avatar extends Widget<Avatar> {
             return;
         }
         Color colour = ChartPalette.defaultFor(theme).color(colorIndex());
-        canvas.fillCircle(x + r, y + r, r, colour.withAlpha(colour.a() * (theme.isDark() ? 0.34f : 0.22f)));
+        canvas.fillCircle(x + r, y + r, r, colour.timesAlpha((theme.isDark() ? 0.34f : 0.22f)));
         String letters = shownInitials();
         if (letters.isEmpty()) {
             paintSilhouette(canvas, theme, x, y, d);

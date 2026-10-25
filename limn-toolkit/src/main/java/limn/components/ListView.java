@@ -2125,7 +2125,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                 // the focus ring alone, and only while the list holds the keyboard, as the tree's.
                 canvas.drawRoundRect(inset, cell.y() + cursorAt + inset,
                         width() - 2 * inset, cell.height() - 2 * inset, t.radiusMedium(),
-                        Strokes.FOCUS_RING, theme.focusRing().withAlpha(theme.focusRing().a() * f));
+                        Strokes.FOCUS_RING, theme.focusRing().timesAlpha(f));
             }
             paintDropPlace(canvas, theme);
         } finally {

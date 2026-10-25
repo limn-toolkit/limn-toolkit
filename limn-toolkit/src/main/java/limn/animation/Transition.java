@@ -34,7 +34,7 @@ import java.util.Objects;
  * // on state change:
  * fade.to(visible ? 1 : 0);
  * // in onPaint:
- * color.withAlpha(fade.value());
+ * color.timesAlpha(fade.value());
  * }</pre>
  */
 public final class Transition {

@@ -530,7 +530,7 @@ public final class Button extends Widget<Button> {
                     if (alpha > 0) {
                         Color tint = ink(theme);
                         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(),
-                                tint.withAlpha(tint.a() * alpha));
+                                tint.timesAlpha(alpha));
                     }
                 }
             }

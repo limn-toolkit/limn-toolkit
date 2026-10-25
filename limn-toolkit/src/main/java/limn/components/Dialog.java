@@ -2200,7 +2200,7 @@ public final class Dialog {
             // scales the token's own alpha rather than replacing it, so a palette that asks
             // for a lighter veil gets a lighter one all the way through the fade.
             Color veil = Theme.of(this).scrim();
-            Color faded = veil.withAlpha(veil.a() * fadeLevel());
+            Color faded = veil.timesAlpha(fadeLevel());
             if (canvas instanceof limn.scene.internal.VeilCanvas veiling) {
                 // Laid as a locked window's veil is: over a scene whose window is transparent
                 // round what it shows, a dialog's own window round its rounded card, the veil

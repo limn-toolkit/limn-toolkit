@@ -2509,9 +2509,10 @@ public final class Scene {
     }
 
     /**
-     * Marks a scene-space region as damaged and schedules a frame, for
-     * painting that extends beyond the invalidating widget's bounds (shadows,
-     * carets in overlays). {@link Widget#invalidate()} is the common path.
+     * Marks a scene-space region as damaged and schedules a frame, for painting
+     * somewhere a widget's {@link Widget#invalidate()} does not reach: its bounds grown by
+     * its {@code paintOutset()}, which is where a shadow or a focus ring is declared. A
+     * caret drawn in an overlay is one. {@link Widget#invalidate()} is the common path.
      */
     public void damage(Rect region) {
         addDamage(region.x(), region.y(), region.width(), region.height());
@@ -7809,12 +7810,12 @@ public final class Scene {
             }
             Rect r = flash.rect;
             canvas.fillRect(r.x(), r.y(), r.width(), r.height(),
-                    DAMAGE_DEBUG_FILL.withAlpha(DAMAGE_DEBUG_FILL.a() * fade));
+                    DAMAGE_DEBUG_FILL.timesAlpha(fade));
             // Inset so the 2px stroke stays inside the region (it must be erasable
             // by repainting the region itself on a later frame).
             canvas.drawRect(r.x() + 1, r.y() + 1,
                     Math.max(0, r.width() - 2), Math.max(0, r.height() - 2), 2,
-                    DAMAGE_DEBUG_BORDER.withAlpha(DAMAGE_DEBUG_BORDER.a() * fade));
+                    DAMAGE_DEBUG_BORDER.timesAlpha(fade));
         }
     }
 
