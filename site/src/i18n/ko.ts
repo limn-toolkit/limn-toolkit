@@ -231,7 +231,7 @@ export const ko: Catalog = {
     "Apache License 2.0이며 명시적 특허 허여를 포함합니다. 상업적 이용, 수정, 재배포가 모두 허용됩니다.",
   "licence.core.heading": "툴킷 자체",
   "licence.core.body":
-    "<code>limn-toolkit</code>이 JDK 외에 의존하는 것은 컴파일러만 읽는 JSpecify의 널 가능성 애너테이션과 Java로 작성된 WebP 디코더(<code>org.glavo:webp</code>) 두 가지이고, 둘 다 Apache-2.0이므로 이에 대해서는 Apache-2.0이 전부입니다. 렌더링 백엔드는 BSD-3-Clause인 LWJGL, SVG 렌더러 lunasvg 및 그것이 그리는 데 쓰는 plutovg(둘 다 MIT), 그리고 OpenGL 드라이버가 없는 Windows나 macOS 컴퓨터를 위한 OpenGL ES 대체 경로인 ANGLE(BSD-3-Clause이며, 각 jar에 그 안에 컴파일된 소스와 그 라이선스의 목록이 들어 있습니다)을 더합니다. LWJGL이 가져오는 네이티브 라이브러리도 허용적인 라이선스이지만, 오디오 출력을 맡는 OpenAL Soft만은 LGPL-2.0-or-later입니다. 이것은 별도의 공유 라이브러리로, 실행 시점에 로드되며 교체할 수 있습니다.",
+    "<code>limn-toolkit</code>이 JDK 외에 의존하는 것은 컴파일러만 읽는 JSpecify의 널 가능성 애너테이션과 Java로 작성된 WebP 디코더(<code>org.glavo:webp</code>) 두 가지이고, 둘 다 Apache-2.0입니다. 그 jar에 들어 있는 다른 라이선스는 허용적인 라이선스인 Unicode License v3 하나뿐입니다. 툴킷이 언어에 대해 아는 사실, 예를 들어 한 언어가 어느 지역을 뜻하는지, 어느 방향으로 쓰이는지, 어떤 숫자와 복수형을 쓰는지는 Unicode Consortium의 CLDR에서 가져온 것이며, jar는 그 라이선스를 그 사실들 옆에 함께 담고 있습니다. 렌더링 백엔드는 BSD-3-Clause인 LWJGL, SVG 렌더러 lunasvg 및 그것이 그리는 데 쓰는 plutovg(둘 다 MIT), 그리고 OpenGL 드라이버가 없는 Windows나 macOS 컴퓨터를 위한 OpenGL ES 대체 경로인 ANGLE(BSD-3-Clause이며, 각 jar에 그 안에 컴파일된 소스와 그 라이선스의 목록이 들어 있습니다)을 더합니다. LWJGL이 가져오는 네이티브 라이브러리도 허용적인 라이선스이지만, 오디오 출력을 맡는 OpenAL Soft만은 LGPL-2.0-or-later입니다. 이것은 별도의 공유 라이브러리로, 실행 시점에 로드되며 교체할 수 있습니다.",
   "licence.fonts.heading": "글꼴과 아이콘",
   "licence.fonts.body":
     "기본 글꼴인 Roboto는 Apache-2.0입니다. 다른 문자 체계와 이모지를 위한 Noto 대체 글꼴, 그리고 메뉴가 단축키를 적을 때 쓰는 작은 기호 글꼴은 SIL Open Font License 1.1로 배포됩니다. 선택 사항인 아이콘 팩 <code>limn-icons-tabler</code>는 MIT입니다. 함께 배포되는 구성 요소는 모두 라이선스와 함께 프로젝트의 NOTICE 파일에 적혀 있습니다.",

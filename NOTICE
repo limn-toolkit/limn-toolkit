@@ -48,6 +48,33 @@ Mosaic display faces (limn-demo/fonts, the demo only; no library jar carries the
   through Fonts.load, the same public call an application would use for a typeface it
   ships itself.
 
+Unicode CLDR locale data (limn-toolkit; CLDR 48.0, as ICU 78.3 carries it)
+  Copyright © 2004-2025 Unicode, Inc.
+  Unicode License v3 (Unicode-3.0): full text in
+  limn-toolkit/src/main/resources/limn/i18n/internal/CLDR-LICENSE.txt, which is
+  CLDR's own LICENSE at its release-48 tag, verbatim, and which the limn-toolkit
+  jar carries beside the tables, at limn/i18n/internal/CLDR-LICENSE.txt.
+  Facts about languages taken from CLDR's data: which codes name another
+  language or region, which region a language named alone means, which
+  languages, scripts and regions run right to left, which digits a language
+  writes, and which plural form a count takes. Every one was asked of ICU by
+  scripts/i18n/dump-cldr-locale-facts.mjs or scripts/i18n/dump-cldr-plurals.mjs,
+  and tests hold the toolkit to what those dumps say. In the limn-toolkit jar
+  they are:
+
+    limn/i18n/internal/language-aliases.txt and likely-regions.txt, rows of the
+      dump copied line for line, each naming the licence in its header;
+    the tables written out in limn.scene.LayoutDirection,
+      limn.i18n.NumberingSystem and limn.i18n.PluralRules, the last transcribed
+      by hand from CLDR's rules.
+
+  The dumps themselves, limn-toolkit/src/test/resources/limn/i18n/
+  cldr-locale-facts.txt and cldr-cardinal.txt, are test-only and not
+  distributed. Nothing else this repository builds is taken from Unicode's or
+  CLDR's data files: month and weekday names, date and number patterns,
+  collation, case mapping, line, word and character breaks, and every character
+  property are the JDK's, read at run time.
+
 --------------------------------------------------------------------------------
 Fonts (the limn-fonts artifacts; ADR 036)
 --------------------------------------------------------------------------------
@@ -137,10 +164,23 @@ LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -opengles, -egl, -openal, -stb,
   (Old MIT); tinyfiledialogs (zlib); and OpenAL Soft, which is not permissive:
   GNU Library General Public License version 2 or, at your option, any later
   version. LWJGL also states the Khronos Group's MIT-style licence for its
-  OpenGL, OpenGL ES and EGL modules. None of these texts is inside LWJGL's Maven
-  jars: LWJGL keeps each beside its module in its source tree, under
+  OpenGL, OpenGL ES and EGL modules. OpenAL Soft compiles in a modified PFFFT
+  (BSD-style), {fmt} (MIT) and the Guidelines Support Library (MIT), and part
+  of HarfBuzz's shaping tables is generated from data under the MIT licence.
+  None of these texts is inside LWJGL's Maven jars: LWJGL keeps its own beside
+  each module in its source tree, under
   https://github.com/LWJGL/lwjgl3/tree/master/modules/lwjgl, and records beside
-  OpenAL Soft's library in each natives jar the upstream commit it was built from.
+  the GLFW, HarfBuzz and OpenAL Soft libraries in each natives jar the upstream
+  commit each was built from, whose tree holds the rest.
+
+  The runnable demo jar attached to a GitHub release unpacks those natives jars
+  into itself, and carries every one of these texts at META-INF/licenses/:
+  LWJGL's own and libffi's, liburing's, stb's, tinyfiledialogs' and the Khronos
+  Group's from LWJGL's tree at the release this build pins, and GLFW's,
+  HarfBuzz's and OpenAL Soft's, with those of what they compile in, from the
+  upstream commits LWJGL records. They are kept in limn-demo/licenses/, whose
+  README.md says where each was taken from, with its digest. An application that
+  merges LWJGL's natives into a jar of its own owes the same texts.
 
   OpenAL Soft is the library the backend plays every sound through, so the
   backend as resolved always contains LGPL code. It is a shared library of its

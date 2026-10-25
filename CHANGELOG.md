@@ -635,6 +635,19 @@ Maven Central say which number that was.
   screen reader is; it described a group that publishes no node, and the reader heard nothing.
 - A `Label` whose icon comes or goes lays out in place, as a change of its text does, instead of
   laying out and repainting the whole window.
+- The `limn-toolkit` jar carries the licence of the Unicode CLDR data it is built on: the codes
+  read as another language or region, the region a language named alone means, which languages
+  run right to left, which digits a language writes and its plural rules. CLDR's Unicode License
+  v3 asks that its notice travel with every copy, and the jar carried none, nor did NOTICE name
+  the data. CLDR's licence is now at `limn/i18n/internal/CLDR-LICENSE.txt` beside the tables, and
+  NOTICE and the licence page name it.
+- The runnable demo jar attached to a release carries the licence of every native library inside
+  it, in `META-INF/licenses/`. It held LWJGL's licence alone, while LWJGL's natives put GLFW,
+  HarfBuzz, OpenAL Soft (LGPL), stb, tinyfiledialogs, libffi and liburing in it with no text at
+  all. The texts are taken from LWJGL's source at the release the build pins and from the upstream
+  commits its natives jars record, OpenAL Soft's with those of the code it compiles in, and
+  `limn-demo/licenses/README.md` says where each comes from. The jar run from its Maven coordinate
+  and the theme editor's carry no natives, which arrive in LWJGL's own jars.
 
 ### New
 

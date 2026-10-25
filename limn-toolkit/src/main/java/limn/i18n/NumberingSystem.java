@@ -16,7 +16,9 @@ import java.util.Locale;
  * That check found the first hand-written table inverted where it mattered most: it answered
  * {@link #ARAB} for plain {@code ar} and treated the Maghreb as the exception, where CLDR makes
  * <b>Latin the Arabic default</b> and names twenty-three regions that write Arabic-Indic digits.
- * A reader in Dubai or Casablanca was shown digits no application beside ours uses.
+ * A reader in Dubai or Casablanca was shown digits no application beside ours uses. Being CLDR's
+ * data, the table is under the Unicode License v3, whose text the toolkit's jar carries at
+ * {@code limn/i18n/internal/CLDR-LICENSE.txt}.
  *
  * <p><b>Seven systems CLDR names for a language are deliberately absent</b>, and a locale that
  * wants one gets {@link #LATN} until they are added: Bengali ({@code as}, {@code bn},
