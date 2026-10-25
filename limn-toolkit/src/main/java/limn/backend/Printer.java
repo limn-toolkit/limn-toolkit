@@ -1,5 +1,6 @@
 package limn.backend;
 
+import limn.backend.internal.PrintAnswers;
 import limn.backend.spi.PrintJob;
 import limn.backend.spi.PrinterPeer;
 import limn.concurrent.Ui;
@@ -88,12 +89,19 @@ public final class Printer {
                         unreadable);
                 return null;
             }
-        }).thenAccept(bytes -> {
+        }).whenComplete((bytes, unread) -> {
+            if (unread != null) {
+                // Memory, for a file too large to hold: the read's stage failed, and the caller's
+                // was never completed.
+                LOG.log(System.Logger.Level.WARNING, "not printed, the file could not be read: " + file, unread);
+                answer.complete(PrintResult.FAILED);
+                return;
+            }
             if (bytes == null) {
                 answer.complete(PrintResult.FAILED);
                 return;
             }
-            print(new PrintJob(title, bytes, 0, 0, -1)).thenAccept(answer::complete);
+            PrintAnswers.answerWith(() -> print(new PrintJob(title, bytes, 0, 0, -1)), answer, title);
         });
         return answer;
     }

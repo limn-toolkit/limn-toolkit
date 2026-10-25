@@ -1,12 +1,10 @@
 package limn.print;
 
-import limn.backend.NativeWindow;
 import limn.backend.PrintResult;
 import limn.backend.Printer;
 import limn.backend.spi.GlyphOutlines;
 import limn.backend.spi.PrintJob;
 import limn.backend.spi.PrinterPeer;
-import limn.backend.spi.WindowPeer;
 import limn.components.Label;
 import limn.graphics.Font;
 import limn.graphics.Path2D;
@@ -19,7 +17,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -144,24 +141,6 @@ class DocumentFaceWaitTest {
         }
     }
 
-    /** A window that has nothing but its printer. */
-    private static NativeWindow windowPrintingTo(Printer printer) {
-        return (NativeWindow) Proxy.newProxyInstance(WindowPeer.class.getClassLoader(),
-                new Class<?>[] {WindowPeer.class}, (proxy, method, args) -> {
-                    if (method.getName().equals("printer")) {
-                        return printer;
-                    }
-                    Class<?> type = method.getReturnType();
-                    if (type == boolean.class) {
-                        return false;
-                    }
-                    if (type.isPrimitive() && type != void.class) {
-                        return type == float.class ? 0f : type == double.class ? 0d : type == long.class ? 0L : 0;
-                    }
-                    return null;
-                });
-    }
-
     @Test
     void aPdfIsWrittenWhenAFaceNeverFinishesLoading() {
         Document document = Document.of(Paper.A5).title("Order 4512").add(new Label("Order 4512"));
@@ -180,7 +159,7 @@ class DocumentFaceWaitTest {
         Document document = Document.of(Paper.A5).title("Order 4512").add(new Label("Order 4512"));
         Recorded peer = new Recorded();
         AtomicReference<PrintResult> result = new AtomicReference<>();
-        document.print(windowPrintingTo(new Printer(peer)), 200).thenAccept(result::set);
+        document.print(PrintingWindow.of(new Printer(peer)), 200).thenAccept(result::set);
         ui.pumpUntil(() -> result.get() != null, 5_000_000_000L);
         assertEquals(PrintResult.PRINTED, result.get());
         assertNotNull(peer.job, "the system was asked");
@@ -194,7 +173,7 @@ class DocumentFaceWaitTest {
         Recorded peer = new Recorded();
         AtomicReference<PrintResult> result = new AtomicReference<>();
         long began = System.nanoTime();
-        document.print(windowPrintingTo(new Printer(peer)), 60_000).thenAccept(result::set);
+        document.print(PrintingWindow.of(new Printer(peer)), 60_000).thenAccept(result::set);
         ui.runtime().drain();
         loading.complete(null);
         ui.pumpUntil(() -> result.get() != null, 5_000_000_000L);

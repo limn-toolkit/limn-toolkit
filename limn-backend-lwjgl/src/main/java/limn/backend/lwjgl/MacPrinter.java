@@ -197,13 +197,47 @@ final class MacPrinter {
             ObjC.msgVoid(panel, "setOptions:", options | SHOWS_PAPER_SIZE | SHOWS_ORIENTATION | SHOWS_PREVIEW);
         }
 
-        long context = nextContext++;
-        Pending pending = new Pending(operation, document, printInfo,
-                onScreen && nsWindow != NULL ? owner : MacFileDialogs.NO_OWNER, done);
-        PENDING.put(context, pending);
-        if (onScreen && nsWindow != NULL) {
+        start(operation, document, printInfo, owner, onScreen && nsWindow != NULL ? nsWindow : NULL, done, APPKIT);
+    }
+
+    /** How a panel already made is run: AppKit's two ways, or a test's. */
+    interface Panel {
+        /** Starts the panel as a sheet on {@code nsWindow}; the delegate is told when it is done. */
+        void sheet(long operation, long nsWindow, long context);
+
+        /** Runs the panel as a window of its own, modal to the application; whether it printed. */
+        boolean alone(long operation);
+    }
+
+    /** The panel run by AppKit. */
+    private static final Panel APPKIT = new Panel() {
+        @Override
+        public void sheet(long operation, long nsWindow, long context) {
             ObjC.msg(operation, "runOperationModalForWindow:delegate:didRunSelector:contextInfo:", nsWindow,
                     delegate, ObjC.sel(DID_RUN), context);
+        }
+
+        @Override
+        public boolean alone(long operation) {
+            return (ObjC.msg(operation, "runOperation") & 0xFF) != 0;
+        }
+    };
+
+    /**
+     * Runs a panel already made, holding the three objects (the operation retained for it) until it
+     * answers: as a sheet on {@code nsWindow}, or as a window of its own from a posted task when
+     * there is none. Package-private for the tests, which hand in the panel.
+     *
+     * @param nsWindow the owner's {@code NSWindow} to carry the sheet, or {@code NULL} for none
+     */
+    static void start(long operation, long document, long printInfo, LongSupplier owner, long nsWindow,
+                      Consumer<PrintResult> done, Panel panel) {
+        long context = nextContext++;
+        Pending pending = new Pending(operation, document, printInfo,
+                nsWindow != NULL ? owner : MacFileDialogs.NO_OWNER, done);
+        PENDING.put(context, pending);
+        if (nsWindow != NULL) {
+            panel.sheet(operation, nsWindow, context);
             return;
         }
         // No sheet without a window on screen: the panel as a window of its own, from a posted task.
@@ -211,16 +245,21 @@ final class MacPrinter {
             if (PENDING.remove(context) == null) {
                 return;
             }
-            boolean printed;
+            PrintResult result = PrintResult.FAILED;
             try {
-                printed = (ObjC.msg(operation, "runOperation") & 0xFF) != 0;
-            } catch (RuntimeException failed) {
+                result = panel.alone(operation) ? PrintResult.PRINTED : PrintResult.CANCELLED;
+            } catch (Throwable failed) {
+                // An Error as well (memory, a stack overflow): it left the task before the answer,
+                // and the window, believing its dialog open, answered every later print cancelled.
                 LOG.log(Level.WARNING, "the macOS print panel could not be run", failed);
-                finish(pending, PrintResult.FAILED);
-                return;
             }
-            finish(pending, printed ? PrintResult.PRINTED : PrintResult.CANCELLED);
+            finish(pending, result);
         });
+    }
+
+    /** @return how many requests are waiting for their panel's answer; for the tests */
+    static int pendingCount() {
+        return PENDING.size();
     }
 
     /** Makes the delegate class and its one object, and the two call interfaces, once. */
@@ -269,12 +308,21 @@ final class MacPrinter {
         Ui.post(() -> finish(pending, success ? PrintResult.PRINTED : PrintResult.CANCELLED));
     }
 
+    /** Lets go of a request's objects, gives its owner the keyboard back, and answers, whatever throws. */
     private static void finish(Pending pending, PrintResult result) {
+        try {
+            release(pending);
+            MacFileDialogs.giveTheKeyboardBack(pending.owner);
+        } finally {
+            pending.done.accept(result);
+        }
+    }
+
+    /** The three objects a request held for its panel, let go of once. */
+    private static void release(Pending pending) {
         ObjC.msgVoid(pending.operation, "release");
         ObjC.msgVoid(pending.printInfo, "release");
         ObjC.msgVoid(pending.document, "release");
-        MacFileDialogs.giveTheKeyboardBack(pending.owner);
-        pending.done.accept(result);
     }
 
     /** A message whose one argument is a float of the system's width, answered with nothing. */

@@ -585,13 +585,20 @@ public final class Document {
                 LOG.log(System.Logger.Level.WARNING, "the document's PDF could not be written", failed);
                 return null;
             }
-        }).thenAccept(pdf -> {
+        }).whenComplete((pdf, unwritten) -> {
+            if (unwritten != null) {
+                // An Error writing it (memory, for a document too large to hold as bytes) failed the
+                // stage, and the one the caller holds was never completed.
+                LOG.log(System.Logger.Level.WARNING, "the document's PDF could not be written", unwritten);
+                answer.complete(PrintResult.FAILED);
+                return;
+            }
             if (pdf == null) {
                 answer.complete(PrintResult.FAILED);
                 return;
             }
-            window.printer().print(new PrintJob(title, pdf, paper.width(), paper.height(), pages.pages().size()))
-                    .thenAccept(answer::complete);
+            limn.backend.internal.PrintAnswers.answerWith(() -> window.printer().print(
+                    new PrintJob(title, pdf, paper.width(), paper.height(), pages.pages().size())), answer, title);
         }), (error, before) -> {
             LOG.log(System.Logger.Level.WARNING, "the document's pages could not be recorded", error);
             answer.complete(PrintResult.FAILED);
