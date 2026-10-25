@@ -10,10 +10,13 @@ LWJGL's JNI libraries and the native libraries LWJGL builds, with no licence fil
 texts are here.
 
 Every text is its project's own, unchanged, except `stb-LICENSE.txt`, which is cut from the
-sources it closes. The digest is the SHA-256 of the file as committed. `NativeLicencesTest` holds
+sources it closes, and `OpenAL-Soft-RTKit-LICENSE.txt`, which is cut from the head of the one
+source it opens. The digest is the SHA-256 of the file as committed. `NativeLicencesTest` holds
 each file to its row, the rows to the LWJGL release `gradle/libs.versions.toml` pins and to the
 commits LWJGL's natives jars record, and every native library on the demo's classpath to the texts
-it needs; the `fatJar` task reads every file back out of the archive it built.
+it needs, by the code each compiles in as far as its upstream tree says (libpng and zlib, linked
+into HarfBuzz's raster and vector libraries, ask for their notices in source distributions only,
+and a binary jar owes them none); the `fatJar` task reads every file back out of the archive it built.
 
 **Where they come from.** LWJGL's are taken at its tag `3.4.3` (commit
 30fac9b95f99cda97312232be25ba55297bf9951), the release the build pins. GLFW, HarfBuzz and OpenAL
@@ -39,4 +42,5 @@ is bumped, the test fails until every text is taken again at the new tag and com
 | `OpenAL-Soft-PFFFT-LICENSE.txt` | the modified PFFFT OpenAL Soft compiles in | [`LICENSE-pffft` at OpenAL Soft 7f9c6de1162b1d4604b9a2f8bcd6c53021566221](https://raw.githubusercontent.com/kcat/openal-soft/7f9c6de1162b1d4604b9a2f8bcd6c53021566221/LICENSE-pffft) | `64056328b3e7bc104e24ef96accc1a7abead156f0c02d1b87c97e3f3a28030de` |
 | `OpenAL-Soft-fmt-LICENSE.txt` | the {fmt} OpenAL Soft links in | [`fmt-11.2.0/LICENSE` at OpenAL Soft 7f9c6de1162b1d4604b9a2f8bcd6c53021566221](https://raw.githubusercontent.com/kcat/openal-soft/7f9c6de1162b1d4604b9a2f8bcd6c53021566221/fmt-11.2.0/LICENSE) | `07580f2a3b35709ce703d523f447b242f6dfec7582a8c0df102c7fa2849375f8` |
 | `OpenAL-Soft-GSL-LICENSE.txt` | the Guidelines Support Library headers OpenAL Soft compiles with | [`gsl/LICENSE` at OpenAL Soft 7f9c6de1162b1d4604b9a2f8bcd6c53021566221](https://raw.githubusercontent.com/kcat/openal-soft/7f9c6de1162b1d4604b9a2f8bcd6c53021566221/gsl/LICENSE) | `4c21dc82a1c7186ea754fd59d504c00947953a3401fe8e24eaa44109ef8e2555` |
+| `OpenAL-Soft-RTKit-LICENSE.txt` | the RealtimeKit client OpenAL Soft compiles into `libopenal` on Linux, which carries its own MIT notice | the comment that opens [`core/rtkit.cpp` at OpenAL Soft 7f9c6de1162b1d4604b9a2f8bcd6c53021566221](https://raw.githubusercontent.com/kcat/openal-soft/7f9c6de1162b1d4604b9a2f8bcd6c53021566221/core/rtkit.cpp), without its `/***` and `***/` lines | `369c6e92f8fd1cc27b47196a1d28f0d1a503e391a99ddc4a2e8f2d95e5662b25` |
 | `LGPL-2.1.txt` | JLayer (`javazoom:jlayer`), Java classes whose jar carries no licence | [the Free Software Foundation's text](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt) | `20e50fe7aae3e56378ebf0417d9de904f55a0e61e4df315333e632a4d3555d95` |

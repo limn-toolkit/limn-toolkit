@@ -72,9 +72,15 @@ class NativeLicencesTest {
                 List.of("GLFW-LICENSE.txt"));
         needs.put(Pattern.compile(LWJGL + "harfbuzz/(?:lib)?harfbuzz(?:-gpu|-raster|-vector)?" + library),
                 List.of("HarfBuzz-LICENSE.txt", "HarfBuzz-USE-LICENSE.txt"));
-        needs.put(Pattern.compile(LWJGL + "openal/(?:libopenal|OpenAL)" + library),
+        needs.put(Pattern.compile("(?:macos|windows)/(?:x64|arm64)/org/lwjgl/openal/(?:libopenal|OpenAL)" + library),
                 List.of("OpenAL-Soft-LICENSE.txt", "OpenAL-Soft-PFFFT-LICENSE.txt",
                         "OpenAL-Soft-fmt-LICENSE.txt", "OpenAL-Soft-GSL-LICENSE.txt"));
+        // On Linux OpenAL Soft also compiles in its RealtimeKit client, core/rtkit.cpp, whose MIT
+        // notice is its own: the library holds RealtimeKit's D-Bus names, so the code is there.
+        needs.put(Pattern.compile("linux/(?:x64|arm64)/org/lwjgl/openal/libopenal\\.so"),
+                List.of("OpenAL-Soft-LICENSE.txt", "OpenAL-Soft-PFFFT-LICENSE.txt",
+                        "OpenAL-Soft-fmt-LICENSE.txt", "OpenAL-Soft-GSL-LICENSE.txt",
+                        "OpenAL-Soft-RTKit-LICENSE.txt"));
         needs.put(Pattern.compile(LWJGL + "(?:opengl|opengles)/(?:lib)?lwjgl_(?:opengl|opengles)" + library),
                 List.of("LWJGL-LICENSE.txt", "Khronos-LICENSE.txt"));
         needs.put(Pattern.compile(LWJGL + "stb/(?:lib)?lwjgl_stb" + library),

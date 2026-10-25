@@ -165,8 +165,11 @@ LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -opengles, -egl, -openal, -stb,
   GNU Library General Public License version 2 or, at your option, any later
   version. LWJGL also states the Khronos Group's MIT-style licence for its
   OpenGL, OpenGL ES and EGL modules. OpenAL Soft compiles in a modified PFFFT
-  (BSD-style), {fmt} (MIT) and the Guidelines Support Library (MIT), and part
+  (BSD-style), {fmt} (MIT) and the Guidelines Support Library (MIT), and on
+  Linux a RealtimeKit client under its own MIT notice (core/rtkit.cpp), and part
   of HarfBuzz's shaping tables is generated from data under the MIT licence.
+  HarfBuzz's raster and vector libraries link libpng and zlib, whose licences
+  ask for their notices in source distributions only.
   None of these texts is inside LWJGL's Maven jars: LWJGL keeps its own beside
   each module in its source tree, under
   https://github.com/LWJGL/lwjgl3/tree/master/modules/lwjgl, and records beside

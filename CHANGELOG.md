@@ -645,7 +645,8 @@ Maven Central say which number that was.
   it, in `META-INF/licenses/`. It held LWJGL's licence alone, while LWJGL's natives put GLFW,
   HarfBuzz, OpenAL Soft (LGPL), stb, tinyfiledialogs, libffi and liburing in it with no text at
   all. The texts are taken from LWJGL's source at the release the build pins and from the upstream
-  commits its natives jars record, OpenAL Soft's with those of the code it compiles in, and
+  commits its natives jars record, OpenAL Soft's with those of the code it compiles in (its
+  modified PFFFT, {fmt}, the Guidelines Support Library and, on Linux, its RealtimeKit client), and
   `limn-demo/licenses/README.md` says where each comes from. The jar run from its Maven coordinate
   and the theme editor's carry no natives, which arrive in LWJGL's own jars.
 
