@@ -40,11 +40,6 @@ final class TrayMenu {
         return rows;
     }
 
-    /** @return the item a row's number stands for in this reading, or {@code null} */
-    @Nullable MenuItem item(int id) {
-        return items.get(id);
-    }
-
     /**
      * @param menu a menu
      * @return whether a submenu below it, at any depth this reader goes to, is one of the menus

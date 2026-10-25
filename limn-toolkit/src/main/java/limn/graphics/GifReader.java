@@ -159,10 +159,6 @@ final class GifReader {
         return height;
     }
 
-    int frameCount() {
-        return millis.length;
-    }
-
     /** @return how long each frame is shown, a time too short to be meant already lengthened */
     int[] millis() {
         return millis;

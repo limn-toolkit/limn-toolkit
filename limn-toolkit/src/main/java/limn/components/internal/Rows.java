@@ -843,11 +843,6 @@ public final class Rows<E> {
 
     // -------------------------------------------------------- the data changed under it
 
-    /** New rows altogether: every realized row is let go of, and the run is at its start. */
-    public void reset() {
-        reset(row -> -1, false);
-    }
-
     /**
      * New rows altogether: every realized row is let go of but those {@code keepAt} carries over,
      * and the run is at its start.

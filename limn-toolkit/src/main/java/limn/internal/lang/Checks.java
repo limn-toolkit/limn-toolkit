@@ -155,19 +155,6 @@ public final class Checks {
      * @param value the value
      * @param name  what the value is, for the message
      * @return the value
-     * @throws IllegalArgumentException if it is zero or negative
-     */
-    public static long positive(long value, String name) {
-        if (value <= 0) {
-            throw new IllegalArgumentException(name + " must be positive, got " + value);
-        }
-        return value;
-    }
-
-    /**
-     * @param value the value
-     * @param name  what the value is, for the message
-     * @return the value
      * @throws IllegalArgumentException if it is zero, negative, {@code NaN} or infinite
      */
     public static float positive(float value, String name) {

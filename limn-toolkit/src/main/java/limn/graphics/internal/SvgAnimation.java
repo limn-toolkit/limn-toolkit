@@ -272,16 +272,8 @@ public final class SvgAnimation {
     /**
      * Takes the animations out of a document: SMIL elements are removed, every animated element is
      * given an id if it has none, and a transform CSS gives an element is written as its attribute.
-     *
-     * @return the animation, or null when nothing in the document moves
-     */
-    public static @Nullable SvgAnimation extract(SvgXml.Element root) {
-        return extract(root, 0);
-    }
-
-    /**
-     * Takes the animations out of a document read from a file of {@code fileBytes}, which the
-     * work its style sheets may cost is held to.
+     * The document was read from a file of {@code fileBytes}, which the work its style sheets may
+     * cost is held to.
      *
      * @return the animation, or null when nothing in the document moves
      */

@@ -109,16 +109,6 @@ public final class SvgXml {
             }
         }
 
-        /** Takes an attribute away; nothing when it is not there. */
-        public void removeAttribute(String attribute) {
-            int at = names.indexOf(attribute);
-            if (at >= 0) {
-                attributesChanged++;
-                names.remove(at);
-                values.remove(at);
-            }
-        }
-
         /** Takes away attribute {@code index}. */
         public void removeAttribute(int index) {
             attributesChanged++;

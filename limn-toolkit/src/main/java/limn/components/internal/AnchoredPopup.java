@@ -226,11 +226,6 @@ public final class AnchoredPopup {
         return window;
     }
 
-    /** @return the scene of its window while it is open in one, else null */
-    public @Nullable Scene popupScene() {
-        return popupScene;
-    }
-
     /** @return the panel of the presentation open now, or null */
     public @Nullable Widget<?> panel() {
         return panel;

@@ -64,7 +64,6 @@ class ChecksTest {
                 failing(() -> Checks.notNegative(-0.5f, "thickness")));
         assertEquals(44_100, Checks.positive(44_100, "sampleRate"));
         assertEquals("sampleRate must be positive, got 0", failing(() -> Checks.positive(0, "sampleRate")));
-        assertEquals(3L, Checks.positive(3L, "count"));
         assertEquals(12f, Checks.positive(12f, "font size"));
         assertEquals("font size must be positive, got 0.0", failing(() -> Checks.positive(0f, "font size")));
         assertEquals(2f, Checks.finite(2f, "cornerScale"));

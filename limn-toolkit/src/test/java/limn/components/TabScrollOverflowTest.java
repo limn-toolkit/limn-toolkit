@@ -69,12 +69,6 @@ class TabScrollOverflowTest extends ComponentTestBase {
         assertEquals(300, content.height(), 0.5f, "selected content keeps its natural height");
     }
 
-    /** Strip height at {@code step} under the degenerate ruler: 24 / 26 / 30 / 36 / 42. */
-    private static float stripH(ControlSize step) {
-        SizeTokens t = SizeTokens.of(step);
-        return RULER.measure("Hg", t.body()).lineHeight() + 2 * t.tabPadV();
-    }
-
     /**
      * The narrow-pane overflow policy. Three square strip controls cost {@code 3 * stripHeight}
      * (75 pt at XSMALL but 157 pt at XLARGE in real rendering), so a narrow XLARGE pane once

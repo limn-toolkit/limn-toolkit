@@ -178,11 +178,6 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
         return plotHeight;
     }
 
-    /** The resolved value scale: the two ends drawn and the tick spacing between them. */
-    protected final ChartAxis.Scale scale() {
-        return scale;
-    }
-
     /**
      * Where {@code value} falls along the value axis, in local coordinates.
      *

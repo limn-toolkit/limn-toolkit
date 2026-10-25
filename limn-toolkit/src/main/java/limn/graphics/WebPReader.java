@@ -39,7 +39,6 @@ final class WebPReader implements AutoCloseable {
     private int position;
     private final int width;
     private final int height;
-    private final int frames;
     private final int loopCount;
 
     /**
@@ -61,11 +60,12 @@ final class WebPReader implements AutoCloseable {
         this.data = data;
         this.millis = walk(data);
         int counted = millis.length;
+        int frames;
         try {
             this.reader = WebPImageReader.open(new ByteArrayInputStream(data));
             this.width = reader.getWidth();
             this.height = reader.getHeight();
-            this.frames = Math.max(1, reader.isAnimated() ? reader.getFrameCount() : 1);
+            frames = Math.max(1, reader.isAnimated() ? reader.getFrameCount() : 1);
             this.loopCount = reader.isAnimated() ? Math.max(0, reader.getLoopCount()) : 0;
         } catch (IOException | RuntimeException refused) {
             throw new MalformedContentException(FORMAT, String.valueOf(refused.getMessage()), refused);
@@ -85,20 +85,9 @@ final class WebPReader implements AutoCloseable {
         return height;
     }
 
-    int frameCount() {
-        return frames;
-    }
-
     /** @return how many turns the file asks for; 0 for no end */
     int loopCount() {
         return loopCount;
-    }
-
-    /** How long the frame {@link #nextFrame} last handed out is shown, a time too short to be meant lengthened. */
-    private int lastMillis;
-
-    int lastMillis() {
-        return lastMillis;
     }
 
     /**
@@ -121,8 +110,6 @@ final class WebPReader implements AutoCloseable {
             throw new MalformedContentException(FORMAT, "a frame of " + frame.getWidth() + " by "
                     + frame.getHeight() + " on a canvas of " + width + " by " + height);
         }
-        int shownFor = frame.getDurationMillis();
-        lastMillis = shownFor <= SHORTEST_MEANT_MILLIS ? TIME_SHOWN_INSTEAD_MILLIS : shownFor;
         position++;
         int[] argb = frame.getArgbArray();
         int stride = frame.getScanlineStride();

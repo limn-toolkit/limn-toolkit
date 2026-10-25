@@ -182,11 +182,6 @@ public final class RowsPlaceholder {
         }
     }
 
-    /** @return the loading content the application gave, or {@code null} for the default */
-    public @Nullable Widget<?> loadingContent() {
-        return loadingContent;
-    }
-
     /**
      * Says the widget is loading, or has finished. The widget is published busy while it loads,
      * and a reader is told both ends: "Loading Orders" at the start, and at the end how many rows

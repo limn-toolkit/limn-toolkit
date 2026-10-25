@@ -464,9 +464,4 @@ final class Pages {
     static void release(Scene scene) {
         SceneAccess.input(scene).windowClosed();
     }
-
-    /** For a test: where a block may be cut, laid out at the content width. */
-    float[] cutsForTest(Block block) {
-        return cutsOf(block, naturalHeight(block));
-    }
 }

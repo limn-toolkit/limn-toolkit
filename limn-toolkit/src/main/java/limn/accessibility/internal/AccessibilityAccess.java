@@ -38,7 +38,6 @@ public final class AccessibilityAccess {
         List<AccessibleEvent> events(Accessibility a);
         void foreignActiveDescendant(Accessibility a, long id);
         long foreignControllerTargetFrom(Accessibility a, long nodeId);
-        void forgetPublished(Accessibility a);
         void freeVerbs(Accessibility a);
         boolean hasAccessKey(Accessibility a);
         boolean hasChildren(Accessibility a);
@@ -62,8 +61,6 @@ public final class AccessibilityAccess {
         void placeSyntheticAt(Accessibility a, int index, float x, float y, float width, float height);
         void relationAt(Accessibility a, int index, Accessible.Relation kind, @Nullable Object target);
         void resolveRelations(Accessibility a, Accessibility.RelationResolver resolve);
-        long sceneTag(Accessibility a);
-        long sceneTagOf(long id);
         void syntheticBoxAt(Accessibility a, int index, float[] out);
         long syntheticKeyAt(Accessibility a, int index);
     }
@@ -163,11 +160,6 @@ public final class AccessibilityAccess {
     /** See {@code Accessibility.foreignControllerTargetFrom}. */
     public static long foreignControllerTargetFrom(Accessibility a, long nodeId) {
         return hook().foreignControllerTargetFrom(a, nodeId);
-    }
-
-    /** See {@code Accessibility.forgetPublished}. */
-    public static void forgetPublished(Accessibility a) {
-        hook().forgetPublished(a);
     }
 
     /** See {@code Accessibility.freeVerbs}. */
@@ -283,16 +275,6 @@ public final class AccessibilityAccess {
     /** See {@code Accessibility.resolveRelations}. */
     public static void resolveRelations(Accessibility a, Accessibility.RelationResolver resolve) {
         hook().resolveRelations(a, resolve);
-    }
-
-    /** See {@code Accessibility.sceneTag}. */
-    public static long sceneTag(Accessibility a) {
-        return hook().sceneTag(a);
-    }
-
-    /** See {@code Accessibility.sceneTagOf}. */
-    public static long sceneTagOf(long id) {
-        return hook().sceneTagOf(id);
     }
 
     /** See {@code Accessibility.syntheticBoxAt}. */

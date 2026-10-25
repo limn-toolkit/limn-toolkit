@@ -63,11 +63,6 @@ public final class Ending {
         this.quitHandler = handler;
     }
 
-    /** @return whether an application-wide request is being answered */
-    public boolean quitPending() {
-        return round != null;
-    }
-
     /**
      * The user asked {@code window} to close. Asks its handler, unless a question to it is already
      * unanswered, and does what its policy says once allowed.

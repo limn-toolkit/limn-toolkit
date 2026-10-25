@@ -31,17 +31,9 @@ final class StrokeRecordingCanvas extends ComponentTestBase.FakeCanvas {
         super(width, height);
     }
 
-    List<Stroke> strokes() {
-        return strokes;
-    }
-
     /** @return every recorded width, sorted: the order-insensitive form for comparing steps */
     List<Float> widths() {
         return strokes.stream().map(Stroke::width).sorted().toList();
-    }
-
-    void reset() {
-        strokes.clear();
     }
 
     @Override

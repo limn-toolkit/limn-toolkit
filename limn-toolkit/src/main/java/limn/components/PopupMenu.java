@@ -1081,10 +1081,6 @@ public final class PopupMenu {
         surface.clickAt(lx, ly);
     }
 
-    void pressForTest(float lx, float ly) {
-        surface.pressAt(lx, ly);
-    }
-
     int columnCountForTest() {
         return surface == null ? 0 : surface.cols.size();
     }

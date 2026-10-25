@@ -1506,9 +1506,4 @@ final class AccessibleWalk {
         }
         return -1;
     }
-
-    /** Forgets what was published, so the next walk differs from nothing. */
-    void forget() {
-        AccessibilityAccess.forgetPublished(builder);
-    }
 }

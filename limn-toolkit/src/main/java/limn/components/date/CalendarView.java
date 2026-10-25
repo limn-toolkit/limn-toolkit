@@ -2155,12 +2155,6 @@ public final class CalendarView extends Widget<CalendarView> {
         return row * columns() + column;
     }
 
-    /** The day under a pointer, or {@code null} if it is not over the grid. */
-    private LocalDate dayAt(float localX, float localY, boolean rtl) {
-        int index = cellAt(localX, localY, rtl);
-        return index < 0 ? null : dayAt(index);
-    }
-
     /**
      * Whether a point is on the header's title, which is the region that climbs to the next view.
      * The band between the two paging buttons, not the glyphs of the title itself: a two-character

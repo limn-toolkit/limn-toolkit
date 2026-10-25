@@ -24,11 +24,6 @@ public final class FakeSvg {
     private FakeSvg() {
     }
 
-    /** @return a renderer drawing every SVG one transparent pixel */
-    public static SvgRenderer blank() {
-        return renderer((svg, side) -> new Image(1, 1, new byte[4]));
-    }
-
     /**
      * @param picture what each document draws
      * @return a renderer whose documents are unit squares drawn by {@code picture}

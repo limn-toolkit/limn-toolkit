@@ -132,11 +132,6 @@ public final class Avatar extends Widget<Avatar> {
         return name.get();
     }
 
-    /** The name as held, for a group that describes its members by reference. */
-    I18nString nameSource() {
-        return name;
-    }
-
     /**
      * Gives the initials instead of deriving them from the name; {@code null} derives them again.
      *

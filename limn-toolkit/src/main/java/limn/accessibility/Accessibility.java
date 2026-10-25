@@ -3107,17 +3107,6 @@ public final class Accessibility {
                 ? heldIndex : new int[previousChildIndex.length];
     }
 
-    /**
-     * Forgets what was published, so the next walk differs from nothing and publishes everything.
-     * The publish step calls this when a scene is bound over a window that held another one.
-     */
-    void forgetPublished() {
-        previousCount = 0;
-        publishedActiveDescendant = 0;
-        publishedForeignActiveDescendant = 0;
-        clearPublishNotes();
-    }
-
     private Slot slot() {
         if (namingChild) {
             // The node open right now is the PARENT's, and the identity hook is running for a
@@ -3377,11 +3366,6 @@ public final class Accessibility {
             }
 
             @Override
-            public void forgetPublished(Accessibility a) {
-                a.forgetPublished();
-            }
-
-            @Override
             public void freeVerbs(Accessibility a) {
                 a.freeVerbs();
             }
@@ -3494,16 +3478,6 @@ public final class Accessibility {
             @Override
             public void resolveRelations(Accessibility a, RelationResolver resolve) {
                 a.resolveRelations(resolve);
-            }
-
-            @Override
-            public long sceneTag(Accessibility a) {
-                return a.sceneTag();
-            }
-
-            @Override
-            public long sceneTagOf(long id) {
-                return Accessibility.sceneTagOf(id);
             }
 
             @Override
