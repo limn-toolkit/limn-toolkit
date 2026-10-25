@@ -42,6 +42,7 @@ class FontsPreloadTest {
     private static final class HeldLoader implements FontLoader {
 
         final List<String> asked = new ArrayList<>();
+        final List<String> withdrawn = new ArrayList<>();
         private final Map<String, List<Runnable>> waiting = new LinkedHashMap<>();
 
         @Override
@@ -53,6 +54,18 @@ class FontsPreloadTest {
         public void preload(String family, Runnable whenResident) {
             asked.add(family);
             waiting.computeIfAbsent(family, k -> new ArrayList<>()).add(whenResident);
+        }
+
+        /**
+         * Recorded, and the request left in place: a loader may still run a withdrawn callback,
+         * as the default does, and {@code Fonts} must ignore it then, which the tests below hold.
+         */
+        @Override
+        public void withdraw(String family, Runnable whenResident) {
+            List<Runnable> requests = waiting.get(family);
+            assertTrue(requests != null && requests.contains(whenResident),
+                    "withdrawn with the very callback it was asked with: " + family);
+            withdrawn.add(family);
         }
 
         /** {@code family}'s faces are resident: every request for it is answered, on this thread. */
@@ -182,6 +195,30 @@ class FontsPreloadTest {
         loader.land("Arial");
         assertEquals("Arial", Fonts.defaultFamily());
         assertEquals(1, changes.get());
+    }
+
+    @Test
+    void anOvertakenSwitchIsWithdrawnFromTheBackendAndAPreloadNeverIs() {
+        Fonts.installLoader(loader);
+        Fonts.preload("Courier");
+        Fonts.setDefaultFamilyWhenResident("Menlo");
+        Fonts.setDefaultFamilyWhenResident("Arial");
+        assertEquals(List.of("Menlo"), loader.withdrawn,
+                "the backend is told nobody wants the first read, so landing it disturbs nothing");
+
+        Fonts.setDefaultFamily("Menlo");
+        assertEquals(List.of("Menlo", "Arial"), loader.withdrawn, "an immediate switch overtakes too");
+
+        Fonts.setDefaultFamilyWhenResident(null); // answered by Fonts itself, never asked of the loader
+        Fonts.setDefaultFamily("Arial");
+        assertEquals(List.of("Menlo", "Arial"), loader.withdrawn,
+                "nothing is withdrawn that the loader was never asked for");
+        loader.land("Courier");
+        loader.land("Menlo");
+        loader.land("Arial");
+        runtime.drain();
+        assertEquals("Arial", Fonts.defaultFamily(),
+                "and a withdrawn request's callback, run all the same, switches nothing");
     }
 
     @Test

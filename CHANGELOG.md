@@ -638,21 +638,24 @@ Maven Central say which number that was.
   `Fonts.setDefaultFamilyWhenResident(family)` reads the family's regular and bold faces on a
   worker and switches the UI font on the UI thread once they are in, answering a stage there with
   whether it switched. A later choice overtakes an earlier one still reading, so a picker stepped
-  through a list ends on its last entry, and the overtaken one answers `false`.
-  `Fonts.preload(family)` reads a family ahead without switching to it. Both answer on a later
-  turn, never inside the call, and also when there is nothing to read. `Fonts.setDefaultFamily`
-  still switches at once and leaves the read to the next frame, and now checks the UI thread when
-  a runtime is installed, as the other process-wide settings do. The demo's font picker and the
-  theme editor's now switch this way, and the theming guide shows a picker. A backend's
-  `FontLoader` reads ahead in `preload`, whose default reads nothing. `Theme.apply()` and
-  `Theme.applyFontFamily()` switch a palette's font this way too, so a theme picker reads no font
-  file inside a frame either: the palette still switches at once, the font follows once its faces
-  are in memory, a palette picked before then overtakes it, and a palette whose font is already in
-  use lays nothing out again. Both now return that switch's `CompletionStage<Boolean>` instead of
-  nothing, so a call written as a statement compiles unchanged; under a headless runtime the font
-  switches on its next turn rather than inside the call. Code that needs the palette's font in
-  force when the call returns, as a capture or a test that draws next does, follows `apply()`
-  with `Fonts.setDefaultFamily(theme.fontFamily())`.
+  through a list ends on its last entry, and the overtaken one answers `false`; its read lays
+  nothing out again when it lands, and the backend keeps its faces only where that closes no face
+  in use, so the picker lays the UI out once, for the last entry, and never evicts the family the
+  UI is drawn in. `Fonts.preload(family)` reads a family ahead without switching to it. Both
+  answer on a later turn, never inside the call, and also when there is nothing to read.
+  `Fonts.setDefaultFamily` still switches at once and leaves the read to the next frame, and now
+  checks the UI thread when a runtime is installed, as the other process-wide settings do. The
+  demo's font picker and the theme editor's now switch this way, and the theming guide shows a
+  picker. A backend's `FontLoader` reads ahead in `preload`, whose default reads nothing, and is
+  told in `withdraw`, whose default does nothing, that a switch it was reading for was overtaken.
+  `Theme.apply()` and `Theme.applyFontFamily()` switch a palette's font this way too, so a theme
+  picker reads no font file inside a frame either: the palette still switches at once, the font
+  follows once its faces are in memory, a palette picked before then overtakes it, and a palette
+  whose font is already in use lays nothing out again. Both now return that switch's
+  `CompletionStage<Boolean>` instead of nothing, so a call written as a statement compiles
+  unchanged; under a headless runtime the font switches on its next turn rather than inside the
+  call. Code that needs the palette's font in force when the call returns, as a capture or a test
+  that draws next does, follows `apply()` with `Fonts.setDefaultFamily(theme.fontFamily())`.
 - `DateFormats` writes a date in the calendar its locale names with `-u-ca-`, as the date widgets
   already drew it: `ja-JP-u-ca-japanese` writes "R7/10/25", `th-TH-u-ca-buddhist` the year 2568,
   `zh-TW-u-ca-roc` the Republic of China's year, `ar-SA-u-ca-islamic-umalqura` the Hijri date. The
