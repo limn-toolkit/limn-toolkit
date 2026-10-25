@@ -25,7 +25,8 @@ import java.util.Set;
  * {@code PluralRulesTest.theTranscriptionAgreesWithCldr} holds this class to that file, which is
  * checked in with the ICU version that produced it. Nothing in the build runs Node. Regenerate
  * the dump when a language is added, which is when a hand-written rule is most likely to be
- * wrong.
+ * wrong. Transcribed, the rules are still CLDR's data, under the Unicode License v3, whose text
+ * the toolkit's jar carries at {@code limn/i18n/internal/CLDR-LICENSE.txt}.
  *
  * <p>The check earned its keep on the day it was written (2026-09-18, ICU 78.3): the first
  * transcription was wrong in five languages at once. Spanish, Italian, French, Portuguese and

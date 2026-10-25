@@ -230,7 +230,7 @@ export const ja: Catalog = {
     "Apache License 2.0。明示的な特許許諾を含みます。商用利用も改変も再配布も、すべて認められています。",
   "licence.core.heading": "ツールキット本体",
   "licence.core.body":
-    "<code>limn-toolkit</code> が JDK 以外に依存するのは、コンパイラーだけが読む JSpecify の null 許容性アノテーションと、Java で書かれた WebP デコーダ（<code>org.glavo:webp</code>）の 2 つで、どちらも Apache-2.0 なので、これについては Apache-2.0 がすべてです。描画バックエンドは、BSD-3-Clause の LWJGL、SVG レンダラーの lunasvg とそれが描画に使う plutovg（どちらも MIT）、そして OpenGL ドライバーのない Windows や macOS のマシンのための OpenGL ES フォールバックである ANGLE（BSD-3-Clause。各 jar に、組み込まれたソースとそのライセンスの一覧があります）を追加します。LWJGL が持ち込むネイティブライブラリも寛容なライセンスですが、音声出力を担う OpenAL Soft だけは LGPL-2.0-or-later です。これは独立した共有ライブラリで、実行時に読み込まれ、差し替えることができます。",
+    "<code>limn-toolkit</code> が JDK 以外に依存するのは、コンパイラーだけが読む JSpecify の null 許容性アノテーションと、Java で書かれた WebP デコーダ（<code>org.glavo:webp</code>）の 2 つで、どちらも Apache-2.0 です。その jar に含まれるほかのライセンスは、寛容なライセンスである Unicode License v3 だけです。ツールキットが持つ言語についての情報、たとえばある言語がどの地域を指すか、どの方向に書かれるか、どの数字と複数形を使うかは、Unicode Consortium の CLDR から取ったもので、jar はそのライセンスをその情報のそばに収めています。描画バックエンドは、BSD-3-Clause の LWJGL、SVG レンダラーの lunasvg とそれが描画に使う plutovg（どちらも MIT）、そして OpenGL ドライバーのない Windows や macOS のマシンのための OpenGL ES フォールバックである ANGLE（BSD-3-Clause。各 jar に、組み込まれたソースとそのライセンスの一覧があります）を追加します。LWJGL が持ち込むネイティブライブラリも寛容なライセンスですが、音声出力を担う OpenAL Soft だけは LGPL-2.0-or-later です。これは独立した共有ライブラリで、実行時に読み込まれ、差し替えることができます。",
   "licence.fonts.heading": "フォントとアイコン",
   "licence.fonts.body":
     "既定のフォントである Roboto は Apache-2.0 です。ほかの文字体系と絵文字のための Noto のフォールバックフォント、そしてメニューがショートカットを書くのに使う小さな記号フォントは、SIL Open Font License 1.1 で配布されています。オプションのアイコンパック <code>limn-icons-tabler</code> は MIT です。同梱コンポーネントはすべて、ライセンスとともにプロジェクトの NOTICE ファイルに記載しています。",

@@ -3,6 +3,10 @@
 # which scripts/i18n/dump-cldr-locale-facts.mjs asks ICU for, copied line for line.
 # LikelyRegionsTest holds the two files to the same rows in the same order.
 #
+# The rows are Unicode CLDR's data, as the ICU that file's header names carries it:
+# Copyright © 2004-2025 Unicode, Inc., under the Unicode License v3, whose full text is
+# CLDR-LICENSE.txt beside this file.
+#
 # likely <language>-<REGION> ...   de-DE, pt-BR, ar-EG, ckb-IQ, eo-001; a code ICU reads as
 #                                  another language has no row and is read as that one first
 #

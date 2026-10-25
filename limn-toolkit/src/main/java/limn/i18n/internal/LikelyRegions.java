@@ -14,7 +14,9 @@ import java.util.Map;
  * <p>Measured, not listed from memory: the {@code likely} rows of {@code cldr-locale-facts.txt},
  * which {@code scripts/i18n/dump-cldr-locale-facts.mjs} asks ICU for over every two- and
  * three-letter language, some seven thousand of them, shipped beside this class as
- * {@code likely-regions.txt} and read the first time a language is asked about.
+ * {@code likely-regions.txt} and read the first time a language is asked about. The rows are
+ * CLDR's data, under the Unicode License v3, whose text ships beside the file as
+ * {@code CLDR-LICENSE.txt}.
  *
  * <p>Keyed on the language as ICU reads it, so a code ICU replaces has no row of its own: read the
  * locale through {@link LanguageAliases} first, which also brings the region an alias carries

@@ -229,7 +229,7 @@ export const zhHant: Catalog = {
     "Apache License 2.0，含明確的專利授權。商業使用、修改與再散布皆獲允許。",
   "licence.core.heading": "工具組本身",
   "licence.core.body":
-    "<code>limn-toolkit</code> 除 JDK 外相依兩個函式庫：只有編譯器會讀取的 JSpecify 空值註記，以及以 Java 撰寫的 WebP 解碼器（<code>org.glavo:webp</code>），兩者同樣採用 Apache-2.0，所以對它而言，Apache-2.0 就是全部。繪製後端會引入採用 BSD-3-Clause 的 LWJGL；SVG 繪製器 lunasvg 和它用來繪製的 plutovg，兩者皆採用 MIT；以及 ANGLE，也就是為沒有 OpenGL 驅動程式的 Windows 或 macOS 電腦準備的 OpenGL ES 備援方案，採用 BSD-3-Clause，它的每個 jar 都列出編譯進其中的原始碼及其授權。LWJGL 帶來的原生函式庫同樣採用寬鬆授權，唯一的例外是負責音訊輸出的 OpenAL Soft，它採用 LGPL-2.0-or-later：它是一個獨立的共享函式庫，在執行時載入，可以替換。",
+    "<code>limn-toolkit</code> 除 JDK 外相依兩個函式庫：只有編譯器會讀取的 JSpecify 空值註記，以及以 Java 撰寫的 WebP 解碼器（<code>org.glavo:webp</code>），兩者同樣採用 Apache-2.0。它的 jar 中唯一的其他授權是寬鬆的 Unicode License v3：工具組關於語言的知識，例如某種語言指的是哪個地區、朝哪個方向書寫、使用哪些數字和複數形式，都取自 Unicode 聯盟的 CLDR，jar 在這些資料旁邊附帶了該授權。繪製後端會引入採用 BSD-3-Clause 的 LWJGL；SVG 繪製器 lunasvg 和它用來繪製的 plutovg，兩者皆採用 MIT；以及 ANGLE，也就是為沒有 OpenGL 驅動程式的 Windows 或 macOS 電腦準備的 OpenGL ES 備援方案，採用 BSD-3-Clause，它的每個 jar 都列出編譯進其中的原始碼及其授權。LWJGL 帶來的原生函式庫同樣採用寬鬆授權，唯一的例外是負責音訊輸出的 OpenAL Soft，它採用 LGPL-2.0-or-later：它是一個獨立的共享函式庫，在執行時載入，可以替換。",
   "licence.fonts.heading": "字型與圖示",
   "licence.fonts.body":
     "預設字型 Roboto 採用 Apache-2.0。用於其他文字與表情符號的 Noto 遞補字型，以及選單用來書寫快速鍵的小型符號字型，以 SIL Open Font License 1.1 散布。選用的圖示套件 <code>limn-icons-tabler</code> 採用 MIT。每個隨附元件及其授權都列在專案的 NOTICE 檔案中。",

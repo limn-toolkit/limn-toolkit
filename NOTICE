@@ -48,6 +48,33 @@ Mosaic display faces (limn-demo/fonts, the demo only; no library jar carries the
   through Fonts.load, the same public call an application would use for a typeface it
   ships itself.
 
+Unicode CLDR locale data (limn-toolkit; CLDR 48.0, as ICU 78.3 carries it)
+  Copyright © 2004-2025 Unicode, Inc.
+  Unicode License v3 (Unicode-3.0): full text in
+  limn-toolkit/src/main/resources/limn/i18n/internal/CLDR-LICENSE.txt, which is
+  CLDR's own LICENSE at its release-48 tag, verbatim, and which the limn-toolkit
+  jar carries beside the tables, at limn/i18n/internal/CLDR-LICENSE.txt.
+  Facts about languages taken from CLDR's data: which codes name another
+  language or region, which region a language named alone means, which
+  languages, scripts and regions run right to left, which digits a language
+  writes, and which plural form a count takes. Every one was asked of ICU by
+  scripts/i18n/dump-cldr-locale-facts.mjs or scripts/i18n/dump-cldr-plurals.mjs,
+  and tests hold the toolkit to what those dumps say. In the limn-toolkit jar
+  they are:
+
+    limn/i18n/internal/language-aliases.txt and likely-regions.txt, rows of the
+      dump copied line for line, each naming the licence in its header;
+    the tables written out in limn.scene.LayoutDirection,
+      limn.i18n.NumberingSystem and limn.i18n.PluralRules, the last transcribed
+      by hand from CLDR's rules.
+
+  The dumps themselves, limn-toolkit/src/test/resources/limn/i18n/
+  cldr-locale-facts.txt and cldr-cardinal.txt, are test-only and not
+  distributed. Nothing else this repository builds is taken from Unicode's or
+  CLDR's data files: month and weekday names, date and number patterns,
+  collation, case mapping, line, word and character breaks, and every character
+  property are the JDK's, read at run time.
+
 --------------------------------------------------------------------------------
 Fonts (the limn-fonts artifacts; ADR 036)
 --------------------------------------------------------------------------------

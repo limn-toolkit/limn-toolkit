@@ -185,6 +185,9 @@ public enum LayoutDirection {
      * application is likely to be handed. {@code scripts/i18n/dump-cldr-locale-facts.mjs} asks
      * ICU for the direction of every two-letter code ISO 639-1 has and all 17,576 three-letter
      * combinations; this is its answer, and {@code CldrLocaleFactsTest} holds the two together.
+     * This set, the two region tables below and the scripts ICU alone names are therefore CLDR's
+     * data, under the Unicode License v3, whose text the toolkit's jar carries at
+     * {@code limn/i18n/internal/CLDR-LICENSE.txt}.
      *
      * <p>A code ICU reads as another language is not here, though the dump's {@code rtl} rows
      * name it: {@link #forLocale} reads a locale through {@link LanguageAliases} first, so

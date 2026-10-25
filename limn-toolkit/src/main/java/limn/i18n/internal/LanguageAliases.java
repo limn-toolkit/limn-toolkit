@@ -43,6 +43,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * way, as the current region ICU reads it as: {@code SU}, the Soviet Union, is {@code RU} and
  * {@code uz-SU} is {@code UZ}, {@code YD}, South Yemen, is {@code YE}, {@code DD}, East Germany,
  * is {@code DE}. These are the {@code region} rows of the same dump, shipped in the same file.
+ *
+ * <p>Both kinds of row are CLDR's data, under the Unicode License v3, whose text ships beside the
+ * file as {@code CLDR-LICENSE.txt}.
  */
 public final class LanguageAliases {
 
