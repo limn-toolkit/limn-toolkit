@@ -333,7 +333,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         @Override
         public void unmount(Slot slot, boolean heldFocus) {
             // Or due back in it: a field whose own menu is open, which closes as the row leaves.
-            boolean keyboard = heldFocus || (!engine.returningKeyboard() && holdsKeyboard(slot));
+            boolean keyboard = heldFocus || holdsKeyboard(slot);
             for (int c = 0; c < columns.size(); c++) {
                 if (slot.widgets[c] != null) {
                     remove(slot.widgets[c]);
@@ -399,7 +399,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
         @Override
         public void rowsFreed() {
-            // Nothing is kept stale: a row kept for a popup is re-bound to its record.
+            // Nothing is kept stale: a row kept for a popup is re-bound to its record. So the
+            // engine never lets go of a kept row once its popup closes, and never asks where the
+            // keyboard is in one (keyboardPlace) to give it back in the row realized afresh.
         }
 
         @Override
@@ -408,35 +410,6 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             // the keyboard (decision 22 of 2026-09-14): a reader's cursor stands on that cell
             // whether or not it is in view.
             return isFocused() ? focusRow : -1;
-        }
-
-        /** The column whose widget cell holds the keyboard, then the path inside it. */
-        @Override
-        public @Nullable Object keyboardPlace(Slot row) {
-            for (int c = 0; c < row.widgets.length; c++) {
-                if (row.widgets[c] != null) {
-                    int[] path = limn.components.internal.RowKeyboard.placeIn(row.widgets[c]);
-                    if (path != null) {
-                        int[] place = new int[path.length + 1];
-                        place[0] = c;
-                        System.arraycopy(path, 0, place, 1, path.length);
-                        return place;
-                    }
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public void keyboardBack(Slot row, Object place) {
-            int[] at = (int[]) place;
-            Widget<?> cell = at[0] < row.widgets.length ? row.widgets[at[0]] : null;
-            if (cell == null) {
-                requestFocus();
-                return;
-            }
-            limn.components.internal.RowKeyboard.giveBack(cell, java.util.Arrays.copyOfRange(at, 1, at.length),
-                    Table.this);
         }
 
         @Override
