@@ -101,6 +101,25 @@ class MediaPlayerTest {
         }
     }
 
+    /**
+     * Whether a decode thread is in the wait its loop makes when there is nothing to do, with no
+     * bound: waiting, and the first frame below the monitor's own is the loop. A wait inside a
+     * decode step has the step there instead.
+     */
+    private static boolean waitingInItsLoop(Thread decoder) {
+        if (decoder.getState() != Thread.State.WAITING) {
+            return false;
+        }
+        for (StackTraceElement frame : decoder.getStackTrace()) {
+            if (!frame.getClassName().equals(Object.class.getName())) {
+                return frame.getClassName().equals(MediaPlayer.class.getName())
+                        && frame.getMethodName().equals("decodeLoop")
+                        && decoder.getState() == Thread.State.WAITING;
+            }
+        }
+        return false;
+    }
+
     // ------------------------------------------------------------------ the common case
 
     @Test
@@ -898,7 +917,12 @@ class MediaPlayerTest {
         try {
             player.start();
             await(() -> player.bufferedPictures() == 2 && stream.reads.get() >= 3, "the stream to end");
-            Thread.sleep(100); // long enough for the thread to be in its wait
+            // In its wait, and not on its way there: a seek that came first would be read without
+            // the thread ever waiting, and the missed signal this holds would go unseen.
+            java.lang.reflect.Field field = MediaPlayer.class.getDeclaredField("decodeThread");
+            field.setAccessible(true);
+            Thread decoder = (Thread) field.get(player);
+            await(() -> waitingInItsLoop(decoder), "the decode thread to wait at the end");
             int atTheEnd = stream.reads.get();
 
             player.seek(0);

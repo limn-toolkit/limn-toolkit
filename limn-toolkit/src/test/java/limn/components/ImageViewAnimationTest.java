@@ -15,6 +15,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -119,8 +122,35 @@ class ImageViewAnimationTest {
     }
 
     /**
+     * Waits until the runtime's worker has run everything handed to it so far. HeadlessUi's pool
+     * has one thread, which runs its tasks in the order they came, so a task handed to it now
+     * runs after all of them.
+     */
+    private void workerDone() throws Exception {
+        assertEquals(1, ((ThreadPoolExecutor) ui.workers()).getMaximumPoolSize(), "one worker, in order");
+        ui.workers().submit(() -> { }).get(10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Holds the runtime's one worker, as a pool busy with an application's own jobs holds it,
+     * until the returned latch is counted down: what is handed to it meanwhile waits behind.
+     */
+    private CountDownLatch holdTheWorker() {
+        CountDownLatch release = new CountDownLatch(1);
+        ui.workers().submit(() -> release.await(10, TimeUnit.SECONDS));
+        return release;
+    }
+
+    /**
      * A long animation is decoded as it plays, on a worker: the view shows each frame as it
      * arrives and never one for another, and waits on the frame before for one that is late.
+     *
+     * <p>The test decides when the worker runs, and it never runs while a frame drains the queue.
+     * After most frames it is let finish what the view handed it; in every eight it is held for
+     * four, so the frames decoded ahead are shown and then one is late. A sleep for the worker's
+     * turn left both to the machine: which frames were late, and whether the worker posted as a
+     * drain was counting the queue, which on 2026-10-25 put the view's wake off by a frame and
+     * the frame after showed two frames' time at once.
      */
     @Test
     void anAnimationDecodedAsItPlaysShowsEveryFrameInItsTurn() throws Exception {
@@ -146,20 +176,40 @@ class ImageViewAnimationTest {
         }
         view.setImage(image);
         shown();
+        workerDone();
         List<Integer> seen = new ArrayList<>();
-        long deadline = System.nanoTime() + 20_000_000_000L;
-        while (seen.size() < 30 && System.nanoTime() < deadline) {
-            after(100);
-            Thread.sleep(5); // the worker's turn
-            int which = (drawn.pixels()[0] & 0xFF) / 20;
-            if (seen.isEmpty() || seen.get(seen.size() - 1) != which) {
-                seen.add(which);
+        int held = 0; // frames of the display that kept the frame before past its time
+        CountDownLatch release = null;
+        try {
+            for (int step = 0; step < 60 && seen.size() < 30; step++) {
+                if (step % 8 == 4) {
+                    release = holdTheWorker();
+                }
+                after(100);
+                if (step % 8 == 7) {
+                    release.countDown();
+                    release = null;
+                }
+                if (release == null) {
+                    workerDone();
+                }
+                int which = (drawn.pixels()[0] & 0xFF) / 20;
+                if (seen.isEmpty() || seen.get(seen.size() - 1) != which) {
+                    seen.add(which);
+                } else {
+                    held++;
+                }
+            }
+        } finally {
+            if (release != null) {
+                release.countDown();
             }
         }
         assertEquals(30, seen.size(), "it never stopped: " + seen);
         for (int i = 1; i < seen.size(); i++) {
             assertEquals((seen.get(i - 1) + 1) % 12, (int) seen.get(i), "every frame in its turn: " + seen);
         }
+        assertTrue(held > 0, "a frame was late, and the one before it stayed: " + seen);
     }
 
     /**

@@ -145,19 +145,39 @@ class UiaEventsTest {
                 + "that flushes what is still owed");
     }
 
+    /**
+     * The offer is made once the taker is blocked in its take, and not after a pause that a loaded
+     * machine may not give it: an offer that came first would be taken without any wait.
+     */
     @Test
     void takeWaitsForAnOfferFromAnotherThread() throws Exception {
         UiaEvents events = new UiaEvents();
+        Thread taker = Thread.currentThread();
+        java.util.concurrent.atomic.AtomicBoolean sawItWait = new java.util.concurrent.atomic.AtomicBoolean();
         Thread offerer = new Thread(() -> {
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException ignored) {
-                return;
+            long deadline = System.nanoTime() + 10_000_000_000L;
+            while (!waitingInTake(taker) && System.nanoTime() < deadline) {
+                Thread.onSpinWait();
             }
+            sawItWait.set(waitingInTake(taker));
             events.offer(focus(42));
         });
         offerer.start();
         assertEquals(42, events.take().nodeId());
         offerer.join();
+        assertTrue(sawItWait.get(), "the offer came while the take was waiting for it");
+    }
+
+    /** Whether {@code thread} is blocked inside {@link UiaEvents#take}. */
+    private static boolean waitingInTake(Thread thread) {
+        if (thread.getState() != Thread.State.WAITING) {
+            return false;
+        }
+        for (StackTraceElement frame : thread.getStackTrace()) {
+            if (frame.getClassName().equals(UiaEvents.class.getName())) {
+                return frame.getMethodName().equals("take");
+            }
+        }
+        return false;
     }
 }

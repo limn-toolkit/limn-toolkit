@@ -1228,10 +1228,13 @@ class TreeTest extends ComponentTestBase {
         Tree<Node> opened = new Tree<>(early);
         opened.expand(lazy);
         assertEquals(1, early.loadCalls);
-        for (int i = 0; i < 50 && early.loadCalls == 1; i++) {
-            Thread.sleep(5); // let the worker finish and post the delivery the tree will refuse
-            runtime.drain();
-        }
+        // The load lands before the attach, or the attach finds it still running and waits for
+        // it instead of asking again. HeadlessUi's one worker runs its tasks in the order they
+        // came, so a task handed to it now has run once the load has, and the load posts its
+        // delivery before it ends: the drain then hands the tree the delivery it refuses.
+        assertEquals(1, ((java.util.concurrent.ThreadPoolExecutor) ui.workers()).getMaximumPoolSize());
+        ui.workers().submit(() -> { }).get(10, java.util.concurrent.TimeUnit.SECONDS);
+        runtime.drain();
         scene = new Scene(opened);
         scene.setTextRuler(RULER);
         scene.layoutPass(220, 200);
