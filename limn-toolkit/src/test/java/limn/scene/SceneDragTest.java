@@ -41,12 +41,18 @@ class SceneDragTest {
     private Row row;
     private java.util.Locale localeBefore;
 
-    /** A box that drags a card when it holds one, and accepts cards when it is a shelf. */
+    /**
+     * A box that drags a card when it holds one, and accepts cards when it is a shelf; one that
+     * marks its refusal shows, without accepting, that it takes no card, as the picker's boards do.
+     */
     private final class Box extends Widget<Box> {
         final String name;
         String card;
         boolean takes;
         boolean rejects;
+        boolean marksRefusal;
+        boolean refusing;
+        int exits;
         int place;
         int paints;
 
@@ -96,11 +102,15 @@ class SceneDragTest {
                 if (event.isKeyboard()) {
                     event.describePlace(name + " place " + place);
                 }
+            } else if (marksRefusal) {
+                refusing = true; // the red edge: says nothing, so the parent is asked next
             }
         }
 
         @Override
         protected void onDragExit(DragEvent event) {
+            exits++;
+            refusing = false;
             log.add(name + ":EXIT");
         }
 
@@ -117,10 +127,40 @@ class SceneDragTest {
         }
     }
 
-    /** Three boxes side by side, 100 wide each: the source, a shelf that accepts, a plain one. */
+    /**
+     * Three boxes side by side, 100 wide each: the source, a shelf that accepts, a plain one. It
+     * takes a card only when told to, the drop none of its children wants, and otherwise marks
+     * that it refuses one when told to, as a panel around widgets that say nothing would.
+     */
     private final class Row extends Widget<Row> {
+        boolean takes;
+        boolean marksRefusal;
+        boolean refusing;
+        int exits;
+        String dropped;
+
         void put(Widget<?> child) {
             add(child);
+        }
+
+        @Override
+        protected void onDragOver(DragEvent event) {
+            if (takes && event.offer().has(CARD)) {
+                event.accept();
+            } else if (marksRefusal) {
+                refusing = true;
+            }
+        }
+
+        @Override
+        protected void onDragExit(DragEvent event) {
+            exits++;
+            refusing = false;
+        }
+
+        @Override
+        protected void onDrop(DropEvent event) {
+            event.offer().read(CARD).thenAccept(value -> dropped = value);
         }
 
         void take(Widget<?> child) {
@@ -206,7 +246,9 @@ class SceneDragTest {
 
         move(150);
         release(150, 0);
-        assertEquals(List.of("shelf:DROP:ace:MOVE:from-source", "source:END:MOVE"), log,
+        // The drag began over the source, which was asked first and refused its own card: it
+        // hears that the pointer left it (ADR 054, amended 2026-10-26).
+        assertEquals(List.of("source:EXIT", "shelf:DROP:ace:MOVE:from-source", "source:END:MOVE"), log,
                 "no click, no exit after a drop, and the source hears what was done");
         assertEquals("ace", shelf.card);
         assertEquals(null, source.card);
@@ -344,7 +386,8 @@ class SceneDragTest {
 
         key(Keys.D, mods);
         assertTrue(scene.isDragging());
-        assertEquals(List.of("source:START:keys"), log);
+        assertEquals(List.of("source:START:keys", "source:EXIT"), log,
+                "asked first whether it takes its own card, the source refused, and the drag moved on");
         List<String> said = scene.queuedAnnouncements();
         assertTrue(said.get(0).startsWith("Dragging ace."), said.toString());
 
@@ -371,5 +414,182 @@ class SceneDragTest {
         said = scene.queuedAnnouncements();
         assertEquals("Drag cancelled.", said.get(said.size() - 1));
         assertEquals("two", source.card);
+    }
+
+    // ---- ADR 054 amended (2026-10-26): every widget the drag was over hears onDragExit, accepted
+    // or not. Until then only the widget that had accepted did, and the picker's board, which
+    // marks in red that it takes no card from that list, kept the red edge after the pointer left
+    // it or the drag ended over it (the Fedora KDE guest, 2026-10-25).
+
+    @Test
+    void aWidgetThatRefusesWithoutAcceptingHearsOneExitWhenThePointerLeavesIt() {
+        plain.marksRefusal = true;
+        press(50);
+        move(250);
+        move(260);
+        move(270);
+        assertTrue(plain.refusing, "it shows that it takes no card");
+        assertEquals(0, plain.exits, "moving within it is not leaving it");
+
+        move(150);
+        assertEquals(1, plain.exits, "the pointer left it, for the shelf");
+        assertFalse(plain.refusing, "and what it drew went");
+
+        release(150, 0);
+        assertEquals("ace", shelf.card);
+        assertEquals(1, plain.exits, "a drop elsewhere after it left tells it nothing more");
+        assertEquals(0, shelf.exits, "the widget handed the drop hears no exit");
+    }
+
+    @Test
+    void aDropRefusedOverAWidgetThatRefusesTellsItOnce() {
+        plain.marksRefusal = true;
+        press(50);
+        move(250);
+        release(250, 0);
+        assertEquals(1, plain.exits);
+        assertFalse(plain.refusing);
+        assertEquals("source:END:null", log.get(log.size() - 1), "nothing took it");
+        assertEquals("ace", source.card);
+    }
+
+    @Test
+    void escapeOverAWidgetThatRefusesTellsItOnce() {
+        plain.marksRefusal = true;
+        press(50);
+        move(250);
+        key(Keys.ESCAPE, 0);
+        assertFalse(scene.isDragging());
+        assertEquals(1, plain.exits);
+        assertFalse(plain.refusing);
+        release(250, 0);
+        assertEquals(1, plain.exits, "the release after it ends nothing more");
+    }
+
+    /**
+     * Which widgets hear it: those the last question reached, from the widget under the pointer
+     * outward through each ancestor asked, up to the one that accepted. A panel around children
+     * that say nothing is asked wherever the pointer is over them, and told when a child under
+     * the pointer answers before it, as when the pointer leaves it.
+     */
+    @Test
+    void aPanelThatRefusesIsToldWhenAChildAnswersFirstAndNotWhileThePointerCrossesItsChildren() {
+        row.marksRefusal = true;
+        press(50);
+        move(60);
+        assertTrue(row.refusing, "over the source, which says nothing, the panel is asked and refuses");
+
+        move(250);
+        assertEquals(1, source.exits, "the pointer left the source");
+        assertEquals(0, row.exits, "still over the panel, still asked");
+        assertTrue(row.refusing);
+
+        move(150);
+        assertEquals(1, row.exits, "the shelf answered before the panel was asked");
+        assertFalse(row.refusing);
+        assertEquals(1, plain.exits);
+
+        release(150, 0);
+        assertEquals("ace", shelf.card);
+        assertEquals(0, shelf.exits, "the widget handed the drop hears no exit");
+        assertEquals(1, row.exits);
+        assertEquals(1, plain.exits);
+        assertEquals(1, source.exits);
+    }
+
+    @Test
+    void aWidgetUnderTheTargetThatRefusedHearsTheExitAtTheDropAndTheTargetDoesNot() {
+        row.takes = true;
+        plain.marksRefusal = true;
+        press(50);
+        move(250);
+        assertTrue(plain.refusing, "it says nothing: the panel around it takes the card");
+        release(250, 0);
+        assertEquals("ace", row.dropped);
+        assertEquals(1, plain.exits, "it was asked, and the drop is not its");
+        assertFalse(plain.refusing);
+        assertEquals(0, row.exits, "the panel was handed the drop");
+    }
+
+    @Test
+    void aWidgetHiddenWhileADragIsOverItHearsThatTheDragLeftIt() {
+        plain.marksRefusal = true;
+        press(50);
+        move(250);
+        plain.setVisible(false);
+        assertEquals(1, plain.exits, "as the hovered widget hears its exit");
+        assertFalse(plain.refusing, "so that its mark is not there when it is shown again");
+        move(260);
+        release(150, 0);
+        assertEquals(1, plain.exits);
+    }
+
+    @Test
+    void theKeyboardTellsAWidgetItWalksPastAtOnceAndItsTargetWhenTheDragMovesOnOrEnds() {
+        plain.marksRefusal = true;
+        scene.requestFocus(source);
+        int mods = Keys.MOD_SHIFT | (limn.backend.Platform.current().isMacOs() ? Keys.MOD_SUPER : Keys.MOD_CONTROL);
+
+        key(Keys.D, mods);
+        assertEquals(1, source.exits, "asked first, the source refused its own card, and the drag moved on");
+
+        key(Keys.TAB, 0);
+        assertEquals(0, shelf.exits, "the shelf took it");
+        key(Keys.TAB, 0);
+        assertEquals(1, plain.exits, "walked past, a widget that refuses is told at once");
+        assertFalse(plain.refusing, "and its refusal is not left drawn");
+        assertEquals(0, shelf.exits, "nothing else took it: it stays on the shelf");
+
+        key(Keys.ESCAPE, 0);
+        assertFalse(scene.isDragging());
+        assertEquals(1, shelf.exits, "called off: the target hears it once");
+
+        key(Keys.D, mods);
+        key(Keys.TAB, 0);
+        key(Keys.ENTER, 0);
+        assertEquals("ace", shelf.card);
+        assertEquals(1, shelf.exits, "the target handed the drop hears no exit");
+    }
+
+    @Test
+    void aDragFromAnotherWindowOrProgramTellsEveryWidgetItWasOver() {
+        plain.marksRefusal = true;
+        limn.backend.spi.WindowInput input = limn.scene.internal.SceneAccess.input(scene);
+        limn.transfer.Offer cards = Transfer.of(CARD, "joker").asOffer();
+        java.util.Set<DropAction> copy = java.util.Set.of(DropAction.COPY);
+
+        input.dragOver(cards, copy, 250, 30);
+        input.dragOver(cards, copy, 260, 30);
+        assertTrue(plain.refusing);
+        assertEquals(0, plain.exits, "moving within it is not leaving it");
+        input.dragOver(cards, copy, 150, 30);
+        assertEquals(1, plain.exits, "left for the shelf");
+        assertFalse(plain.refusing);
+
+        input.dragOver(cards, copy, 250, 30);
+        assertEquals(1, shelf.exits, "the shelf, left in turn");
+        input.dragLeft();
+        assertEquals(2, plain.exits, "the drag left the window");
+        assertFalse(plain.refusing);
+
+        input.dragOver(cards, copy, 250, 30);
+        assertEquals(null, input.dropped(cards, copy, 250, 30), "nothing takes it there");
+        assertEquals(3, plain.exits, "a drop refused over it");
+        assertFalse(plain.refusing);
+
+        input.dragOver(cards, copy, 150, 30);
+        assertEquals(DropAction.COPY, input.dropped(cards, copy, 150, 30));
+        assertEquals("joker", shelf.card);
+        assertEquals(1, shelf.exits, "the widget handed the drop hears no exit");
+        assertEquals(3, plain.exits);
+    }
+
+    @Test
+    void filesDroppedWithNoHoverTellEveryWidgetAskedThatIsNotHandedThem() {
+        plain.marksRefusal = true;
+        drive(scene).filesDropped(List.of(java.nio.file.Path.of("a.txt")), 250, 30);
+        drive(scene).inputBatchEnded();
+        assertEquals(1, plain.exits, "asked once at the drop, and refusing");
+        assertFalse(plain.refusing);
     }
 }

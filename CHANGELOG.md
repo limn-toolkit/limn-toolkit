@@ -649,6 +649,9 @@ Maven Central say which number that was.
   modified PFFFT, {fmt}, the Guidelines Support Library and, on Linux, its RealtimeKit client), and
   `limn-demo/licenses/README.md` says where each comes from. The jar run from its Maven coordinate
   and the theme editor's carry no natives, which arrive in LWJGL's own jars.
+- A widget that shows, without accepting, that it refuses what is dragged over it takes the sign
+  away when the drag leaves it or ends: the picker scene's board kept its red edge after the pointer
+  left it, or after a card was let go over it. See the change to `onDragExit` below.
 
 ### New
 
@@ -2092,6 +2095,17 @@ Maven Central say which number that was.
   no `default`, needs a case for it. A `Material.Surface` input whose name starts with `ir_` is
   refused with an `IllegalArgumentException`, since the generator names its own variables so, and so
   is a surface reading a reference so named that no loop binds; rename the input.
+- `Widget.onDragExit` comes to every widget `onDragOver` reached, whether it accepted or not, so
+  that a widget can clear what it drew without accepting (ADR 054, amended). A question reaches the
+  widget under the pointer and each enabled ancestor in turn up to the one that accepts; each hears
+  the exit once, when a later question no longer reaches it (the pointer left it, or a widget under
+  the pointer accepted first), when the drag is called off or leaves the window, when it is
+  dropped on another widget or let go over this one with nothing taking it, and when the widget
+  is taken out, hidden or disabled meanwhile. In a keyboard drag a widget that does not accept is
+  told at once. A drag from another window or program, and files dropped with no hover, follow
+  the same rule. The widget handed the drop still hears no exit. Only the widget that had accepted
+  heard it before. An `onDragExit` that undoes what its `accept` set without looking whether it
+  was set now runs when nothing was accepted too: clear what is there instead.
 
 ### Known, and left for later
 
