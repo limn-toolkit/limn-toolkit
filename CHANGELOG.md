@@ -10,6 +10,12 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- On Windows, file choosers repair navigation-tree item handles truncated by 32-bit
+  accessibility clients before COMCTL32 uses them: on ARM64 the truncated handle ended the process,
+  and on x64 a reader announced each item of the navigation pane as one of one. On ARM64 their
+  COM threads remain alive and pump messages after closing a chooser, avoiding the
+  apartment-disconnection failure seen under ARM64 Java.
+  Later choosers reuse idle threads; simultaneous choosers on different windows remain independent.
 - Under Java 25 a program runs again. On macOS no window could be made at all, and elsewhere the
   clipboard, drag and drop, the macOS menu bar, tray and printer, and every Wayland data path failed
   or fell back silently. On Java 25 LWJGL makes a native callback with the platform's

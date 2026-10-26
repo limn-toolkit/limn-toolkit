@@ -2,7 +2,6 @@ package limn.backend.lwjgl;
 
 import limn.backend.FileDialogs;
 import limn.concurrent.Ui;
-import limn.concurrent.internal.Threads;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.JNI;
@@ -65,7 +64,6 @@ final class WindowsFileDialogs {
     private static final int FOS_FILEMUSTEXIST = 0x1000;
     private static final long SIGDN_FILESYSPATH = 0x80058000L;
     private static final int CLSCTX_INPROC_SERVER = 1;
-    private static final int COINIT_APARTMENTTHREADED = 2;
     /** {@code HRESULT_FROM_WIN32(ERROR_CANCELLED)}: what {@code Show} answers when the user cancels. */
     private static final int CANCELLED = 0x800704C7;
 
@@ -92,7 +90,7 @@ final class WindowsFileDialogs {
      */
     static void open(long hwnd, WindowFileDialogs.Kind kind, String title, @Nullable Path initial,
                      FileDialogs.@Nullable Filter filter, Consumer<List<Path>> answer) {
-        Threads.daemon("limn-file-dialog", () -> {
+        Runnable request = () -> {
             List<Path> chosen = List.of();
             try {
                 chosen = run(hwnd, kind, title, initial, filter);
@@ -101,9 +99,16 @@ final class WindowsFileDialogs {
             }
             List<Path> result = chosen;
             Ui.post(() -> answer.accept(result));
-        });
+        };
+        try {
+            WindowsFileDialogThread.execute(request);
+        } catch (RuntimeException | LinkageError error) {
+            LOG.log(Level.WARNING, "the Windows file dialog thread could not be started", error);
+            Ui.post(() -> answer.accept(List.of()));
+        }
     }
 
+    @SuppressWarnings("try") // The guard's lifetime encloses all of the dialog's native calls.
     private static List<Path> run(long hwnd, WindowFileDialogs.Kind kind, String title, @Nullable Path initial,
                                   FileDialogs.@Nullable Filter filter) {
         SharedLibrary ole32 = Libraries.OLE32;
@@ -115,8 +120,9 @@ final class WindowsFileDialogs {
         long fromPath = shell32.getFunctionAddress("SHCreateItemFromParsingName");
         // The chooser answers an automation client from this thread; see UiaClientWarmUp.
         UiaClientWarmUp.ensure();
-        int init = JNI.invokePPI(NULL, COINIT_APARTMENTTHREADED, coInitializeEx);
-        try (MemoryStack stack = MemoryStack.stackPush()) {
+        WindowsFileDialogThread.initialize(coInitializeEx);
+        try (MemoryStack stack = MemoryStack.stackPush();
+             WindowsTreeViewGuard guard = WindowsTreeViewGuard.install()) {
             boolean save = kind == WindowFileDialogs.Kind.SAVE;
             ByteBuffer clsid = guid(stack, save ? CLSID_FILE_SAVE_DIALOG : CLSID_FILE_OPEN_DIALOG);
             ByteBuffer iid = guid(stack, save ? IID_FILE_SAVE_DIALOG : IID_FILE_OPEN_DIALOG);
@@ -183,7 +189,7 @@ final class WindowsFileDialogs {
                 release(dialog);
             }
         } finally {
-            if (init >= 0) {
+            if (!WindowsFileDialogThread.PERSISTENT) {
                 JNI.invokeV(coUninitialize);
             }
         }
