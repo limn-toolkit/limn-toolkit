@@ -82,8 +82,8 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
      * Sets the window icon (title bar / taskbar) from one or more candidate
      * sizes; the platform picks the closest (16–48px covers the common slots).
      * No-op where the platform has no per-window icons (macOS uses the app
-     * bundle's icon; some Wayland compositors ignore it). The default
-     * implementation ignores it (headless/embedding). UI thread only.
+     * bundle's icon; a Wayland desktop shows the application entry's). The
+     * default implementation ignores it (headless/embedding). UI thread only.
      */
     default void setIcon(limn.graphics.Image... icons) {
     }
@@ -217,8 +217,9 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
      * Sets the whole-window opacity in {@code [0..1]} at the compositor level,
      * the fade primitive behind {@link limn.scene.Scene#fadeWindow}. Affects
      * the entire window uniformly, decorations included. A no-op where the
-     * platform's compositor does not support per-window opacity; the default
-     * implementation ignores it (headless/embedding). UI thread only.
+     * platform's compositor does not support per-window opacity, and under
+     * Wayland, which gives a program none; the default implementation ignores
+     * it (headless/embedding). UI thread only.
      */
     default void setOpacity(float opacity) {
     }
@@ -449,7 +450,9 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
      * this window's content area. No input event is synthesized; the next real
      * mouse event reflects the new position. Useful with
      * {@link PointerMode#RELATIVE} interactions and edge-wrap schemes; may be
-     * restricted by the platform while the window is unfocused. UI thread only.
+     * restricted by the platform while the window is unfocused, and does
+     * nothing under Wayland, which lets no program move the pointer. UI thread
+     * only.
      */
     default void setCursorPosition(float x, float y) {
     }

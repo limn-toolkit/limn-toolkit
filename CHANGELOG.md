@@ -649,6 +649,12 @@ Maven Central say which number that was.
   modified PFFFT, {fmt}, the Guidelines Support Library and, on Linux, its RealtimeKit client), and
   `limn-demo/licenses/README.md` says where each comes from. The jar run from its Maven coordinate
   and the theme editor's carry no natives, which arrive in LWJGL's own jars.
+- Under Wayland a window's fade, its icon, its place in the always-on-top band and a pointer moved
+  by the program no longer print a stack trace to standard error. Wayland gives a program none of
+  the four, and GLFW refuses each with an error the backend printed: one at every step of a fade,
+  twelve in a run that opened one dialog. The calls are no longer made there, as the
+  window-position calls already were not. A fade still keeps its time and runs its callback, the
+  window simply staying opaque; the desktop shows the application entry's icon.
 - A widget that shows, without accepting, that it refuses what is dragged over it takes the sign
   away when the drag leaves it or ends: the picker scene's board kept its red edge after the pointer
   left it, or after a card was let go over it. See the change to `onDragExit` below.

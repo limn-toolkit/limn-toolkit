@@ -1001,7 +1001,11 @@ final class LwjglWindow implements WindowPeer {
             return;
         }
         floating = want;
-        org.lwjgl.glfw.GLFW.glfwSetWindowAttrib(handle, GLFW_FLOATING, want ? GLFW_TRUE : GLFW_FALSE);
+        // Wayland has no always-on-top band for a client: GLFW ignores the creation hint there
+        // and refuses this call with an error the callback prints (honoursWindowRequests).
+        if (LwjglBackend.honoursWindowRequests()) {
+            org.lwjgl.glfw.GLFW.glfwSetWindowAttrib(handle, GLFW_FLOATING, want ? GLFW_TRUE : GLFW_FALSE);
+        }
     }
 
     /** Requests user attention (dock bounce / taskbar flash) for a modal. */
@@ -1481,6 +1485,11 @@ final class LwjglWindow implements WindowPeer {
         if (MACOS) {
             return; // macOS windows have no per-window icon (the app bundle's is used)
         }
+        if (!LwjglBackend.honoursWindowRequests()) {
+            // Nor has a Wayland client: the desktop shows its application entry's icon, and GLFW
+            // refuses the call with an error the callback prints (honoursWindowRequests).
+            return;
+        }
         // Icon pixels go on the heap, not the MemoryStack: a 256px RGBA icon
         // (256 KB) would overflow it. GLFW copies the data before returning.
         java.util.List<ByteBuffer> pixelBuffers = new java.util.ArrayList<>(icons.length);
@@ -1663,9 +1672,13 @@ final class LwjglWindow implements WindowPeer {
             return;
         }
         opacity = clamped;
-        // Compositor-level, whole-window alpha (frame + content). Silently
-        // unavailable on some platforms (e.g. Wayland); GLFW just no-ops there.
-        glfwSetWindowOpacity(handle, clamped);
+        // Compositor-level, whole-window alpha (frame + content). Wayland gives a client none:
+        // GLFW refuses the call there with an error the callback prints, at every step of a
+        // fade, so it is not made, and a fade's window stays opaque (honoursWindowRequests).
+        // The value kept above still dedupes the steps; the scene's fade keeps its own time.
+        if (LwjglBackend.honoursWindowRequests()) {
+            glfwSetWindowOpacity(handle, clamped);
+        }
     }
 
     // Pointer mode + relative-capture delta state (see the cursor-pos callback).
@@ -1806,6 +1819,11 @@ final class LwjglWindow implements WindowPeer {
     public void setCursorPosition(float x, float y) {
         backend.uiRuntime().checkUiThread();
         if (destroyed) {
+            return;
+        }
+        if (!LwjglBackend.honoursWindowRequests()) {
+            // Wayland lets no client move the pointer: GLFW refuses the call with an error the
+            // callback prints (honoursWindowRequests), and the pointer stays where it is.
             return;
         }
         // Inverse of toLogical: logical points → native screen coordinates.

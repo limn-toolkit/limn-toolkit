@@ -8402,7 +8402,9 @@ public final class Scene {
      * fade asked for again in its own {@code onArrive} does not recurse, and
      * one that asked for seconds keeps its pace while the loop sleeps between
      * steps. A window closed before then runs it as it closes, as it runs a
-     * fade's in flight. UI thread only.
+     * fade's in flight. Under Wayland, which gives a program no window
+     * opacity, nothing shows, and the fade keeps the same time and runs
+     * {@code onArrive} the same way. UI thread only.
      */
     public void fadeWindow(float target, double seconds, @Nullable Runnable onArrive) {
         float clamped = Math.max(0f, Math.min(1f, target));
