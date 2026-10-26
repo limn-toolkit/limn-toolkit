@@ -114,3 +114,27 @@ macOS is about.
 - The shared rows engine of ADR 055 is measured: the three lists cost the rows on screen.
 - A test of an application can hold its own screens to the same: `takeFrameRequests()` for
   rest, `scene.metrics().paintedWidgets()` for a frame, `AllocationProbe` for bytes.
+
+## Note, 2026-10-25: two construction checks and the hostile SVGs are counted too
+
+Two tests still held the toolkit's work to a clock, and both failed on a loaded machine with
+nothing changed. `SurfaceBudgetTest` held the shader IR's checks of a chain of a thousand loops
+and of a nest two hundred deep to two seconds each; `SvgHostileCorpusTest` held the refusal of
+each hostile file to one (1,235 ms once, the count that refuses it in place).
+
+- **Nodes walked.** Every walk of the shader IR in its package (the checks of a loop and of a
+  surface, hashing and comparing) takes a node's children from one method, and a test asks
+  `Loops.walked` how many it took while its code ran, a count kept on that thread only while one
+  asks. Each loop of the chain and of the nest is held, as it is built, to a multiple of what it
+  holds: fourteen nodes for each link of the chain it ends (it walks twelve), sixteen for each
+  loop under it and state the innermost adds up (at most 13.5). The constructions those tests
+  were written against walked what a loop holds once again for every loop under it, and fail at
+  the fourth and the third loop, in milliseconds, where they took 40 s and 11.8 s. The counts
+  were the same with the virtual machine's compiler off, 24 s for what takes 0.6.
+- **The count that refuses.** Each hostile file that spent the SVG reader without bound is held
+  to being refused by the count of its kind of work, named in the refusal: var() substitution's
+  writing, the steps of working out a SMIL chain or of matching a sheet, a selector's compounds,
+  a sheet's selectors.
+
+What §3 declares stays so. The SVG tests that read a crafted file within seconds guard the cost
+of a step that is charged as one, which only a clock sees, and keep their bounds.

@@ -19,13 +19,15 @@ import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The hostile SVGs an audit wrote against the toolkit's own reading (ADR 061, ADR 066 section 6),
  * kept so that {@code check} goes on answering each as it was made to: one that reached for a
  * file is read with no path left for the renderer, at any moment of its animation; one that
- * spent the reader's memory or time without bound is refused as damaged content, quickly.
+ * spent the reader's memory or time without bound is refused as damaged content, by the count
+ * that bounds that work.
  */
 class SvgHostileCorpusTest {
 
@@ -33,8 +35,6 @@ class SvgHostileCorpusTest {
 
     /** Longer than any of these takes to be read once its work is done once; far shorter than any took before. */
     private static final long QUICKLY_NANOS = 2_000_000_000L;
-    /** Longer than any of these takes to be refused (half a second at most); far shorter than any took before. */
-    private static final long REFUSED_NANOS = 1_000_000_000L;
 
     private static final Pattern REFERENCE = Pattern.compile("([\\w:-]*href)=\"([^\"]*)\"", Pattern.CASE_INSENSITIVE);
 
@@ -85,11 +85,21 @@ class SvgHostileCorpusTest {
         }
     }
 
+    /**
+     * Files that ran the heap out or held the reader for tens of seconds inside every other
+     * ceiling: each is refused by the count of its kind of work, named in the refusal, which is
+     * the same number on every machine. Until 2026-10-25 each was held to a second, which a
+     * loaded machine overran with the count in place (sv3-smil-chain.svg, 1,235 ms).
+     */
     @ParameterizedTest
-    @ValueSource(strings = {"sv2-var-multiplies.svg", "sv3-smil-chain.svg", "sv3-deep-selector-budget.svg",
-            "sv3-long-selector.svg"})
-    void aFileThatSpentTheReaderWithoutBoundIsRefusedQuickly(String name) throws IOException {
-        refusedQuickly(file(name), name);
+    @CsvSource(delimiter = '|', value = {
+            "sv2-var-multiplies.svg | var() substitution writes more than its file can back",
+            "sv3-smil-chain.svg | working out when the animations begin takes more than 4000000 steps",
+            "sv3-deep-selector-budget.svg | matching the style sheets takes more than 4000000 steps",
+            "sv3-long-selector.svg | a selector of more than 32 compounds"})
+    void aFileThatSpentTheReaderWithoutBoundIsRefusedByTheCountThatBoundsIt(String name, String count)
+            throws IOException {
+        refusedByTheCount(file(name), name, count);
     }
 
     /**
@@ -280,7 +290,8 @@ class SvgHostileCorpusTest {
             }
         }
         svg.append(shape.equals("oneRule") ? "{fill:red}" : "").append("</style><g class='x'/></svg>");
-        refusedQuickly(svg.toString().getBytes(StandardCharsets.UTF_8), shape);
+        refusedByTheCount(svg.toString().getBytes(StandardCharsets.UTF_8), shape,
+                "style sheets of more than 100000 selectors");
     }
 
     private static String repeat(char c, int n) {
@@ -289,14 +300,15 @@ class SvgHostileCorpusTest {
         return new String(chars);
     }
 
-    static void refusedQuickly(byte[] svg, String name) {
-        long start = System.nanoTime();
-        try {
-            SvgSource.read(svg, null);
-            throw new AssertionError(name + " was read");
-        } catch (MalformedContentException expected) {
-            long took = System.nanoTime() - start;
-            assertTrue(took < REFUSED_NANOS, name + " took " + took / 1_000_000 + " ms to refuse");
-        }
+    /**
+     * Reads {@code svg} and expects it refused by the count whose refusal reads {@code count}: the
+     * work cut off at a number, which no machine's load moves (ADR 062), and not by some other
+     * ceiling, nor read whole.
+     */
+    static void refusedByTheCount(byte[] svg, String name, String count) {
+        MalformedContentException refused = assertThrows(MalformedContentException.class,
+                () -> SvgSource.read(svg, null), name + " was read");
+        assertTrue(refused.getMessage().contains(count), name + " was refused by another ceiling: "
+                + refused.getMessage());
     }
 }
