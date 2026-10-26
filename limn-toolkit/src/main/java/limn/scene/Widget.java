@@ -3495,11 +3495,14 @@ public abstract class Widget<W extends Widget<W>> {
     /**
      * A drag is over this widget, or has moved on it. A widget that would take what is offered
      * calls {@code event.accept()} and marks where the drop would land; one that says nothing
-     * passes the question to its parent. It is asked again on every move, so that the answer can
-     * depend on the place, and again when the content under a still pointer scrolls: a pointer
-     * drag resting near an edge of a scrolling view it is over, or past one, scrolls that view.
-     * Files dragged in from the system arrive the same way, their offer holding
-     * {@code DataFormat.FILES}. Default: says nothing.
+     * passes the question to its parent, and may show that it refuses. The question goes to the
+     * widget under the pointer and then to each enabled ancestor in turn, up to the first that
+     * accepts. It is asked again on every move, so that the answer can depend on the place, and
+     * again when the content under a still pointer scrolls: a pointer drag resting near an edge
+     * of a scrolling view it is over, or past one, scrolls that view. In a keyboard drag only the
+     * widget the drag key, Tab or an arrow brings the drag to is asked. Files dragged in from the
+     * system arrive the same way, their offer holding {@code DataFormat.FILES}. Whatever this
+     * draws, accepting or not, {@link #onDragExit} takes away. Default: says nothing.
      *
      * @param event what is offered and where
      */
@@ -3507,9 +3510,17 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
-     * The drag this widget had accepted has left it, was cancelled, or was accepted by another
-     * widget: whatever marked the place of the drop goes. Not called after {@link #onDrop}.
-     * Default: nothing.
+     * The drag this widget was last asked about in {@link #onDragOver} is no longer over it,
+     * whether it accepted or not: whatever it drew for the drag goes, the mark of the drop's
+     * place or the sign that it refuses. It comes once, at the first of these: a move whose
+     * question no longer reaches this widget (the pointer left it, or a widget under the pointer
+     * accepted before it was asked); the drag called off, by Escape, another button, the window
+     * losing the focus or the source leaving; the drag leaving the window; the drop, on another
+     * widget or over this one with no widget taking it; this widget taken out of the scene,
+     * hidden or disabled while the drag is over it. In a keyboard drag a widget that does not
+     * accept hears it at once, the drag going on to the next, and the target when the drag moves
+     * on or ends. A drag from another window or program is told the same. Never after
+     * {@link #onDrop}: the widget handed the drop hears no exit. Default: nothing.
      *
      * @param event the drag as it leaves
      */

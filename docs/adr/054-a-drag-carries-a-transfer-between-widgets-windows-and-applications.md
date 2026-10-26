@@ -66,7 +66,8 @@ public final class Drag {
   the actions the source allows, and the source widget when the drag began in this process. A
   widget that calls `accept` is the target: it draws its own feedback (an insertion line, a
   highlighted row) and gets `onDragExit` when it stops being one. With nobody accepting, the
-  pointer shows that nothing can be dropped.
+  pointer shows that nothing can be dropped. (Amended on 2026-10-26: every widget asked gets
+  `onDragExit`, accepted or not; see the amendment at the end.)
 - **The action follows the platform's modifiers** (Ctrl copies and Shift moves on Windows and
   Linux, Option copies on macOS), within what the source allows and the target accepted.
 - **The drop reads, then reports.** `onDrop` reads from `event.offer()` (asynchronously when the
@@ -180,7 +181,8 @@ Step 3, the scene's driver (`Scene`, `limn.scene.event`, `limn.transfer.Drag`), 
   is right for a drag within the process, whose values are at hand, and is what step 6 has to
   keep true for another program's.
 - **No `onDragExit` follows `onDrop`.** The widget clears what marked the place in one or the
-  other, never both.
+  other, never both. (Still so for the widget handed the drop after 2026-10-26, when the widgets
+  under it that refused began to hear theirs; see the amendment at the end.)
 - **What is dragged is shown under the pointer as it is painted.** The owner tried a first build
   that showed a plain rectangle and asked for the item itself. `Drag.preview(x, y, width, height)`
   names the part of the source widget that is dragged (a card, a row, a header), and the scene
@@ -720,3 +722,56 @@ The review of the follow (2026-10-20, R11C):
   person (a new drag needs a release and a press within one round trip of the UI thread); each
   ordinary answer now also checks that the drag it was computed for is still the one over the
   window, the followed one included. By reading; nothing here can run the two native paths.
+
+Who hears `onDragExit`, amended (2026-10-26, the owner's decision after a run of the picker
+scene on the Fedora KDE guest on 2026-10-25). A board of `--scene picker` that takes no card from
+the other list marks that in red in `onDragOver`, without accepting, and takes the mark away in
+`onDragExit`. Under §2 only the widget that had accepted heard the exit, so the red edge stayed
+after the pointer left the board, and after a drop refused over it, until the board next accepted
+a card. A widget must be able to clear what it drew without accepting, and that is the common
+contract of desktop toolkits: a target hears that the drag left whether it said yes or not. What
+replaces the rule:
+
+- **Every widget `onDragOver` reached hears `onDragExit` once, accepted or not.** A question goes
+  to the widget under the pointer and to each enabled ancestor in turn, up to and including the
+  one that accepts, or to the root when none does; those widgets are what the drag is over. Each
+  hears the exit when a later question no longer reaches it (the pointer left it, or a widget
+  under the pointer accepted before it was asked) or when the drag ends without dropping on it:
+  called off by Escape, another button, the window losing the focus or the source leaving the
+  scene; dropped on another widget; let go over it with no widget taking it; or, for a drag the
+  system drives, gone from the window or ended. A widget taken out of the scene, hidden or
+  disabled while the drag is over it hears it too, as the hovered widget hears its `EXIT`, so
+  that what it drew is not there when it comes back.
+- **The widgets the question reached, and not every widget under the pointer.** A panel around
+  children that say nothing is asked wherever the pointer is over them and none of them accepted,
+  so it can mark its own refusal and keep the mark while the pointer crosses its children; and it
+  is told the moment a child under the pointer answers first, which makes its mark as stale as
+  the pointer leaving it would. Every ancestor of the widget under the pointer, as with the hover,
+  would tell widgets above the target that were never asked and drew nothing, and keep the
+  panel's refusal showing beside a child's acceptance. And it costs nothing new: they are the
+  widgets the question visited on that move anyway, at most the depth of the tree, compared with
+  those of the move before.
+- **No `onDragExit` follows `onDrop` still holds for the widget handed the drop.** The widgets
+  under it that refused hear their exit first, then the target its drop.
+- **The keyboard's drag is over one widget at a time.** A widget asked that does not accept, as
+  Tab walks past it, or a source asked first whether it takes its own content, hears its exit at
+  once. The target hears it when the drag moves on to another widget or ends without dropping on
+  it, and not when it refuses an arrow that leads nowhere, since the drag stays there.
+- **A drag from another window or program follows the same rule.** The widgets each report of
+  the system reached hear the exit when a later report no longer reaches them, when the drag
+  leaves the window, and at a drop that is not theirs; files from GLFW's own drop, with no hover
+  before it, ask the widgets once, and each one asked that is not handed them is told.
+- **The exits are told in the order asked**, the widget under the pointer before its ancestors,
+  after the question that moved the drag. Each is told even when one throws, and the first throw
+  is rethrown once the step is complete.
+- What it costs an application: an `onDragExit` that undoes what its `accept` set, without
+  looking whether it was set, now also runs when nothing was accepted. The toolkit's own
+  (`ListView`, `Tree`, `Table`) and the demo's (the picker's boards and drop area, the guide's
+  lane) clear what is there and needed no change.
+
+`SceneDragTest` holds each case: the pointer leaving a widget that refuses, a drop refused over
+it, Escape, a panel told when a child answers first and not while the pointer crosses its
+children, a widget under the target at the drop, a widget hidden in the middle of a drag, the
+keyboard's walk and its target, a drag from another window, and files dropped with no hover;
+`PickerBoardRefusalTest` the board itself, whose code did not change. Each fails under the rule
+it replaces.

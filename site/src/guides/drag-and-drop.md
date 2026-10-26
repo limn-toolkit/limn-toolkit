@@ -176,6 +176,14 @@ passes the question to its parent, which is how a whole panel takes a drop that 
 children wants. Mark where the drop would land, and unmark it in both `onDragExit` and `onDrop`,
 since no exit follows a drop.
 
+A widget that shows it refuses, a red edge on a column that takes nothing from that list, clears
+the sign in `onDragExit` too. Every widget asked hears it once the drag is no longer over it,
+whether it accepted or not: the pointer left it, a child under the pointer answered first, the
+drag was called off or left the window, it was dropped somewhere else, or it was let go over
+this widget with nothing taking it. A panel around children that say nothing is asked wherever
+the pointer is over them, so it keeps its sign while the pointer crosses them. In a keyboard drag
+a widget that refuses is told at once, as Tab walks on past it.
+
 `event.accept()` takes what the user is asking for; `event.accept(DropAction.COPY)` insists on
 one action among those the source allows, for a target that only ever copies.
 

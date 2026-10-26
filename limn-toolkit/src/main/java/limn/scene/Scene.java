@@ -3853,21 +3853,80 @@ public final class Scene {
             timedDispatch(oldPressed, new MouseEvent(MouseEvent.Type.RELEASE, capturedX, capturedY,
                     oldButton, 0, 0, 0));
         }
+        // A drag whose source is gone ends, if the scene drives it. A widget a drag was over that
+        // goes hears that the drag left it, as the hovered one hears its EXIT, so that what it
+        // drew is not still there when it comes back; a drag whose target went has nowhere to
+        // land until the pointer finds another.
+        Throwable leaving = null;
         DragSession dragging = dragSession;
         if (dragging != null) {
-            // A drag whose source is gone has nobody to tell; one whose target is gone has
-            // nowhere to land until the pointer finds another.
-            if (isInSubtree(dragging.source, widget)) {
-                finishDrag(false);
-            } else if (isInSubtree(dragging.target, widget)) {
-                dragging.target = null;
-                dragging.action = null;
-                applyCursor();
+            if (isInSubtree(dragging.source, widget) && !dragging.system) {
+                try {
+                    finishDrag(false);
+                } catch (RuntimeException | Error error) {
+                    leaving = HandlerFailures.add(leaving, error);
+                }
+            } else {
+                Widget<?> target = dragging.target;
+                List<Widget<?>> gone = takeOut(dragging, widget);
+                if (dragging.target != target) {
+                    applyCursor();
+                }
+                if (!gone.isEmpty()) {
+                    Throwable thrown = leave(gone, null, dragEvent(dragging, 0, 0));
+                    if (thrown != null) {
+                        leaving = HandlerFailures.add(leaving, thrown);
+                    }
+                }
+            }
+        }
+        Incoming in = incoming;
+        if (in != null) {
+            List<Widget<?>> gone = takeOut(in, widget);
+            if (!gone.isEmpty()) {
+                Throwable thrown = leave(gone, null, incomingEvent(in));
+                if (thrown != null) {
+                    leaving = HandlerFailures.add(leaving, thrown);
+                }
             }
         }
         if (isInSubtree(focused, widget)) {
             setFocus(null, Change.Origin.ADJUSTMENT); // hidden, disabled or detached under it
         }
+        HandlerFailures.rethrow(leaving);
+    }
+
+    /**
+     * Takes the widgets of {@code subtree} out of what a drag is over, and its target with them
+     * when it is one.
+     *
+     * @return the widgets taken out, in the order they were reached
+     */
+    private static List<Widget<?>> takeOut(DragOver over, Widget<?> subtree) {
+        List<Widget<?>> gone = null;
+        List<Widget<?>> kept = null;
+        List<Widget<?>> reached = over.reached;
+        for (int i = 0; i < reached.size(); i++) {
+            Widget<?> w = reached.get(i);
+            if (isInSubtree(w, subtree)) {
+                if (gone == null) {
+                    gone = new ArrayList<>();
+                    kept = new ArrayList<>(reached.subList(0, i));
+                }
+                gone.add(w);
+            } else if (kept != null) {
+                kept.add(w);
+            }
+        }
+        if (gone == null) {
+            return List.of();
+        }
+        over.reached = kept;
+        if (isInSubtree(over.target, subtree)) {
+            over.target = null;
+            over.action = null;
+        }
+        return gone;
     }
 
     /**
@@ -6348,14 +6407,31 @@ public final class Scene {
      */
     private @Nullable String dragBeginning;
 
+    // ADR 054, amended 2026-10-26: every widget a drag was over hears onDragExit, accepted or not.
+    /**
+     * Who a drag over this window is over: the widgets its last {@code onDragOver} reached, and
+     * the one among them that accepted.
+     */
+    private abstract static class DragOver {
+        /** The widget that accepted the last ask, and with it the last of {@link #reached}; or null. */
+        @Nullable Widget<?> target;
+        limn.transfer.@Nullable DropAction action;
+        /**
+         * The widgets the last ask reached, in the order asked: from the widget under the pointer
+         * outward through its enabled ancestors, up to the one that accepted or to the root when
+         * none did; in a keyboard drag, its target alone. Each hears {@code onDragExit} once, when
+         * an ask no longer reaches it or the drag ends without dropping on it, accepted or not.
+         * Replaced, never changed in place, so a list handed to {@link #leave} stays as it was.
+         */
+        List<Widget<?>> reached = List.of();
+    }
+
     /** A drag the scene drives: what is carried, who began it, and who would take it now. */
-    private static final class DragSession {
+    private static final class DragSession extends DragOver {
         final limn.transfer.Drag drag;
         final Widget<?> source;
         final limn.transfer.Offer offer;
         final boolean keyboard;
-        @Nullable Widget<?> target;
-        limn.transfer.@Nullable DropAction action;
         float x;
         float y;
         // The part of the source painted under the pointer, in the source's coordinates, and
@@ -6506,32 +6582,117 @@ public final class Scene {
         session.x = x;
         session.y = y;
         DragEvent event = dragEvent(session, 0, 0);
-        Widget<?> acceptor = null;
-        for (Widget<?> w = hitAt(x, y); w != null && acceptor == null; w = w.parent()) {
-            if (w.isEnabled()) {
-                w.dispatchDragOver(event);
-                if (event.isAccepted()) {
-                    acceptor = w;
-                }
-            }
+        List<Widget<?>> before = session.reached;
+        List<Widget<?>> asked = new ArrayList<>();
+        Widget<?> acceptor = askBubbling(hitAt(x, y), event, asked);
+        if (dragSession != session) {
+            // A handler ended the drag while it was asked, and the end told what it was over
+            // before: what this ask reached besides is left at once.
+            HandlerFailures.rethrow(leave(asked, before, dragEvent(session, 0, 0)));
+            return;
         }
-        retarget(session, acceptor, event.acceptedAction());
+        Throwable failed = retarget(session, asked, acceptor, event.acceptedAction());
         damageDragImage();
         armAutoScroll();
         scheduleFrame();
+        HandlerFailures.rethrow(failed);
     }
 
-    private void retarget(DragSession session, @Nullable Widget<?> acceptor,
-            limn.transfer.@Nullable DropAction action) {
-        Widget<?> before = session.target;
-        session.target = acceptor;
-        session.action = action;
-        if (before != null && before != acceptor) {
-            before.dispatchDragExit(dragEvent(session, 0, 0));
+    /**
+     * Asks {@code from} and its enabled ancestors in turn whether they take the drag, up to the
+     * first that accepts, noting each one asked.
+     *
+     * @param asked filled with the widgets asked, in order
+     * @return the widget that accepted, or null
+     */
+    private static @Nullable Widget<?> askBubbling(@Nullable Widget<?> from, DragEvent event,
+            List<Widget<?>> asked) {
+        for (Widget<?> w = from; w != null; w = w.parent()) {
+            if (w.isEnabled()) {
+                asked.add(w);
+                w.dispatchDragOver(event);
+                if (event.isAccepted()) {
+                    return w;
+                }
+            }
         }
+        return null;
+    }
+
+    /**
+     * Makes {@code asked} what the drag is over, and tells each widget the last ask reached that
+     * this one did not that the drag left it, the deepest first. The drag's state changes before
+     * anyone is told, the reentrancy-safe order.
+     *
+     * @return what the handlers threw, for the caller to rethrow once its own work is done, or null
+     */
+    private @Nullable Throwable retarget(DragSession session, List<Widget<?>> asked,
+            @Nullable Widget<?> acceptor, limn.transfer.@Nullable DropAction action) {
+        Widget<?> before = session.target;
+        List<Widget<?>> was = reach(session, asked, acceptor, action);
         if (before != acceptor) {
             applyCursor();
         }
+        return was.isEmpty() ? null : leave(was, asked, dragEvent(session, 0, 0));
+    }
+
+    /** The drag reaches nothing now: every widget it reached hears that it left. */
+    private @Nullable Throwable retargetNowhere(DragSession session) {
+        return retarget(session, List.of(), null, null);
+    }
+
+    /**
+     * Makes {@code asked} what a drag is over and {@code acceptor} its target.
+     *
+     * @return what it was over before, for {@link #leave}
+     */
+    private static List<Widget<?>> reach(DragOver over, List<Widget<?>> asked, @Nullable Widget<?> acceptor,
+            limn.transfer.@Nullable DropAction action) {
+        List<Widget<?>> was = over.reached;
+        over.target = acceptor;
+        over.action = action;
+        over.reached = asked;
+        return was;
+    }
+
+    /**
+     * Tells each widget of {@code was} that {@code kept} does not hold that the drag left it, in
+     * the order of {@code was}: the widget under the pointer before its ancestors. Every one is
+     * told even when one throws; the first throw is handed back with the later ones in it.
+     *
+     * @param kept the widgets the drag is still over, or null for none
+     * @return what the handlers threw, for the caller to rethrow once its own work is done, or null
+     */
+    private static @Nullable Throwable leave(List<Widget<?>> was, @Nullable List<Widget<?>> kept,
+            DragEvent event) {
+        Throwable failed = null;
+        for (Widget<?> w : was) {
+            if (kept != null && holdsSame(kept, w)) {
+                continue;
+            }
+            try {
+                w.dispatchDragExit(event);
+            } catch (RuntimeException | Error error) {
+                failed = HandlerFailures.add(failed, error);
+            }
+        }
+        return failed;
+    }
+
+    /** As {@link #leave}, but for one widget, the one handed the drop, or for none when it is null. */
+    private static @Nullable Throwable leaveAllBut(List<Widget<?>> was, @Nullable Widget<?> dropped,
+            DragEvent event) {
+        return leave(was, dropped == null ? null : List.of(dropped), event);
+    }
+
+    /** Whether {@code widgets} holds {@code widget} itself: by identity, as a widget is no value. */
+    private static boolean holdsSame(List<Widget<?>> widgets, Widget<?> widget) {
+        for (Widget<?> w : widgets) {
+            if (w == widget) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Ends the drag in flight: a drop on the widget that accepts it, or nothing at all. */
@@ -6546,14 +6707,20 @@ public final class Scene {
         limn.transfer.DropAction done = null;
         Widget<?> target = session.target;
         limn.transfer.DropAction action = session.action;
+        List<Widget<?>> reached = session.reached;
+        session.target = null;
+        session.action = null;
+        session.reached = List.of();
+        boolean drops = target != null && drop && action != null;
         long saidBefore = announced;
-        if (target != null && drop && action != null) {
+        // Every widget the drag was over hears that it left, the one that takes the drop aside:
+        // those under it that refused, or all of them when nobody takes it.
+        Throwable failed = leaveAllBut(reached, drops ? target : null, dragEvent(session, 0, 0));
+        if (drops) {
             DropEvent event = new DropEvent(session.x, session.y, modifiers, session.keyboard,
                     session.offer, action, session.source);
             target.dispatchDrop(event);
             done = event.isRejected() ? null : action;
-        } else if (target != null) {
-            target.dispatchDragExit(dragEvent(session, 0, 0));
         }
         // A target that said where what it took went ("Total, 3 of 12") has said the outcome,
         // and "Dropped" after it would cut that off.
@@ -6567,27 +6734,27 @@ public final class Scene {
             updateHover(hitAt(mouseX, mouseY));
         }
         scheduleFrame();
+        HandlerFailures.rethrow(failed);
     }
 
     /**
      * What another program dragged is dropped on the window: the widget under the point is asked
-     * whether it takes it, and handed it at once if it does.
+     * whether it takes it, and handed it at once if it does. Each widget asked that is not handed
+     * it hears that the drag left, as over a drag that hovered first.
      */
     private void dropFromOutside(limn.transfer.Offer offer, java.util.Set<limn.transfer.DropAction> allowed,
             float x, float y) {
-        DragEvent over = new DragEvent(x, y, modifiers, false, 0, 0, offer, allowed,
-                proposedAction(allowed, modifiers), null);
-        for (Widget<?> w = hitAt(x, y); w != null; w = w.parent()) {
-            if (!w.isEnabled()) {
-                continue;
-            }
-            w.dispatchDragOver(over);
-            limn.transfer.DropAction action = over.acceptedAction();
-            if (action != null) {
-                w.dispatchDrop(new DropEvent(x, y, modifiers, false, offer, action, null));
-                return;
-            }
+        limn.transfer.DropAction proposed = proposedAction(allowed, modifiers);
+        DragEvent over = new DragEvent(x, y, modifiers, false, 0, 0, offer, allowed, proposed, null);
+        List<Widget<?>> asked = new ArrayList<>();
+        Widget<?> acceptor = askBubbling(hitAt(x, y), over, asked);
+        limn.transfer.DropAction action = over.acceptedAction();
+        Throwable failed = leaveAllBut(asked, acceptor,
+                new DragEvent(x, y, modifiers, false, 0, 0, offer, allowed, proposed, null));
+        if (acceptor != null && action != null) {
+            acceptor.dispatchDrop(new DropEvent(x, y, modifiers, false, offer, action, null));
         }
+        HandlerFailures.rethrow(failed);
     }
 
     // ---- the keyboard's drag
@@ -6655,16 +6822,24 @@ public final class Scene {
         session.x = middle.x();
         session.y = middle.y();
         DragEvent event = dragEvent(session, stepX, stepY);
+        boolean wasTarget = session.target == widget;
         widget.dispatchDragOver(event);
-        if (!event.isAccepted()) {
+        boolean live = dragSession == session;
+        if (!event.isAccepted() || !live) {
             session.x = wasX;
             session.y = wasY;
-            if (!keep && session.target == widget) {
-                retarget(session, null, null);
+            if (!wasTarget) {
+                // Asked and passed by: the drag stays where it was or walks on to the next, or a
+                // handler ended it meanwhile. The keyboard's drag is over one widget at a time.
+                widget.dispatchDragExit(dragEvent(session, 0, 0));
+            } else if (live && !keep) {
+                HandlerFailures.rethrow(retargetNowhere(session));
             }
+            // The target refusing an arrow that leads nowhere stays the target; one whose drag a
+            // handler ended was told as it ended.
             return false;
         }
-        retarget(session, widget, event.acceptedAction());
+        Throwable failed = retarget(session, List.of(widget), widget, event.acceptedAction());
         String place = event.place();
         if (place == null) {
             limn.i18n.I18nString name = widget.accessibleName();
@@ -6679,6 +6854,7 @@ public final class Scene {
         dragBeginning = null;
         announce(beginning == null ? place : beginning + " " + place,
                 limn.accessibility.Accessible.Politeness.ASSERTIVE);
+        HandlerFailures.rethrow(failed);
         return true;
     }
 
@@ -6723,9 +6899,7 @@ public final class Scene {
     // ---- a drag the system drives
 
     /** What another program is dragging over this window. */
-    private static final class Incoming {
-        @Nullable Widget<?> target;
-        limn.transfer.@Nullable DropAction action;
+    private static final class Incoming extends DragOver {
         // What the system said last, asked again when the content scrolls under a still pointer.
         limn.transfer.Offer offer = limn.transfer.Offer.EMPTY;
         java.util.Set<limn.transfer.DropAction> allowed = java.util.Set.of();
@@ -6839,8 +7013,8 @@ public final class Scene {
                 + (image == null ? "none" : image.width() + "x" + image.height()));
         if (taken) {
             session.system = true;
-            if (session.target != null) {
-                retarget(session, null, null); // found again as the system reports the pointer
+            if (!session.reached.isEmpty()) {
+                HandlerFailures.rethrow(retargetNowhere(session)); // found again as the system reports the pointer
             }
         }
     }
@@ -6875,10 +7049,13 @@ public final class Scene {
             return;
         }
         dragSession = null;
-        Widget<?> target = session.target;
-        if (target != null && !session.droppedHere) {
-            target.dispatchDragExit(dragEvent(session, 0, 0));
-        }
+        // What a drop here took was told at the drop, and what refused it too: what is left is
+        // what the drag was over as it ended elsewhere, or was called off.
+        List<Widget<?>> reached = session.reached;
+        session.target = null;
+        session.action = null;
+        session.reached = List.of();
+        Throwable failed = leave(reached, null, dragEvent(session, 0, 0));
         // A drop in one of our own windows is told by the widget that took it; one in another
         // program by the system.
         session.drag.end(session.droppedHere ? session.doneHere : action);
@@ -6887,6 +7064,7 @@ public final class Scene {
             updateHover(hitAt(mouseX, mouseY));
         }
         scheduleFrame();
+        HandlerFailures.rethrow(failed);
     }
 
     /** What the source allows, of what the system says the modifier keys allow, in the source's order. */
@@ -6912,88 +7090,115 @@ public final class Scene {
                 ? allowedBoth(own.drag.actions(), allowed) : allowed;
         Widget<?> acceptor = null;
         limn.transfer.DropAction action = null;
-        DragEvent event = null;
+        List<Widget<?>> before = own != null ? own.reached : List.of();
+        List<Widget<?>> asked = new ArrayList<>();
         if (!actions.isEmpty()) {
             // Our own drag keeps its transfer at hand: the object itself, and who began it.
-            event = new DragEvent(x, y, modifiers, false, 0, 0, own != null ? own.offer : offer, actions,
+            DragEvent event = new DragEvent(x, y, modifiers, false, 0, 0, own != null ? own.offer : offer, actions,
                     actions.iterator().next(), own != null ? own.source : null);
-            for (Widget<?> w = hitAt(x, y); w != null && acceptor == null; w = w.parent()) {
-                if (w.isEnabled()) {
-                    w.dispatchDragOver(event);
-                    if (event.isAccepted()) {
-                        acceptor = w;
-                        action = event.acceptedAction();
-                    }
-                }
-            }
+            acceptor = askBubbling(hitAt(x, y), event, asked);
+            action = event.acceptedAction();
         }
+        Throwable failed;
         if (own != null) {
             own.x = x;
             own.y = y;
             own.away = false;
             own.systemAllowed = allowed;
-            retarget(own, acceptor, action);
+            // A handler that ended it while it was asked had the end tell what it was over before.
+            failed = dragSession == own ? retarget(own, asked, acceptor, action)
+                    : leave(asked, before, dragEvent(own, 0, 0));
         } else {
             Incoming in = incoming;
             if (in == null) {
                 in = new Incoming();
                 incoming = in;
             }
-            Widget<?> before = in.target;
-            in.target = acceptor;
-            in.action = action;
             in.offer = offer;
             in.allowed = allowed;
             in.x = x;
             in.y = y;
-            if (before != null && before != acceptor) {
-                before.dispatchDragExit(event != null ? event : new DragEvent(x, y, modifiers, false, 0, 0,
-                        offer, allowed, limn.transfer.DropAction.COPY, null));
-            }
+            List<Widget<?>> was = reach(in, asked, acceptor, action);
+            failed = was.isEmpty() ? null : leave(was, asked, incomingEvent(in));
         }
         armAutoScroll();
         scheduleFrame();
+        HandlerFailures.rethrow(failed);
         return action;
     }
 
+    /** The event a widget another program's drag leaves is told of: where and what it was last. */
+    private DragEvent incomingEvent(Incoming in) {
+        java.util.Set<limn.transfer.DropAction> allowed = in.allowed.isEmpty()
+                ? java.util.Set.of(limn.transfer.DropAction.COPY) : in.allowed;
+        return new DragEvent(in.x, in.y, modifiers, false, 0, 0, in.offer, allowed,
+                allowed.iterator().next(), null);
+    }
+
+    /**
+     * The drag the system drives left the window: every widget it was over hears so, whether it
+     * is this scene's own drag or another program's.
+     */
     private void systemDragLeft() {
         Ui.checkUiThread();
         DragSession own = dragSession != null && dragSession.system ? dragSession : null;
+        Throwable failed = null;
         if (own != null) {
             own.away = true;
-            retarget(own, null, null);
+            failed = retargetNowhere(own);
         }
         Incoming in = incoming;
         incoming = null;
-        if (in != null && in.target != null) {
-            in.target.dispatchDragExit(new DragEvent(mouseX, mouseY, modifiers, false, 0, 0,
-                    limn.transfer.Offer.EMPTY, java.util.Set.of(limn.transfer.DropAction.COPY),
-                    limn.transfer.DropAction.COPY, null));
+        if (in != null) {
+            List<Widget<?>> was = reach(in, List.of(), null, null);
+            Throwable thrown = leave(was, null, incomingEvent(in));
+            if (thrown != null) {
+                failed = HandlerFailures.add(failed, thrown);
+            }
         }
         scheduleFrame();
+        HandlerFailures.rethrow(failed);
     }
 
+    /**
+     * What the system drives is dropped on the window: asked once more where it landed, it goes to
+     * the widget that accepts, and every other widget it was over hears that it left, all of them
+     * when nobody takes it.
+     */
     private limn.transfer.@Nullable DropAction systemDropped(limn.transfer.Offer offer,
             java.util.Set<limn.transfer.DropAction> allowed, float x, float y) {
         limn.transfer.DropAction action = systemDragOver(offer, allowed, x, y);
         DragSession own = dragSession != null && dragSession.system ? dragSession : null;
         Incoming in = incoming;
         incoming = null;
-        Widget<?> target = own != null ? own.target : in != null ? in.target : null;
-        if (target == null || action == null) {
+        DragOver over;
+        DragEvent left;
+        if (own != null) {
+            over = own;
+            left = dragEvent(own, 0, 0);
+        } else if (in != null) {
+            over = in;
+            left = incomingEvent(in);
+        } else {
             return null;
         }
-        DropEvent event = new DropEvent(x, y, modifiers, false, own != null ? own.offer : offer, action,
-                own != null ? own.source : null);
-        target.dispatchDrop(event);
-        limn.transfer.DropAction done = event.isRejected() ? null : action;
-        if (own != null) {
-            own.droppedHere = true;
-            own.doneHere = done;
-            own.target = null;
-            own.action = null;
+        Widget<?> target = over.target;
+        List<Widget<?>> reached = reach(over, List.of(), null, null);
+        boolean drops = target != null && action != null;
+        Throwable failed = leaveAllBut(reached, drops ? target : null, left);
+        limn.transfer.DropAction done = null;
+        if (drops) {
+            DropEvent event = new DropEvent(x, y, modifiers, false, own != null ? own.offer : offer, action,
+                    own != null ? own.source : null);
+            target.dispatchDrop(event);
+            done = event.isRejected() ? null : action;
+            if (own != null) {
+                own.droppedHere = true;
+                own.doneHere = done;
+            }
         }
         scheduleFrame();
+        HandlerFailures.rethrow(failed);
         return done;
     }
 
@@ -8197,7 +8402,9 @@ public final class Scene {
      * fade asked for again in its own {@code onArrive} does not recurse, and
      * one that asked for seconds keeps its pace while the loop sleeps between
      * steps. A window closed before then runs it as it closes, as it runs a
-     * fade's in flight. UI thread only.
+     * fade's in flight. Under Wayland, which gives a program no window
+     * opacity, nothing shows, and the fade keeps the same time and runs
+     * {@code onArrive} the same way. UI thread only.
      */
     public void fadeWindow(float target, double seconds, @Nullable Runnable onArrive) {
         float clamped = Math.max(0f, Math.min(1f, target));

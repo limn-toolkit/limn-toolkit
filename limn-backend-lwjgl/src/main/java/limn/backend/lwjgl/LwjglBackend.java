@@ -595,6 +595,31 @@ public final class LwjglBackend implements BackendPeer {
                 && glfwGetPlatform() != GLFW_PLATFORM_WAYLAND;
     }
 
+    /**
+     * Whether the platform GLFW selected carries out what a program asks of its windows beyond
+     * their size and state: a window's whole opacity, its icon, a place in the always-on-top band,
+     * and the pointer moved by the program. Everything except Wayland, whose protocol gives a
+     * client none of the four. There GLFW answers each call with {@code GLFW_FEATURE_UNAVAILABLE}
+     * on every compositor, and the error callback prints it with a stack trace, one for each step
+     * of a fade: a run that opened one dialog printed twelve on a KDE session (2026-10-25). Where
+     * this is false the calls are not made,
+     * and what they would have changed does not show: a fade's window opens and closes on time,
+     * opaque, and its callbacks run.
+     *
+     * <p>Read from GLFW after {@code glfwInit}, as {@link #canPositionWindows()} is.
+     */
+    static boolean honoursWindowRequests() {
+        return honoursWindowRequests(glfwGetPlatform());
+    }
+
+    /**
+     * {@link #honoursWindowRequests()} for a GLFW platform constant. Package-private and pure, for
+     * the test.
+     */
+    static boolean honoursWindowRequests(int platform) {
+        return platform != GLFW_PLATFORM_WAYLAND;
+    }
+
     private static String startupAdvice() {
         return startupAdvice(Platform.current().os(), System.getenv("DISPLAY"),
                 System.getenv("WAYLAND_DISPLAY"));
