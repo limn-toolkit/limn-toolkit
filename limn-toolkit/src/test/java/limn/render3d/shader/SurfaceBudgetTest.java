@@ -2,14 +2,12 @@ package limn.render3d.shader;
 
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -134,21 +132,28 @@ class SurfaceBudgetTest {
     }
 
     @Test
-    void aThousandLoopsOfOneTurnChainedThroughTheirInitialValuesAreCountedQuickly() {
+    void eachOfAThousandLoopsChainedThroughTheirInitialValuesWalksTheChainBelowItAFixedNumberOfTimes() {
         // Each constructor counted the whole chain below it afresh and hashed every loop in it as a
-        // tree: cubic in the chain, 2.7 s at 400, some 40 s at a thousand. Numbered once a count,
-        // the thousand take about a third of a second; the bound leaves room for a loaded machine.
+        // tree: the i-th loop walked some 4·i² nodes, cubic in the chain, 2.7 s at 400 and some 40 s
+        // at a thousand. Numbered once a count, it walks twelve nodes for each link below it,
+        // 12·i + 1, and the surface over the thousand walks 14,015. Nodes walked are the same number
+        // on every machine, where the two seconds this was held to failed on a loaded one (ADR 062);
+        // the old count fails at the fourth loop.
+        Expr chain = Expr.Lit.of(0f);
+        for (int i = 1; i <= 1000; i++) {
+            Expr below = chain;
+            Expr[] link = new Expr[1];
+            long walked = Loops.walked(() -> link[0] = counting(below, 1, 1f));
+            assertTrue(walked <= 14L * i, "loop " + i + " of the chain walked " + walked + " nodes, more than 14 for"
+                    + " each link it ends");
+            chain = link[0];
+        }
+        Expr built = chain;
+        long surface = Loops.walked(() -> assertDoesNotThrow(() -> emitting(built)));
+        assertTrue(surface <= 16_000, "the surface walked " + surface + " nodes over the thousand");
         // The thousand fit the budget exactly.
-        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
-            Expr chain = Expr.Lit.of(0f);
-            for (int i = 0; i < 1000; i++) {
-                chain = counting(chain, 1, 1f);
-            }
-            Expr built = chain;
-            assertDoesNotThrow(() -> emitting(built));
-            assertThrows(IllegalArgumentException.class, () -> emitting(built, counting(Expr.Lit.of(0f), 25, 1f)),
-                    "1,025 turns");
-        });
+        assertThrows(IllegalArgumentException.class, () -> emitting(built, counting(Expr.Lit.of(0f), 25, 1f)),
+                "1,025 turns");
     }
 
     @Test
@@ -209,9 +214,15 @@ class SurfaceBudgetTest {
         assertEquals(288, Loops.surfaceTurns(List.of(first), second, 8));
     }
 
-    /** {@code k} loops of one turn, each built in the turn of the one around it, the innermost reading every state. */
-    private static Expr.Loop nest(int k, List<Expr> outer) {
-        return Expr.Loop.of(Expr.Lit.of(0f), 1, s -> {
+    /**
+     * {@code k} loops of one turn, each built in the turn of the one around it, the innermost
+     * reading every state of a nest {@code depth} deep, each held as it is built to sixteen nodes
+     * walked for each loop under it and each state the innermost adds up.
+     */
+    private static Expr.Loop nest(int k, List<Expr> outer, int depth) {
+        long[] under = {0};
+        Expr.Loop[] loop = new Expr.Loop[1];
+        long walked = Loops.walked(() -> loop[0] = Expr.Loop.of(Expr.Lit.of(0f), 1, s -> {
             List<Expr> all = new ArrayList<>(outer);
             all.add(s);
             if (k == 1) {
@@ -221,17 +232,27 @@ class SurfaceBudgetTest {
                 }
                 return sum;
             }
-            return add(s, nest(k - 1, all));
-        });
+            Expr.Loop[] inner = new Expr.Loop[1];
+            under[0] = Loops.walked(() -> inner[0] = nest(k - 1, all, depth));
+            return add(s, inner[0]);
+        }));
+        long own = walked - under[0];
+        assertTrue(own <= 16L * (k - 1 + depth), "the loop " + k + " from the innermost walked " + own
+                + " nodes of its own, over " + (k - 1) + " loops and " + depth + " states");
+        return loop[0];
     }
 
     @Test
-    void aNestTwoHundredDeepBuildsQuickly() {
-        // Renaming each level rebuilt and recounted every loop under it again: 11.8 s at 200.
-        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
-            Expr.Loop deep = nest(200, List.of());
-            assertEquals(1, Loops.surfaceTurns(List.of(deep), null, 8));
-            assertDoesNotThrow(() -> emitting(deep));
-        });
+    void eachLoopOfANestTwoHundredDeepWalksWhatItHoldsAFixedNumberOfTimes() {
+        // Naming each loop rebuilt every loop under it through the constructor, which checked each
+        // again: the k-th from the innermost walked some 6·k·(k + depth) nodes, the whole nest five
+        // times the cube of its depth, 11.8 s at 200. Rebuilt without the checks it passed, a loop
+        // walks some 10·depth + 17·k, at most 13.5 nodes for each loop under it and each state the
+        // innermost adds up, and the surface 3,804. Counted, not timed (ADR 062); the old count
+        // fails at the third loop.
+        Expr.Loop deep = nest(200, List.of(), 200);
+        assertEquals(1, Loops.surfaceTurns(List.of(deep), null, 8));
+        long surface = Loops.walked(() -> assertDoesNotThrow(() -> emitting(deep)));
+        assertTrue(surface <= 4_350, "the surface walked " + surface + " nodes over the nest");
     }
 }

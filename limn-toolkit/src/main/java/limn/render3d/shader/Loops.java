@@ -15,8 +15,37 @@ final class Loops {
     private Loops() {
     }
 
+    /**
+     * The count {@link #walked} keeps on this thread, or null while it keeps none. Every walk of
+     * the IR in this package, the checks of a loop and of a surface, hashing and comparing
+     * included, takes a node's children from {@link #children}, so its calls are the work those
+     * walks do: a number the same on every machine, which a test holds to a bound in the size of
+     * the IR where a time would fail on a loaded one.
+     */
+    private static final ThreadLocal<long @Nullable []> WALKED = new ThreadLocal<>();
+
+    /** How many nodes the walks of this package visit on this thread while {@code work} runs. */
+    static long walked(Runnable work) {
+        long[] outer = WALKED.get();
+        long[] count = {0};
+        WALKED.set(count);
+        try {
+            work.run();
+        } finally {
+            WALKED.set(outer);
+            if (outer != null) {
+                outer[0] += count[0];
+            }
+        }
+        return count[0];
+    }
+
     /** The children of {@code node}, in the order they are written. */
     static List<Expr> children(Expr node) {
+        long[] walked = WALKED.get();
+        if (walked != null) {
+            walked[0]++;
+        }
         if (node instanceof Expr.Sample sample) {
             return List.of(sample.sampler(), sample.uv());
         }
