@@ -198,10 +198,19 @@ public final class UiRuntime implements AutoCloseable {
         waker.wake();
     }
 
-    /** The one way a task joins {@link #immediate}, so {@link #pending} cannot drift from it. */
+    /**
+     * The one way a task joins {@link #immediate}, so {@link #pending} cannot drift from it.
+     *
+     * <p>Counted before it is queued, never after. A worker thread can be between the two steps
+     * while {@link #drain} snapshots the count, and only this order keeps that harmless: the
+     * snapshot may then count one task more than the queue yet holds, and the drain's empty poll
+     * ends early. Queued first, the snapshot could count one task fewer than the queue holds, so
+     * the worker's task, taken from the head, ran in the place of a delayed task the drain had
+     * just promoted as due, and that task (an animation's wake-up, a timer) waited one more turn.
+     */
     private void enqueue(Runnable action) {
-        immediate.add(action);
         pending.incrementAndGet();
+        immediate.add(action);
     }
 
     /**

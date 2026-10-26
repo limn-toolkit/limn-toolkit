@@ -196,6 +196,58 @@ class UiRuntimeTest {
         }
     }
 
+    /**
+     * A post is counted before it joins the queue. A worker can be between the two steps while a
+     * drain snapshots the count; queued first and counted after, the snapshot fell one short, the
+     * worker's task ran in the place of a delayed task the drain had just promoted as due, and an
+     * animation's wake-up waited a turn, which a played image showed as a skipped frame.
+     */
+    @Test
+    void aPostIsCountedBeforeItJoinsTheQueue() throws Exception {
+        java.lang.reflect.Field pending = UiRuntime.class.getDeclaredField("pending");
+        pending.setAccessible(true);
+        AtomicInteger count = (AtomicInteger) pending.get(runtime);
+        java.lang.reflect.Field immediate = UiRuntime.class.getDeclaredField("immediate");
+        immediate.setAccessible(true);
+        List<Integer> countedWhenQueued = new ArrayList<>();
+        immediate.set(runtime, new java.util.concurrent.ConcurrentLinkedQueue<Runnable>() {
+            @Override
+            public boolean add(Runnable task) {
+                countedWhenQueued.add(count.get());
+                return super.add(task);
+            }
+        });
+
+        runtime.post(() -> { });
+
+        assertEquals(List.of(1), countedWhenQueued, "the task was counted before it was queued");
+    }
+
+    /**
+     * What a worker between the two steps leaves: counted, not yet queued. The drain that finds it
+     * still runs the delayed task it promotes as due, and the worker's task runs on the next one.
+     */
+    @Test
+    void aDueDelayedTaskRunsInTheDrainThatFindsAPostCountedButNotYetQueued() throws Exception {
+        java.lang.reflect.Field pendingField = UiRuntime.class.getDeclaredField("pending");
+        pendingField.setAccessible(true);
+        java.lang.reflect.Field immediateField = UiRuntime.class.getDeclaredField("immediate");
+        immediateField.setAccessible(true);
+        List<String> ran = new ArrayList<>();
+        runtime.postDelayed(() -> ran.add("due"), 10);
+        clock.set(TimeUnit.MILLISECONDS.toNanos(10));
+
+        ((AtomicInteger) pendingField.get(runtime)).incrementAndGet(); // the worker has counted...
+        assertEquals(1, runtime.drain());
+        assertEquals(List.of("due"), ran);
+
+        @SuppressWarnings("unchecked")
+        java.util.Queue<Runnable> queue = (java.util.Queue<Runnable>) immediateField.get(runtime);
+        queue.add(() -> ran.add("worker")); // ...and now queues
+        assertEquals(1, runtime.drain());
+        assertEquals(List.of("due", "worker"), ran);
+    }
+
     // --------------------------------------------------------- postDelayed
 
     @Test
