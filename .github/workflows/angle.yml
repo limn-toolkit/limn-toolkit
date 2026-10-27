@@ -12,31 +12,14 @@
 #                  (Mesa's software rasteriser, on Linux): two rasterisers differ on antialiased
 #                  edges, so a scene fails only when a visible share of it differs (phase 4).
 #
-# On every push and pull request that touches the renderer, decided on 2026-10-22: the ES path is a
-# fallback almost nobody exercises, which is exactly the path that breaks unseen.
+# Run by hand (Actions > angle > Run workflow), as the owner decided on 2026-10-27: on every push
+# that touched the renderer it took over twenty minutes, most of it the desktop reference captures.
+# Run it after a change to the renderer and before a release: the ES path is a fallback almost
+# nobody exercises, which is exactly the path that breaks unseen.
 
 name: angle
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "limn-backend-lwjgl/**"
-      - "limn-demo/**"
-      - "limn-toolkit/src/main/java/limn/render3d/**"
-      - "gradle/**"
-      - "build.gradle.kts"
-      - "scripts/compare-captures.py"
-      - ".github/workflows/angle.yml"
-  pull_request:
-    paths:
-      - "limn-backend-lwjgl/**"
-      - "limn-demo/**"
-      - "limn-toolkit/src/main/java/limn/render3d/**"
-      - "gradle/**"
-      - "build.gradle.kts"
-      - "scripts/compare-captures.py"
-      - ".github/workflows/angle.yml"
   workflow_dispatch:
 
 permissions:
