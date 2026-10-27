@@ -67,24 +67,23 @@ if you have none:
 {% tabs os "Windows / Linux" macOS %}
 ```bash
 # the showcase: an application, and every widget beside it
-jbang demo@limn-toolkit/limn-toolkit
+jbang --fresh demo@limn-toolkit/limn-toolkit
 # the theme editor, which writes a theme file
-jbang theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh theme-editor@limn-toolkit/limn-toolkit
 ```
 ```bash
 # the showcase: an application, and every widget beside it
-jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
 # the theme editor, which writes a theme file
-jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
 ```
 {% endtabs %}
 
 The macOS form carries `--java-options=-XstartOnFirstThread`, which is macOS-only: a JVM elsewhere
 given it will not start, and the caution below says why macOS needs it. What downloads is the toolkit, the fonts and the native libraries
 of the machine you are on: each artifact's POM selects them by operating system, so the other
-five platforms' never arrive. The names run the newest release, resolved the first time and then
-kept by JBang: add `--fresh` (`jbang --fresh demo@limn-toolkit/limn-toolkit`) to take a newer
-one. To pin one, use the coordinate
+five platforms' never arrive. The names run the newest release: `--fresh` makes JBang resolve it on every
+run instead of keeping the one it resolved the first time. To pin one, use the coordinate
 instead — `jbang io.github.limn-toolkit:limn-demo:{{version}}`, or `limn-theme-editor` for the
 editor. With no network, the demo is also one file attached to every release, every platform
 inside: `jbang limn-demo-all.jar`.

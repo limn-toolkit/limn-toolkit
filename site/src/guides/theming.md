@@ -144,10 +144,10 @@ the corner roundness, the typeface and, at the end of its list, the shadow of ea
 
 {% tabs os "Windows / Linux" macOS %}
 ```bash
-jbang theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh theme-editor@limn-toolkit/limn-toolkit
 ```
 ```bash
-jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
 ```
 {% endtabs %}
 

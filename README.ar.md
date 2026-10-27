@@ -62,15 +62,15 @@
 على macOS:
 
 ```bash
-jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
-jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
 ```
 
 على Linux وWindows:
 
 ```bash
-jbang demo@limn-toolkit/limn-toolkit
-jbang theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh demo@limn-toolkit/limn-toolkit
+jbang --fresh theme-editor@limn-toolkit/limn-toolkit
 ```
 
 ذلك الخيار خاص بـ macOS وحده، وآلة JVM تُعطاه في أي مكان آخر ترفض البدء. هذان الأمران يشغّلان
@@ -82,7 +82,7 @@ jbang theme-editor@limn-toolkit/limn-toolkit
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
-يحدّد JBang أحدث إصدار مرة واحدة ثم يحتفظ به؛ أضف `--fresh` لجلب إصدار أحدث، كما في `jbang --fresh demo@limn-toolkit/limn-toolkit`.
+يجعل `--fresh` JBang يحدّد أحدث إصدار في كل تشغيل، بدل الاحتفاظ بالإصدار الذي حدّده أول مرة.
 
 ## التثبيت
 

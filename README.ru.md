@@ -61,15 +61,15 @@ Limn](#как-делается-limn)
 На macOS:
 
 ```bash
-jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
-jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
 ```
 
 На Linux и Windows:
 
 ```bash
-jbang demo@limn-toolkit/limn-toolkit
-jbang theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh demo@limn-toolkit/limn-toolkit
+jbang --fresh theme-editor@limn-toolkit/limn-toolkit
 ```
 
 Этот флаг существует только на macOS, и JVM, получившая его где-то ещё, откажется запускаться.
@@ -82,7 +82,7 @@ jbang theme-editor@limn-toolkit/limn-toolkit
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
-JBang один раз определяет новейший релиз и сохраняет его: чтобы получить более новый, добавьте `--fresh`, например `jbang --fresh demo@limn-toolkit/limn-toolkit`.
+`--fresh` заставляет JBang при каждом запуске определять новейший релиз, а не хранить тот, что был найден в первый раз.
 
 ## Установка
 

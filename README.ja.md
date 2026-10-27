@@ -54,15 +54,15 @@ Limn はピクセルを自分で描きます。ウィジェット、レイアウ
 macOS では:
 
 ```bash
-jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
-jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
 ```
 
 Linux と Windows では:
 
 ```bash
-jbang demo@limn-toolkit/limn-toolkit
-jbang theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh demo@limn-toolkit/limn-toolkit
+jbang --fresh theme-editor@limn-toolkit/limn-toolkit
 ```
 
 このフラグは macOS 専用で、ほかの OS の JVM は受け取ると起動を拒みます。この 2 つは最新リリースを起動します。バージョンを固定したいなら、代わりに座標を書いてください——`io.github.limn-toolkit:limn-demo:x.y.z` と `io.github.limn-toolkit:limn-theme-editor:x.y.z` です。ネットワークがないなら、デモはリリースごとに 1 ファイルとしても添付されていて、すべてのプラットフォームの分が中に入っています。
@@ -71,7 +71,7 @@ jbang theme-editor@limn-toolkit/limn-toolkit
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
-JBang は最新リリースを一度だけ解決して保持します。より新しいリリースを取得するには `--fresh` を付けてください（例：`jbang --fresh demo@limn-toolkit/limn-toolkit`）。
+`--fresh` を付けると、JBang は最初に解決したリリースを使い続けず、実行のたびに最新リリースを解決します。
 
 ## インストール
 

@@ -61,15 +61,15 @@ libraries of the machine you are on — not the other five platforms'.
 On macOS:
 
 ```bash
-jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
-jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
 ```
 
 On Linux and Windows:
 
 ```bash
-jbang demo@limn-toolkit/limn-toolkit
-jbang theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh demo@limn-toolkit/limn-toolkit
+jbang --fresh theme-editor@limn-toolkit/limn-toolkit
 ```
 
 That flag is macOS-only, and a JVM given it anywhere else refuses to start. Those two run the
@@ -81,7 +81,7 @@ attached to every release, every platform inside:
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
-JBang resolves the newest release once and keeps it: add `--fresh` to take a newer one, as in `jbang --fresh demo@limn-toolkit/limn-toolkit`.
+`--fresh` makes JBang resolve the newest release on every run, instead of keeping the one it resolved the first time.
 
 ## Install
 

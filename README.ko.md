@@ -59,15 +59,15 @@ Limn은 픽셀을 스스로 그립니다. 위젯, 레이아웃, 텍스트, 차�
 macOS에서는:
 
 ```bash
-jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
-jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
 ```
 
 Linux와 Windows에서는:
 
 ```bash
-jbang demo@limn-toolkit/limn-toolkit
-jbang theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh demo@limn-toolkit/limn-toolkit
+jbang --fresh theme-editor@limn-toolkit/limn-toolkit
 ```
 
 이 플래그는 macOS 전용이라, 다른 곳의 JVM은 받으면 시작을 거부합니다. 이 두 명령은 최신 릴리스를
@@ -79,7 +79,7 @@ jbang theme-editor@limn-toolkit/limn-toolkit
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
-JBang은 최신 릴리스를 한 번만 확인하고 그대로 유지합니다. 더 새 릴리스를 받으려면 `--fresh`를 붙이세요(예: `jbang --fresh demo@limn-toolkit/limn-toolkit`).
+`--fresh`를 붙이면 JBang이 처음 확인한 릴리스를 계속 쓰지 않고 실행할 때마다 최신 릴리스를 확인합니다.
 
 ## 설치
 

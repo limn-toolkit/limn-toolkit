@@ -324,8 +324,8 @@ jobs:
           \`\`\`
 
           On macOS add \`--java-options=-XstartOnFirstThread\` before the coordinate; the flag is
-          macOS-only. \`jbang demo@limn-toolkit/limn-toolkit\` and
-          \`jbang theme-editor@limn-toolkit/limn-toolkit\` are the same two at the newest
+          macOS-only. \`jbang --fresh demo@limn-toolkit/limn-toolkit\` and
+          \`jbang --fresh theme-editor@limn-toolkit/limn-toolkit\` are the same two at the newest
           release. For a machine with no network, the demo is also attached below as one file
           with every platform inside: \`jbang limn-demo-all.jar\`.
 

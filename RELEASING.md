@@ -178,10 +178,10 @@ JVM's `os.name` and `os.arch`. Maven and jbang activate those profiles when they
 dependency, Gradle cannot and reads the module metadata beside the POM instead, which still
 names every platform, as a library should. So `jbang io.github.limn-toolkit:limn-demo:x.y.z`
 downloads the toolkit, the fonts and the natives of the machine it runs on, and nothing else;
-`jbang demo@limn-toolkit/limn-toolkit` does the same through the aliases in
+`jbang --fresh demo@limn-toolkit/limn-toolkit` does the same through the aliases in
 `jbang-catalog.json` at the root, which name `RELEASE` rather than a number so a release never
-has to touch them (the newest published version, as Central's metadata says; `--fresh` if a
-cached answer is a day old). The demo is still an application and not a library — nothing
+has to touch them (the newest published version, as Central's metadata says; the documented commands carry
+`--fresh` so JBang asks again on every run instead of keeping its first answer). The demo is still an application and not a library — nothing
 should depend on it — and the `limn-demo-all.jar` attached to every release stays for a reader
 with no network or no cache to fill. `check` refuses a POM of either module that names a native
 outside its profile (`checkHostNativesPom`), and `publishAllPublicationsToBuildDirRepository`

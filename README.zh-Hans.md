@@ -54,15 +54,15 @@ Limn 自己绘制每一个像素。组件、布局、文本、图表、媒体与
 macOS 上：
 
 ```bash
-jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
-jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
 ```
 
 Linux 和 Windows 上：
 
 ```bash
-jbang demo@limn-toolkit/limn-toolkit
-jbang theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh demo@limn-toolkit/limn-toolkit
+jbang --fresh theme-editor@limn-toolkit/limn-toolkit
 ```
 
 这个开关只有 macOS 认，别的系统上的 JVM 收到它会拒绝启动。这两条命令运行的是最新发布版；想固定某个版本，就改写坐标——`io.github.limn-toolkit:limn-demo:x.y.z` 和 `io.github.limn-toolkit:limn-theme-editor:x.y.z`。没有网络时，演示程序也作为一个文件附在每次发布里，所有平台的东西都在里面：
@@ -71,7 +71,7 @@ jbang theme-editor@limn-toolkit/limn-toolkit
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
-JBang 只解析一次最新版本并保留下来：要获取更新的版本，请加上 `--fresh`，例如 `jbang --fresh demo@limn-toolkit/limn-toolkit`。
+`--fresh` 让 JBang 每次运行都解析最新版本，而不是一直使用第一次解析到的版本。
 
 ## 安装
 

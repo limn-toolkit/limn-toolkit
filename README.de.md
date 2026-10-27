@@ -61,15 +61,15 @@ die nativen Bibliotheken der Maschine, an der Sie sitzen — nicht die der ander
 Unter macOS:
 
 ```bash
-jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
-jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
+jbang --fresh --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
 ```
 
 Unter Linux und Windows:
 
 ```bash
-jbang demo@limn-toolkit/limn-toolkit
-jbang theme-editor@limn-toolkit/limn-toolkit
+jbang --fresh demo@limn-toolkit/limn-toolkit
+jbang --fresh theme-editor@limn-toolkit/limn-toolkit
 ```
 
 Die Option gibt es nur unter macOS, und eine JVM, die sie anderswo bekommt, startet nicht. Die
@@ -82,7 +82,7 @@ an jedem Release, mit allen Plattformen darin:
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
-JBang ermittelt die neueste Version einmal und behält sie: Fügen Sie `--fresh` hinzu, um eine neuere zu holen, etwa `jbang --fresh demo@limn-toolkit/limn-toolkit`.
+`--fresh` lässt JBang bei jedem Start die neueste Version ermitteln, statt die beim ersten Mal ermittelte zu behalten.
 
 ## Installation
 
