@@ -318,7 +318,7 @@ Abhängigkeit Ihrer Anwendung.
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
-    <td>GLFW, OpenGL und stb hinter diesen SPIs</td>
+    <td>GLFW und OpenGL hinter diesen SPIs, mit OpenGL ES über ANGLE, wo ein Windows- oder macOS-Rechner kein brauchbares OpenGL hat; HarfBuzz und stb für Text, lunasvg für SVG, OpenAL für Ton; die Dialoge des Systems, Zwischenablage, Drag and Drop, Infobereich, Menüleiste und Drucken sowie die Brücken zu Screenreadern; und die Natives aller sechs Desktop-Plattformen</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-video-ffmpeg</samp></td>

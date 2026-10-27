@@ -320,7 +320,7 @@ jamais une dépendance de votre application.
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
-    <td>GLFW, OpenGL et stb derrière ces SPI</td>
+    <td>GLFW et OpenGL derrière ces SPI, avec OpenGL ES via ANGLE là où une machine Windows ou macOS n’a pas d’OpenGL utilisable ; HarfBuzz et stb pour le texte, lunasvg pour le SVG, OpenAL pour le son ; les dialogues du système, le presse-papiers, le glisser-déposer, la zone de notification, la barre des menus et l’impression, et les ponts vers les lecteurs d’écran ; et les natifs des six plateformes de bureau</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-video-ffmpeg</samp></td>

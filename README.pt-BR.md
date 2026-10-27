@@ -315,7 +315,7 @@ aplicação.
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
-    <td>GLFW, OpenGL e stb por trás dessas SPIs</td>
+    <td>GLFW e OpenGL por trás dessas SPIs, com OpenGL ES via ANGLE onde uma máquina Windows ou macOS não tem um OpenGL utilizável; HarfBuzz e stb para texto, lunasvg para SVG, OpenAL para som; os diálogos do sistema, a área de transferência, arrastar e soltar, a bandeja, a barra de menus e a impressão, e as pontes com os leitores de tela; e os nativos das seis plataformas de desktop</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-video-ffmpeg</samp></td>

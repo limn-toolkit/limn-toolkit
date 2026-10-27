@@ -318,7 +318,7 @@ tu aplicación.
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
-    <td>GLFW, OpenGL y stb detrás de esas SPI</td>
+    <td>GLFW y OpenGL detrás de esas SPI, con OpenGL ES mediante ANGLE donde una máquina Windows o macOS no tiene un OpenGL utilizable; HarfBuzz y stb para el texto, lunasvg para SVG, OpenAL para el sonido; los diálogos del sistema, el portapapeles, arrastrar y soltar, la bandeja, la barra de menús y la impresión, y los puentes con los lectores de pantalla; y los nativos de las seis plataformas de escritorio</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-video-ffmpeg</samp></td>

@@ -316,7 +316,7 @@ jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-e
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
-    <td>GLFW, OpenGL и stb за этими SPI</td>
+    <td>GLFW и OpenGL за этими SPI, с OpenGL ES через ANGLE там, где у машины с Windows или macOS нет пригодного OpenGL; HarfBuzz и stb для текста, lunasvg для SVG, OpenAL для звука; системные диалоги, буфер обмена, перетаскивание, трей, строка меню и печать, а также мосты к программам чтения с экрана; и нативные библиотеки всех шести настольных платформ</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-video-ffmpeg</samp></td>

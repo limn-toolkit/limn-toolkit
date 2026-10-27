@@ -79,7 +79,13 @@ val publishedModules = mapOf(
             "classifier of it (macOS, Linux, Windows; x86_64, aarch64; LGPL-2.1-or-later, see " +
             "NOTICE-ffmpeg.txt in those jars) or limn-video-ffmpeg-natives-all. Without one the " +
             "decoder reports itself unavailable and the rest of the toolkit is unaffected.",
-    "limn-backend-lwjgl" to "The LWJGL backend: GLFW, OpenGL and stb behind the toolkit's SPIs.",
+    "limn-backend-lwjgl" to
+            "The LWJGL backend behind the toolkit's SPIs: windows and drawing through GLFW and " +
+            "OpenGL, with OpenGL ES through ANGLE where a Windows or macOS machine has no usable " +
+            "OpenGL; text through HarfBuzz and stb, SVG through lunasvg, sound through OpenAL; " +
+            "the system's dialogs, clipboard, drag and drop, tray, menu bar and printing, and the " +
+            "screen-reader bridges of Windows, macOS and Linux. Brings the natives of all six " +
+            "desktop platforms.",
     "limn-video-ffmpeg-natives-all" to
             "Every desktop platform's FFmpeg libraries at once, for a distribution shipped as " +
             "one cross-platform bundle. It carries no code and no binaries: it names the six " +

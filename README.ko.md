@@ -304,7 +304,7 @@ macOS 플래그는 위와 같습니다. 저장되는 것은 `.limntheme` 파일,
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
-    <td>그 SPI 뒤의 GLFW, OpenGL, stb</td>
+    <td>그 SPI 뒤의 GLFW와 OpenGL, 그리고 Windows나 macOS 기기에 쓸 만한 OpenGL이 없을 때 ANGLE을 통한 OpenGL ES; 텍스트에는 HarfBuzz와 stb, SVG에는 lunasvg, 소리에는 OpenAL; 시스템의 대화상자, 클립보드, 끌어서 놓기, 트레이, 메뉴 막대, 인쇄, 스크린 리더 브리지; 그리고 여섯 데스크톱 플랫폼 모두의 네이티브</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-video-ffmpeg</samp></td>

@@ -1,6 +1,8 @@
 /**
- * The LWJGL backend: GLFW, OpenGL and stb behind the toolkit's SPIs, and the platform
- * accessibility bridges.
+ * The LWJGL backend behind the toolkit's SPIs: windows and drawing through GLFW and OpenGL, with
+ * OpenGL ES through ANGLE where a Windows or macOS machine has no usable OpenGL; text through
+ * HarfBuzz and stb, SVG through lunasvg, sound through OpenAL; the system's dialogs, clipboard, drag
+ * and drop, tray, menu bar and printing, and the platform accessibility bridges.
  *
  * <p>Only {@code limn.backend.lwjgl} is exported to applications; the bridges and the native
  * helpers in {@code limn.backend.lwjgl.internal} are this module's own. Three of them are exported

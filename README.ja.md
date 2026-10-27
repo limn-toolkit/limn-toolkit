@@ -254,7 +254,7 @@ macOS のフラグは上と同じです。保存されるのは `.limntheme` フ
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
-    <td>その SPI の背後にある GLFW、OpenGL、stb</td>
+    <td>その SPI の背後にある GLFW と OpenGL。Windows や macOS のマシンに使える OpenGL がなければ ANGLE による OpenGL ES。テキストには HarfBuzz と stb、SVG には lunasvg、音には OpenAL。システムのダイアログ、クリップボード、ドラッグ＆ドロップ、トレイ、メニューバー、印刷、スクリーンリーダーへのブリッジ。そしてデスクトップ 6 プラットフォームすべてのネイティブ</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-video-ffmpeg</samp></td>

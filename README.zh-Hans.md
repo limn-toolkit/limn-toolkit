@@ -254,7 +254,7 @@ macOS 的开关和上面一样。它存下来的是一个 `.limntheme` 文件，
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
-    <td>这些 SPI 背后的 GLFW、OpenGL 与 stb</td>
+    <td>这些 SPI 背后的 GLFW 与 OpenGL，Windows 或 macOS 机器上没有可用的 OpenGL 时改用经由 ANGLE 的 OpenGL ES；文本用 HarfBuzz 与 stb，SVG 用 lunasvg，声音用 OpenAL；系统的对话框、剪贴板、拖放、托盘、菜单栏、打印，以及屏幕阅读器的桥接；还有全部六个桌面平台的原生库</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-video-ffmpeg</samp></td>
