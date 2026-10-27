@@ -86,7 +86,7 @@ dependencies {
   <lwjgl.version>3.4.3</lwjgl.version>
 </properties>
 
-<!-- This machine's natives. -Dlwjgl.natives=… -Dlimn.natives=… names another. -->
+<!-- This machine's natives. -P '!macos-aarch64,windows-x86_64' turns a Mac with Apple silicon's off, Windows x64's on. -->
 <profiles>
   <profile><id>macos-aarch64</id>
     <activation><os><family>mac</family><arch>aarch64</arch></os></activation>
@@ -163,8 +163,12 @@ anything is downloaded, and `-PlimnTarget=windows-x86_64` on the command line pa
 another target. Maven cannot drop one classifier of a dependency, only the whole module, so the
 backend's LWJGL, SVG renderer and ANGLE are excluded and declared again, each with one classifier
 (ANGLE's inside the Windows and macOS profiles, the only ones it has one for): a profile per system
-picks the machine's, as `limn-demo`'s own POM does, and
-`-Dlwjgl.natives=natives-windows -Dlimn.natives=natives-windows-x86_64` names another. The
+picks the machine's, as `limn-demo`'s own POM does. To package for another target, switch the
+profile Maven chose for this machine off and the target's on, by their ids: on a Mac with Apple
+silicon, `mvn package -P '!macos-aarch64,windows-x86_64'` resolves the Windows x64 set. Naming the
+target alone is not enough, because Maven keeps a profile its `<os>` activated beside one named on
+the command line, and the two would mix; nor is setting the classifiers with `-D`, which leaves the
+machine's ANGLE in and the target's out. The quotes keep the shell from reading the `!`. The
 versions are the ones this release was tested with; `lwjgl-egl` has no natives, because it binds
 the system's own library.
 

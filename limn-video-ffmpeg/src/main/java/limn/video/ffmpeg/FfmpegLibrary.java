@@ -74,8 +74,8 @@ import org.jspecify.annotations.Nullable;
  * <p>Loading a native library became a restricted operation in JDK 24. It still works, and it
  * prints a four-line warning on every run naming this class; a future release is documented to
  * refuse it instead. An application that ships this decoder should therefore launch with
- * {@code --enable-native-access=ALL-UNNAMED}, or, once it has a module descriptor, with its own
- * module named instead of {@code ALL-UNNAMED}.
+ * {@code --enable-native-access=ALL-UNNAMED} on the class path, or with {@code limn.video.ffmpeg}
+ * added to the backend's list on the module path, as the troubleshooting guide gives it.
  *
  * <p>The flag cannot simply be added to a launcher that might also run on JDK 17: a JVM that does
  * not know an option does not warn about it, it refuses to start. Add it where the launcher knows

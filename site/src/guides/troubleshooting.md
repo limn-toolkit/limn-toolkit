@@ -69,8 +69,14 @@ Two groups of warnings appear, and neither stops the program:
 - "A restricted method in java.lang.System has been called", naming `System::load`. LWJGL loads
   its libraries that way, and so does the backend itself, for ANGLE and the SVG renderer. Add
   `--enable-native-access=ALL-UNNAMED` on the class path. On the module path, name the modules
-  instead: `--enable-native-access=org.lwjgl,limn.backend.lwjgl`, adding `limn.video.ffmpeg` if
-  you use the FFmpeg decoder, which loads its own native library too.
+  instead: every LWJGL module the backend requires, and the backend itself, since each loads a
+  library of its own. Add `limn.video.ffmpeg` if you use the FFmpeg decoder, which loads its own
+  native library too.
+
+  ```bash
+  JAVA_OPTS=--enable-native-access=org.lwjgl,org.lwjgl.glfw,org.lwjgl.egl,org.lwjgl.opengl,org.lwjgl.opengles,org.lwjgl.openal,org.lwjgl.stb,org.lwjgl.harfbuzz,org.lwjgl.tinyfd,limn.backend.lwjgl bin/your-app
+  ```
+
 - "A terminally deprecated method in sun.misc.Unsafe has been called", from LWJGL. Add
   `--sun-misc-unsafe-memory-access=allow`.
 

@@ -16,12 +16,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The packaging guide's recipes for one platform's natives still name what this module requires.
+ * The packaging guide's recipes for one platform's natives, and the troubleshooting guide's
+ * native-access flag, still name what this module requires.
  *
- * <p>The Gradle recipe works by classifier and needs no list, but two others are lists a reader
- * pastes: the {@code --add-modules} line for the module path, and the Maven recipe, which has to
+ * <p>The Gradle recipe works by classifier and needs no list, but three others are lists a reader
+ * pastes: the {@code --add-modules} line for the module path, the Maven recipe, which has to
  * exclude the backend's LWJGL and declare every module of it again because Maven cannot drop one
- * classifier of a dependency. Both were checked by resolving and running a consumer of the 1.0
+ * classifier of a dependency, and the {@code --enable-native-access} flag. All were checked by resolving and running a consumer of the 1.0
  * rehearsal; what keeps them true is that a module added to this module's requirements, a ninth
  * LWJGL binding or a second native payload, fails here until the guide names it too.
  */
@@ -36,6 +37,45 @@ class PackagingRecipeTest {
         assertTrue(line.find(), "the packaging guide has no --add-modules line");
         String modules = line.group(1).replaceAll("[\"+\\s]", "");
         assertEquals(LwjglBackend.nativesModules(requires()), modules);
+    }
+
+    /**
+     * The troubleshooting guide's native-access flag for the module path names every module that
+     * loads a library: each LWJGL module this one requires, and this one. With only
+     * {@code org.lwjgl,limn.backend.lwjgl}, as it once said, the 1.0 rehearsal still printed the
+     * warning for stb, OpenGL and tinyfiledialogs.
+     */
+    @Test
+    void theNativeAccessFlagNamesEveryModuleThatLoadsALibrary() throws IOException {
+        String guide = Files.readString(RepositoryRoot.find().resolve("site/src/guides/troubleshooting.md"));
+        Matcher flag = Pattern.compile("--enable-native-access=((?:org|limn)[\\w.,]+)").matcher(guide);
+        assertTrue(flag.find(), "the troubleshooting guide has no module-path native-access flag");
+        List<String> expected = new ArrayList<>(requires().stream().filter(m -> m.startsWith("org.lwjgl")).toList());
+        expected.add("limn.backend.lwjgl");
+        assertEquals(String.join(",", expected), flag.group(1));
+    }
+
+    /**
+     * Another target is packaged with Maven by switching this machine's profile off and the
+     * target's on. Setting the classifiers with {@code -D}, as the guide once said, kept the
+     * machine's ANGLE and left out the target's, since ANGLE's classifier lives in the profiles.
+     */
+    @Test
+    void theMavenCrossTargetExampleSwitchesProfilesTheRecipeHas() throws IOException {
+        String guide = guide();
+        assertFalse(guide.contains("-Dlwjgl.natives") || guide.contains("-Dlimn.natives"));
+        String maven = mavenRecipe();
+        Matcher example = Pattern.compile("-P '!([\\w-]+),([\\w-]+)'").matcher(guide);
+        int examples = 0;
+        while (example.find()) {
+            examples++;
+            for (int i = 1; i <= 2; i++) {
+                assertTrue(maven.contains("<profile><id>" + example.group(i) + "</id>"),
+                        "the example names " + example.group(i) + ", which is no profile of the recipe");
+            }
+            assertFalse(example.group(1).equals(example.group(2)));
+        }
+        assertTrue(examples > 0, "the packaging guide shows no Maven cross-target example");
     }
 
     @Test

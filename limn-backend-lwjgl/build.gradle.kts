@@ -256,4 +256,8 @@ tasks.test {
     inputs.file(rootProject.file("site/src/guides/packaging.md"))
             .withPropertyName("packagingGuide")
             .withPathSensitivity(PathSensitivity.RELATIVE)
+    // And the troubleshooting guide's native-access flag for the module path.
+    inputs.file(rootProject.file("site/src/guides/troubleshooting.md"))
+            .withPropertyName("troubleshootingGuide")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
 }
