@@ -235,6 +235,8 @@ final class Bench {
                 out.append(kv("anim_ticks_per_s", tick[0] / secs));
                 out.append(kv("anim_paints_per_s", (scene.metrics().totalFrames() - startPaints) / secs));
                 out.append(kv("anim_frame_ms", scene.metrics().frameTime().average()));
+                out.append(kv("anim_painted_widgets", scene.metrics().paintedWidgets().average()));
+                out.append(kv("anim_damage_rects", scene.metrics().damageRects().average()));
                 out.append(kv("anim_cpu_pct", cpu.pct("anim")));
                 startScroll(cpu, out, scene, scroll, window);
             }

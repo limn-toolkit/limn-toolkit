@@ -40,6 +40,9 @@ final class PerfScene {
         column.add(new PerfFooter());
 
         Scene scene = new Scene(new Padding(Insets.all(20), column));
+        // The switches start where the scene does: partial rendering is on by default.
+        partialRendering.setChecked(scene.isPartialRendering());
+        damageDebug.setChecked(scene.isDamageDebug());
         partialRendering.onChange(scene::setPartialRendering);
         damageDebug.onChange(scene::setDamageDebug);
         return scene;
