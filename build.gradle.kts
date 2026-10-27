@@ -94,6 +94,24 @@ val publishedModules = mapOf(
             "toolkit.",
 )
 
+// What a module's jar carries under a licence of its own, beside Limn's Apache-2.0, as NOTICE lists
+// it: each becomes a <license> of that module's POM, so a reader of the POM alone, which is what a
+// licence scanner reads, is not told the jar is Apache-2.0 throughout. Name, URL, what it covers.
+val bundledLicences = mapOf(
+    "limn-toolkit" to listOf(Triple(
+        "Unicode License v3", "https://www.unicode.org/license.txt",
+        "The Unicode CLDR data in limn/i18n/internal/ and the tables taken from it, with the " +
+                "licence beside it at limn/i18n/internal/CLDR-LICENSE.txt.")),
+    "limn-backend-lwjgl" to listOf(Triple(
+        "SIL Open Font License 1.1", "https://openfontlicense.org/open-font-license-official-text/",
+        "The Limn Menu Symbols font, limn/backend/lwjgl/fonts/LimnMenuSymbols.ttf, glyphs of " +
+                "the Noto fonts, with the licence beside it.")),
+    "limn-demo" to listOf(Triple(
+        "Creative Commons Attribution 3.0 Unported", "https://creativecommons.org/licenses/by/3.0/",
+        "The Big Buck Bunny excerpt in limn/demo/media/, (c) copyright 2008, Blender " +
+                "Foundation, with the licence beside it.")),
+)
+
 // ADR 046 §1: limn-toolkit, limn-test, limn-video-ffmpeg and limn-backend-lwjgl carry a
 // module-info. These two name themselves in the manifest instead, so an application on the module
 // path requires a name that will not change with a file name:
@@ -627,6 +645,7 @@ object HostNativesPom {
 
 subprojects {
     val moduleDescription = publishedModules[name] ?: return@subprojects
+    val moduleLicences = bundledLicences[name].orEmpty()
     apply(plugin = "com.vanniktech.maven.publish")
 
     // Both ids, because natives-all is a `java-platform` — a POM and nothing else — and a gate
@@ -672,6 +691,13 @@ subprojects {
                     license {
                         name.set("The Apache License, Version 2.0")
                         url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                    }
+                    moduleLicences.forEach { (licenceName, licenceUrl, covers) ->
+                        license {
+                            name.set(licenceName)
+                            url.set(licenceUrl)
+                            comments.set(covers)
+                        }
                     }
                 }
                 developers {

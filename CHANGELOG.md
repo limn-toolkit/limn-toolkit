@@ -10,6 +10,10 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- The POMs name every licence their jar carries, as NOTICE does: `limn-toolkit` the Unicode
+  License v3 of its CLDR data, `limn-backend-lwjgl` the SIL Open Font License 1.1 of its menu
+  symbols font, and `limn-demo` the Creative Commons Attribution 3.0 of its Big Buck Bunny clip,
+  each beside Apache-2.0 with a comment saying what it covers. They declared Apache-2.0 alone.
 - On Windows, file choosers repair navigation-tree item handles truncated by 32-bit
   accessibility clients before COMCTL32 uses them: on ARM64 the truncated handle ended the process,
   and on x64 a reader announced each item of the navigation pane as one of one. On ARM64 their
