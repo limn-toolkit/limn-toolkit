@@ -176,7 +176,7 @@ estimate by analogy, good to about half again either way, not a measurement.
 | text: Type 3 fonts, the maps to Unicode, `ActualText` | 600 to 900 | `HarfBuzzShaper` (540) |
 | `Document`, `Paper`, pagination, header and footer | 1,200 to 1,800 | `Rows` (888) |
 | `PrintPreview` | 600 to 900 | `Expander` (704), `Card` (1,701) |
-| **the part an optional artifact would have held** | **5,000 to 7,000, about 65 to 90 KB** | 3 to 4 % of the toolkit's 2.35 MB jar, 0.2 % of the default install's 34.4 MB |
+| **the part an optional artifact would have held** | **5,000 to 7,000, about 65 to 90 KB** | 3 to 4 % of the toolkit's 2.35 MB jar, 0.2 % of the default install's 34.5 MB |
 
 What the toolkit and the backend carry in either case: the hooks in the components (every row of a
 list, a table or a tree, the break points of section 6.2, a scene with no focus, hover, caret or
