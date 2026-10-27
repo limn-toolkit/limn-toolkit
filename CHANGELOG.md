@@ -6,6 +6,16 @@ Each section is named after the release it follows. It is complete on the day th
 tagged, and no release has to edit this file to rename it; the release on GitHub and the version on
 Maven Central say which number that was.
 
+## After 1.0.0
+
+### Fixed
+
+- On macOS 27 the system's menus draw the check mark of a checked item and the arrow of a submenu
+  again when the program is started from a terminal whose locale writes numbers with a comma
+  (`LANG=pt_BR.UTF-8`, for one). The Java launcher hands the C library the environment's locale,
+  and with its numbers in such a locale the system drew neither; the backend now puts that one
+  category back in `"C"`, where a program the system starts has it.
+
 ## After 0.9.0
 
 ### Fixed

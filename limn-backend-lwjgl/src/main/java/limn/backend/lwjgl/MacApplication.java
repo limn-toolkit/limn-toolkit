@@ -3,6 +3,7 @@ package limn.backend.lwjgl;
 import limn.backend.lwjgl.internal.ObjC;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.system.libc.LibCLocale;
 
 import java.lang.System.Logger.Level;
 
@@ -73,6 +74,35 @@ final class MacApplication {
         } catch (Throwable refused) {
             LOG.log(Level.INFO, "the application's name could not be given to the system's menu bar", refused);
         }
+    }
+
+    /**
+     * Puts the C library's numbers back in the {@code "C"} locale, which is where a macOS
+     * application started by the system has them. The Java launcher takes every category from the
+     * environment, and a terminal hands it one: started from a terminal with
+     * {@code LANG=pt_BR.UTF-8}, the system's menus drew no check mark beside a checked item and no
+     * arrow beside a submenu, measured on macOS 27 with a plain native program that did nothing
+     * else; numbers written with a comma are the category that does it. Java formats its own
+     * numbers and reads nothing of this one, so the text a reader sees is unchanged.
+     *
+     * @return the category's locale after the call, or {@code null} when it could not be read
+     */
+    static @Nullable String numbersInTheCLocale() {
+        try {
+            String now = cLocale(LibCLocale.LC_NUMERIC);
+            if (!"C".equals(now)) {
+                now = LibCLocale.setlocale(LibCLocale.LC_NUMERIC, "C");
+            }
+            return now;
+        } catch (Throwable refused) {
+            LOG.log(Level.DEBUG, "the C library's number locale could not be set", refused);
+            return null;
+        }
+    }
+
+    /** @return the C library's locale for a category, read without changing it, or {@code null} */
+    static @Nullable String cLocale(int category) {
+        return MemoryUtil.memASCIISafe(LibCLocale.nsetlocale(category, NULL));
     }
 
     /** @return the name the system shows for this application, or {@code null} when it cannot be read */
