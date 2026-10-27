@@ -2,8 +2,12 @@
  * The LWJGL backend: GLFW, OpenGL and stb behind the toolkit's SPIs, and the platform
  * accessibility bridges.
  *
- * <p>Only {@code limn.backend.lwjgl} is exported; the bridges and the native helpers in
- * {@code limn.backend.lwjgl.internal} are this module's own. jlayer, the
+ * <p>Only {@code limn.backend.lwjgl} is exported to applications; the bridges and the native
+ * helpers in {@code limn.backend.lwjgl.internal} are this module's own. Three of them are exported
+ * to LWJGL alone, because each declares native callbacks: on Java 25 LWJGL builds a callback as a
+ * class in the package of the callback's interface and instantiates it from its own module, which
+ * it may do only in a package exported to it. Unexported, the clipboard, drag and drop and the
+ * accessibility bridges failed to open on the module path. jlayer, the
  * MP3 decoder, has no module name and belongs on the class path, which this module reads for it
  * when it is there ({@code AudioFileDecoder}). Nothing here requires it: an application may exclude
  * it and lose MP3 alone.
@@ -32,4 +36,8 @@ module limn.backend.lwjgl {
     requires limn.angle.natives;
 
     exports limn.backend.lwjgl;
+    // Every package that declares an LWJGL callback (CallbacksExportedToLwjglTest holds the list to the classes).
+    exports limn.backend.lwjgl.a11y.macos to org.lwjgl;
+    exports limn.backend.lwjgl.a11y.windows to org.lwjgl;
+    exports limn.backend.lwjgl.transfer to org.lwjgl;
 }

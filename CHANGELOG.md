@@ -26,6 +26,12 @@ Maven Central say which number that was.
   - The one callback that returned a structure as an array now writes it into a structure handed in.
   - Every shape answers a native call on Java 25 and 21 alike, and the backend's tests pass on both.
   - The Wayland clipboard read another program's text under Java 25.
+  - On the module path too: LWJGL defines each callback's class in the package of its interface
+    and creates it from its own module, which the module system refuses unless that package is
+    exported to LWJGL. `limn.backend.lwjgl` now exports the three packages that declare callbacks
+    to `org.lwjgl` alone, so the macOS clipboard keeps its rich formats and the macOS accessibility
+    bridge opens, and the Wayland clipboard, drag and drop with other programs on Windows and the
+    Windows accessibility bridge no longer fall back; applications still see one package.
 - On Windows on ARM under an ARM64 JDK, a program no longer dies (internal error `0x8001010d`) the
   first time a screen reader or another UI Automation client in another process asks one of its
   windows for its accessibility, as a client that walks the whole desktop does: the window's
