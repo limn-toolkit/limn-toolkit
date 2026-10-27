@@ -201,20 +201,34 @@ LGPL-2.1-or-later이고, 동적으로 링크되어 교체할 수 있으며, 라�
 ## 화면에 창 하나
 
 ```java
-public static void main(String[] args) {
-    try (Backend backend = new LwjglBackend()) {
-        NativeWindow window = backend.createWindow(
-                WindowConfig.of("Hello, Limn", 480, 320));
+import limn.backend.Backend;
+import limn.backend.NativeWindow;
+import limn.backend.WindowConfig;
+import limn.backend.lwjgl.LwjglBackend;
+import limn.components.Button;
+import limn.components.Label;
+import limn.scene.Insets;
+import limn.scene.Scene;
+import limn.scene.layout.Column;
+import limn.scene.layout.Padding;
 
-        Column column = new Column();
-        column.gap(12);
-        column.add(new Label("A window, drawn by Limn."));
-        column.add(new Button("Close").onAction(window::requestClose));
+public final class HelloWindow {
 
-        Scene scene = new Scene(new Padding(Insets.all(24), column));
-        scene.bind(window);
+    public static void main(String[] args) {
+        try (Backend backend = new LwjglBackend()) {
+            NativeWindow window = backend.createWindow(
+                    WindowConfig.of("Hello, Limn", 480, 320));
 
-        backend.runEventLoop();
+            Column column = new Column();
+            column.gap(12);
+            column.add(new Label("A window, drawn by Limn."));
+            column.add(new Button("Close").onAction(window::requestClose));
+
+            Scene scene = new Scene(new Padding(Insets.all(24), column));
+            scene.bind(window);
+
+            backend.runEventLoop();
+        }
     }
 }
 ```

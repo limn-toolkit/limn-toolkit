@@ -88,6 +88,10 @@ tasks.named<Test>("test") {
     inputs.file(rootProject.file("gradle/libs.versions.toml"))
             .withPropertyName("versionCatalog")
             .withPathSensitivity(PathSensitivity.NONE)
+    // HelloWindowReadmeTest holds the program in the eleven READMEs to HelloWindow's region.
+    inputs.files(rootProject.projectDir.listFiles { file -> file.name.matches(Regex("README(\\.[\\w-]+)?\\.md")) })
+            .withPropertyName("readmes")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 // A developer's `full` payload (encoders, for the writer scenes), from a sibling clone of
