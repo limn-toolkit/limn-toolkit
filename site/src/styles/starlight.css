@@ -174,3 +174,28 @@ starlight-menu-button button:hover {
     color-scheme: light;
   }
 }
+
+/* On a wide screen Starlight splits the room left over between the two sides of the text: half
+   of it before the text, which pushes the text towards the right, and half into the contents
+   column, which grows as wide as the screen allows. The guide keeps the text against the
+   sidebar it is read from and the contents column at the sidebar's width beside it, and leaves
+   what is left over at the far end. Starlight's rules are in its core layer, so these win
+   without raising specificity; they name its .main-pane and .right-sidebar, which a Starlight
+   upgrade may rename. */
+@media (min-width: 72rem) {
+  [data-has-sidebar][data-has-toc] .main-pane {
+    --sl-content-margin-inline: 0;
+    width: min(
+      calc(100% - var(--sl-sidebar-width)),
+      calc(var(--sl-content-width) + 2 * var(--sl-content-pad-x))
+    );
+  }
+
+  .right-sidebar-container {
+    width: var(--sl-sidebar-width);
+  }
+
+  .right-sidebar {
+    width: var(--sl-sidebar-width);
+  }
+}
