@@ -117,6 +117,14 @@ export default defineConfig({
           ],
         },
         {
+          label: "Coming from another toolkit",
+          items: [
+            { slug: "docs/from-swing" },
+            { slug: "docs/from-javafx" },
+            { slug: "docs/from-swt" },
+          ],
+        },
+        {
           label: "Shipping",
           items: [
             { slug: "docs/background-work" },

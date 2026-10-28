@@ -36,6 +36,13 @@ covers pictures, video and the 3D viewport, [Animations](/docs/animations/) cove
 something move, and [Your own widgets](/docs/custom-widgets/) covers a control the toolkit does
 not have.
 
+## Coming from another toolkit
+
+If you already write [Swing](/docs/from-swing/), [JavaFX](/docs/from-javafx/) or
+[SWT](/docs/from-swt/), the page for it maps each class and habit you know to its Limn
+counterpart, shows the everyday tasks written in both, and says plainly what Limn does not
+have.
+
 ## Shipping
 
 [Background work](/docs/background-work/) is the one rule that will bite you if you skip it:
