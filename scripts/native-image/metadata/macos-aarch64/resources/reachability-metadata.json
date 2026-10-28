@@ -1,0 +1,17 @@
+{
+  "resources": [
+    {"glob": "limn/demo/media/*"},
+    {"glob": "limn/video/ffmpeg/native/macos-aarch64/*"},
+    {"glob": "limn/svg/native/macos-aarch64/*"},
+    {"glob": "limn/angle/native/macos-aarch64/*"},
+    {"glob": "macos/arm64/**"},
+    {"glob": "META-INF/macos/arm64/**"},
+    {"glob": "limn/**/*.properties"},
+    {"glob": "limn/**/*.ttf"},
+    {"glob": "limn/**/*.otf"},
+    {"glob": "limn/**/*.svg"},
+    {"glob": "limn/**/*.png"},
+    {"glob": "limn/**/*.json"},
+    {"glob": "limn/**/*.txt"}
+  ]
+}

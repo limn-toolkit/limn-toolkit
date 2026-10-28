@@ -1,0 +1,17 @@
+{
+  "resources": [
+    {"glob": "limn/demo/media/*"},
+    {"glob": "limn/video/ffmpeg/native/windows-x86_64/*"},
+    {"glob": "limn/svg/native/windows-x86_64/*"},
+    {"glob": "limn/angle/native/windows-x86_64/*"},
+    {"glob": "windows/x64/**"},
+    {"glob": "META-INF/windows/x64/**"},
+    {"glob": "limn/**/*.properties"},
+    {"glob": "limn/**/*.ttf"},
+    {"glob": "limn/**/*.otf"},
+    {"glob": "limn/**/*.svg"},
+    {"glob": "limn/**/*.png"},
+    {"glob": "limn/**/*.json"},
+    {"glob": "limn/**/*.txt"}
+  ]
+}
