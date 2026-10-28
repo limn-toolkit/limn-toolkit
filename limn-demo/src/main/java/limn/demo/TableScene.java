@@ -212,9 +212,7 @@ final class TableScene {
             for (Column<Item> column : List.of(category, warehouse, reserved, reorder, cost, counted)) {
                 menu.addCheck(column.title(), column.isVisible(), column::visible);
             }
-            // The anchor rectangle is in scene coordinates: the button's own box, mapped.
-            limn.graphics.Rect box = columns.localToSceneBounds(0, 0, columns.width(), columns.height());
-            new PopupMenu(menu).showAnchored(columns, box.x(), box.y(), box.width(), box.height());
+            new PopupMenu(menu).showFor(columns);
         });
         Checkbox stripes = new Checkbox(Text.STRIPES).setChecked(true);
         stripes.onChange(table::setStriped);

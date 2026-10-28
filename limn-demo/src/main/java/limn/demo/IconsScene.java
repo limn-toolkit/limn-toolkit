@@ -502,7 +502,6 @@ final class IconsScene {
 
     /** Opens {@code menu} as a drop-down under {@code anchor}. */
     private static void openBelow(Widget<?> anchor, Menu menu) {
-        limn.graphics.Rect box = anchor.localToSceneBounds(0, 0, anchor.width(), anchor.height());
-        new PopupMenu(menu).showAnchored(anchor, box.x(), box.y(), box.width(), box.height());
+        new PopupMenu(menu).showFor(anchor);
     }
 }

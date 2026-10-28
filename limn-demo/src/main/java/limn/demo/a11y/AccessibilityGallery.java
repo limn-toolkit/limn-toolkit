@@ -1657,8 +1657,7 @@ public final class AccessibilityGallery {
         Button anchor = new Button("Options");
         page.add(anchor);
         return new Built(page, () -> {
-            limn.graphics.Rect box = anchor.localToSceneBounds(0, 0, anchor.width(), anchor.height());
-            new PopupMenu(editingMenu()).showAnchored(anchor, box.x(), box.y(), box.width(), box.height());
+            new PopupMenu(editingMenu()).showFor(anchor);
         });
     }
 

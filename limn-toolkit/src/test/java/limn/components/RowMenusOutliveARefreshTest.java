@@ -382,7 +382,7 @@ class RowMenusOutliveARefreshTest extends ComponentTestBase {
             dots.onAction(() -> {
                 PopupMenu menu = new PopupMenu(menuFor(order));
                 shown.add(menu);
-                menu.showAnchored(dots, 0, 0, dots.width(), dots.height());
+                menu.showFor(dots);
             });
             TextField note = new TextField().setText(order.status + " " + order.number);
             note.setId("note-" + order.number);

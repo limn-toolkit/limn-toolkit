@@ -39,7 +39,7 @@ menu bar on macOS](#the-menu-bar-on-macos) says what the system does with it.
 
 ```java
 PopupMenu popup = new PopupMenu(menu);
-popup.showAnchored(button, 0, 0, button.width(), button.height());
+popup.showFor(button);
 ```
 
 A popup is a real window, so it can extend past the edge of yours the way an operating
@@ -48,7 +48,7 @@ pointer is on, so a menu near the bottom of the screen opens upward instead of b
 off, so you do not position it yourself. While it is open it takes keyboard focus: arrows
 navigate, Enter picks, Escape closes, and clicking back on your window dismisses it.
 
-A menu shown at a widget (`showAnchored(button, …)`, `showAt(row, x, y)`, a field's own
+A menu shown at a widget (`showFor(button)`, `showAt(row, x, y)`, a field's own
 context menu) hangs from it as a popover hangs from its button: when the widget leaves the
 window (taken out, with the page around it when the window switches pages) or is hidden, the
 menu closes, so its rows never act on something that is gone. One shown at a point of the

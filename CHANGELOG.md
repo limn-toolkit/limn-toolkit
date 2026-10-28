@@ -8,6 +8,13 @@ Maven Central say which number that was.
 
 ## After 1.0.0
 
+### Added
+
+- `PopupMenu.showFor(Widget)` opens, as `Popover.showFor` does, a menu at a widget as a drop-down from it, below it or above it
+  when the screen has no room below, with nothing mapped by the caller. `showAnchored` takes its
+  rectangle in scene coordinates, and handing it the widget's own `0, 0`, as the menus guide
+  showed, opened the menu at the window's edge; the guide now shows `showFor(button)`.
+
 ### Fixed
 
 - On macOS 27 the system's menus draw the check mark of a checked item and the arrow of a submenu

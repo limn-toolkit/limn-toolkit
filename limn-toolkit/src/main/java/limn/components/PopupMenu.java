@@ -406,6 +406,22 @@ public final class PopupMenu {
     }
 
     /**
+     * Opens the menu at {@code anchor}, as a drop-down from a button: below it, or above it when
+     * the screen has no room below, sized at the step resolved on it. The verb is
+     * {@link Popover#showFor(Widget)}'s, which opens a popover at its widget the same way. The anchor's own box is the
+     * rectangle, so nothing has to be mapped to the scene first; for a rectangle of another
+     * shape, {@link #showAnchored(Widget, float, float, float, float)} takes one in scene
+     * coordinates. Hangs from {@code anchor} as {@link #showAt(Widget, float, float)} does. A
+     * no-op for a widget outside a scene. UI thread only.
+     */
+    public void showFor(Widget<?> anchor) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(anchor, "anchor");
+        Rect box = anchor.localToSceneBounds(0, 0, anchor.width(), anchor.height());
+        showAnchored(anchor, box.x(), box.y(), box.width(), box.height());
+    }
+
+    /**
      * Opens the menu attached to an anchor rectangle in scene coordinates. A no-op on a scene
      * bound to no window, or to one that has closed. UI thread only.
      *
