@@ -2,7 +2,9 @@
 
 - **Status:** **Proposed 2026-10-29**, at the owner's request after a native image of the Showcase
   was found black and unresponsive on the Windows guest when he resumed its virtual machine; every number in §0 was
-  measured that day on that guest, with him suspending and resuming it. §6 holds the questions.
+  measured that day on that guest, with him suspending and resuming it thirteen times; the step
+  that brings the system's OpenGL back (§1.3, step 1) follows his suspicion that something old was
+  still drawing, which the measurements confirmed. §6 holds the questions.
 - **Date:** 2026-10-29
 - **Scope:** what the toolkit does when the graphics context behind its windows stops drawing
   while the process runs: a virtual machine resumed, a driver reset or updated, a GPU removed. It
@@ -28,8 +30,8 @@ ahead and was set back at 13:35:02.
 
 The virtual machine's OpenGL there is 4.1 compatibility, forwarded to the host's Metal,
 without `KHR_robustness` or `ARB_robustness`. Each row was one suspension of about a minute, made
-by the owner, with probes of `scratchpad/glprobe` (`GlLossProbe`, `AngleLossProbe`,
-`NativeThenAngleProbe`) and a sampler reading each window's composed pixel.
+by the owner, with the probes kept in `.claude/pending/2026-10-29/graphics-loss/` and a sampler
+reading each window's composed pixel and the screen's.
 
 | What was running | After the resume | 
 | --- | --- |
@@ -42,19 +44,27 @@ by the owner, with probes of `scratchpad/glprobe` (`GlLossProbe`, `AngleLossProb
 | ANGLE through EGL directly, on a GLFW window that has no context of GLFW's | `eglSwapBuffers` returned false with `EGL_CONTEXT_LOST`; destroying the context and surface, `eglTerminate`, and building display, surface and context again **on the same window** drew again, 76 ms after the loss |
 | OpenGL first on a GLFW window; on a pixel reading back black, GLFW's context let go (not destroyed), LWJGL's GL binding destroyed, ANGLE through EGL on the same window | **Drew again**, 170 ms after the loss was read |
 | `PrintWindow` with `PW_RENDERFULLCONTENT`, and the screen's pixel, on each probe window | Matched the colour drawn before the resume; after it, `000000` for the old windows **and for the new one whose OpenGL read its colours back**, the black the owner saw |
+| Everything of OpenGL torn down (windows destroyed, LWJGL's binding destroyed, `glfwTerminate`), modules listed | `opengl32.dll` left the process by its own count; **the driver's OpenGL library stayed loaded**, alone. That is what had survived every attempt above (the owner's suspicion: something old still drawing) |
+| The same, then that library freed once by hand, and a new window | **The system's OpenGL presents again** |
+| The same without freeing it | The process ended during the reload |
+| One window kept with the toolkit's own context; the context deleted, the driver's OpenGL library and its Direct3D user-mode driver freed, a new context on the same window | No context could be made: the window's pixel format belongs to the driver that was unloaded |
+| The context on a child window covering the top-level; on the loss the child destroyed (which unloaded the Direct3D user-mode driver), the OpenGL library freed, a new child and context | **Presents again**, the top-level window untouched |
+| **The top-level window living as the toolkit's do, with GLFW's context; on the loss GLFW's context deleted, LWJGL's binding destroyed, `opengl32.dll` and the driver's library freed once each, then a child window with a new context** | **Presents again** (screen pixel), `opengl32.dll` reloaded at the same address, so the pointers GLFW kept stay valid. Without freeing the two libraries: black |
 
 Two more facts from the same day. Restarting the display adapter (`pnputil /restart-device`, close to
 a driver reset) killed the JVM and the executable alike inside the virtual machine's OpenGL
 driver, during `SwapBuffers`: nothing in the process can answer that. A jump of the guest's clock
 by +19 h and −6 h with nothing suspended changed nothing. The hang of §0.1 was not reproduced: in
-five suspensions of one to five minutes the windows went black and stayed responsive.
+thirteen suspensions of one to five minutes the windows went black and stayed responsive.
 
 ### 0.3 What the measurements decide
 
 - On this driver nothing in OpenGL says the context is gone. A colour read back says it for the
   contexts that existed; for a context made afterwards it lies.
-- OpenGL does not come back inside the process on this driver, by any of three routes. A process
-  that started over would, and the owner ruled that out: restarting the process is not an option.
+- OpenGL does not come back while the driver's OpenGL library stays loaded: the new context, the
+  new window and GLFW started over all kept it. It comes back once that library is unloaded and a
+  surface that never belonged to it is drawn on, a child window, with the top-level window kept.
+  A process that started over would also draw, and the owner ruled that out.
 - ANGLE says it (`EGL_CONTEXT_LOST`, `GL_EXT_robustness`), and comes back in the same native window
   once EGL is built again; and a window whose OpenGL died takes ANGLE afterwards.
 - What the system composed for a window (`PrintWindow`) is what the user sees, so it can verify a
@@ -86,10 +96,15 @@ rebuilt is the drawing: the context, its surface on the same window, and every G
 
 As the owner asked, the toolkit first tries to stay where it was:
 
-1. **On the system's OpenGL:** a new context on each window's existing surface, every GPU object
-   rebuilt, one whole frame drawn in a colour the toolkit chooses, and the window's composed pixel
-   read with `PrintWindow`. The composed colour is the verdict, not OpenGL's read-back, which §0.2
-   shows lying.
+1. **On the system's OpenGL, through a child surface:** every context deleted, GLFW's included;
+   LWJGL's binding destroyed; `opengl32.dll` and the driver's OpenGL library freed if they are
+   still in the process; then, in each top-level window, a child window covering its client area,
+   disabled so that the input stays with the top-level, and a new context on it; every GPU object
+   rebuilt; one whole frame drawn in a colour the toolkit chooses and the screen's pixel read where
+   the window shows. The screen's colour is the verdict, not OpenGL's read-back, which §0.2 shows
+   lying; `PrintWindow` read a child's static background at times, so it is used only for a window
+   that is covered, with a child class that paints nothing. Until a loss, nothing of this exists:
+   windows draw on GLFW's context as today.
 2. **On ANGLE, when the first fails or cannot be verified:** the toolkit's OpenGL binding is
    destroyed (LWJGL frees its tables only then, which is what allows the switch), ANGLE is brought
    up through EGL on each existing window, and the process stays on ANGLE from then on (§6,
@@ -129,8 +144,16 @@ with the route taken.
 ## 2. Alternatives considered
 
 - **Restarting the process,** which §0.2 shows works: ruled out by the owner.
-- **A new native window:** measured black on this driver (§0.2), and it drops every attachment
-  §1.1 lists.
+- **A new native window:** measured black on this driver while its OpenGL library stayed loaded
+  (§0.2), and it drops every attachment §1.1 lists.
+- **A child surface from the start, on every window:** measured working, and it would make step 1
+  of §1.3 only a matter of replacing the child; not chosen, because it changes every window on
+  every machine (transparency, opacity, the input method's position, the pinch) for a case most
+  never meet, when §0.2 shows the child can come at the loss.
+- **Freeing the driver's library by hand** is the least comfortable part of step 1: the toolkit
+  unloads, behind `opengl32.dll`, a library `opengl32.dll` loaded, once each library's count says
+  nothing else holds it. It is done only after every context is deleted, and step 2 stands behind
+  it if a driver takes it badly.
 - **Going to ANGLE directly, without trying the system's OpenGL:** simpler, and on this driver
   just as good. Not chosen because the owner asked for the system's OpenGL first, and because on
   drivers with robustness a reset context is meant to be replaced in place, keeping the faster and
@@ -144,15 +167,18 @@ with the route taken.
   handles and make them again; the renderer gains a generation number that every cached handle is
   checked against. Testable on any machine by forcing a loss: destroying the context under a live
   scene and asking for a frame.
-- **Contexts the toolkit makes itself:** GLFW makes a window and its context together and cannot
-  give an existing window another one, so the rebuilt contexts (a second WGL context on the same
-  device context, EGL on the same window) are the toolkit's, through LWJGL's WGL and EGL bindings,
-  with GLFW's first context released but not destroyed until its window is.
+- **Contexts and child windows the toolkit makes itself:** GLFW makes a window and its context
+  together and cannot give an existing window another one, so the rebuilt contexts (WGL on a child
+  window, EGL on the top-level) are the toolkit's, through LWJGL's WGL and EGL bindings, with
+  GLFW's context deleted under it; the swap interval, the pixel format and the window's opacity
+  and transparency are then the toolkit's to set on the child. Unloading the two libraries is a
+  few lines; proving it on more than one driver is §4's.
 - **Moving a running process from OpenGL to OpenGL ES:** `Gl.use(GlesGl)` after start, the shaders
   generated again for GLSL ES (`GlslCodegen` already writes both), every capability cache cleared.
 - **Detection:** a clock comparison per loop turn, three window messages on Windows, the reset
   status once a frame, one pixel read back only on a signal.
-- **The verdict by composition:** `PrintWindow` into a one-pixel area after one frame; Windows only.
+- **The verdict:** the screen's pixel inside the window after one frame, or `PrintWindow` for a
+  covered window; Windows only.
 
 ## 4. Verification, when built
 
