@@ -1,6 +1,7 @@
 # ADR 082: A lost graphics context is rebuilt in the same windows
 
-- **Status:** **Proposed 2026-10-29**, at the owner's request after a native image of the Showcase
+- **Status:** **Accepted 2026-10-29**: the owner took every recommendation of §6 and asked for
+  question 5's measurement first, which §7 records. Proposed the same day, at the owner's request after a native image of the Showcase
   was found black and unresponsive on the Windows guest when he resumed its virtual machine; every number in §0 was
   measured that day on that guest, with him suspending and resuming it some thirty times; the step
   that brings the system's OpenGL back (§1.4, step 1) follows his suspicion that something old was
@@ -250,3 +251,21 @@ with the route taken.
 5. **Remote desktop.** Connecting to the guest from the Mac needs a client there and his Windows
    password, both his. **Recommendation:** one run in stage 0, before building, since a session
    change is the most common way a corporate desktop changes GPU.
+
+## 7. The owner's answers, 2026-10-29
+
+"Siga as recomendações, pode implementar", with question 5 measured first:
+
+1. Detection and rebuilding written once for the three systems; macOS and Linux tested by forced
+   losses and claimed on real hardware only after a machine that loses a context has been run.
+2. Once on ANGLE after a loss, the process stays there.
+3. No event for the application; the log says what happened.
+4. Looked for only on the signals of §1.3, never periodically.
+5. **Measured the same day.** Remote desktop was switched on in the Windows guest for the run and
+   off again after it. The owner connected from the Mac with the system vendor's client, and
+   session 1 moved from the console to the remote session at 17:03:07 and back at 17:04:01, by
+   the session manager's log. Four windows of the probe that owns its contexts (two processes,
+   x64 and ARM64) and the Showcase on GLFW's contexts ran through both moves: **no loss** in
+   either probe, the colours on screen afterwards, and the Showcase logged only its new monitor
+   scale. On this guest a session change does not lose a context; a resume does.
+
