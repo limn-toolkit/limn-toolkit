@@ -52,6 +52,11 @@ class path: the toolkit's native libraries are taken from there.
   -H:NativeLinkerOption=/ENTRY:mainCRTStartup`. An executable is otherwise a console program, and
   one opened from Explorer brings a console window up beside your own. Leave them out of a build
   whose log you want to read.
+- On Windows, the executable's icon is a resource linked into it. Write a resource script with
+  one line, `GLFW_ICON ICON "your-app.ico"`, compile it with the SDK's `rc /fo your-app.res
+  your-app.rc` and add `-H:NativeLinkerOption=your-app.res`. Under that name the icon is also
+  the one every window of the application shows in its title bar and the taskbar, with nothing
+  to set in code.
 
 The Showcase's own scripts, in `scripts/native-image/` of the repository, build it this way on
 each system.

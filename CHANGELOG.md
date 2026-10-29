@@ -37,6 +37,11 @@ Maven Central say which number that was.
   as the JVM does, when it is started with no `LANG`, as the system starts a `.app`; it came up
   in English. A `-Duser.language` on its command line, or an `I18n.setLocale` before the backend
   starts, still decides.
+- The SVG renderer, ANGLE and the FFmpeg decoder load again for a user whose extracted copy a
+  cleaner of temporary files has emptied. Windows' own deletes the files and leaves their
+  directory, and every later extraction then failed to rename its copy onto that directory, so
+  SVG icons drew nothing from then on. A copy
+  missing any of its files is now set aside and extracted again.
 
 ## After 0.9.0
 

@@ -65,8 +65,11 @@ public final class NativeExtraction {
         String digest = digestOf(loader, root, names, salt);
         Path base = privateBase();
         Path target = base.resolve(digest);
-        if (Files.isDirectory(target) && Files.isRegularFile(target.resolve(names.get(0)))) {
+        if (complete(target, names)) {
             return target;
+        }
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            setAside(base, target);
         }
 
         Path staging = Files.createTempDirectory(base, "staging-");
@@ -87,6 +90,45 @@ public final class NativeExtraction {
             return target;
         } finally {
             deleteQuietly(staging);
+        }
+    }
+
+    /** Whether {@code target} is a directory holding every one of {@code names}. */
+    private static boolean complete(Path target, List<String> names) {
+        if (!Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS)) {
+            return false;
+        }
+        for (String name : names) {
+            if (!Files.isRegularFile(target.resolve(name), LinkOption.NOFOLLOW_LINKS)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Moves an incomplete directory at {@code target} out of the way and deletes it, so that the
+     * staged one can be renamed there.
+     *
+     * <p>A directory is only ever renamed to its target whole, so one that is there and incomplete
+     * was emptied afterwards, and the usual hand is a cleaner of temporary files: Windows' own
+     * deletes files it judges old and leaves their directories. Left in place it fails every later
+     * extraction's rename, since a directory cannot be renamed onto an existing one, and the native
+     * never loads again for this user. It lies in this user's private directory, so nobody else
+     * could have made it.
+     *
+     * <p>Renaming it first, rather than deleting it where it is, means a rename that fails leaves it
+     * whole: on Windows that is a directory a running process still holds a library open in, and
+     * the move that follows reports the collision as it always did.
+     */
+    private static void setAside(Path base, Path target) {
+        try {
+            Path aside = Files.createTempDirectory(base, "stale-");
+            Files.delete(aside);
+            Files.move(target, aside, StandardCopyOption.ATOMIC_MOVE);
+            deleteQuietly(aside);
+        } catch (IOException held) {
+            // Left for moveIntoPlace, which reports it unless a complete copy is there by then.
         }
     }
 
