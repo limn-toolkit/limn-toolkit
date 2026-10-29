@@ -46,6 +46,19 @@ final class GlesGl implements GlApi {
         return created();
     }
 
+    @Override
+    public void loadBinding() {
+        created();
+    }
+
+    @Override
+    public void destroyBinding() {
+        GLES.setCapabilities(null);
+        if (GLES.getFunctionProvider() != null) {
+            GLES.destroy();
+        }
+    }
+
     /**
      * LWJGL's ES binding, created. LWJGL creates it when the class is first touched, unless
      * something in the process asked to create it by hand ({@code Configuration.OPENGLES_EXPLICIT_INIT});

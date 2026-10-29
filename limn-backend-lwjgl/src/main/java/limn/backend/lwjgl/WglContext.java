@@ -1,7 +1,6 @@
 package limn.backend.lwjgl;
 
 import org.jspecify.annotations.Nullable;
-import org.lwjgl.opengl.GL;
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -106,9 +105,7 @@ final class WglContext implements WindowContext {
      *         binding, so it has to be the same load
      */
     private static Entries entries() {
-        if (GL.getFunctionProvider() == null) {
-            GL.create();
-        }
+        Gl.api().loadBinding();
         long module = WinBase.GetModuleHandle(null, "opengl32.dll");
         Entries current = entries;
         if (current == null || current.module != module) {
@@ -174,6 +171,99 @@ final class WglContext implements WindowContext {
     /** @return why the last {@link #create} returned null, as GLFW would have reported it */
     static GraphicsProbe.@Nullable Failure lastFailure() {
         return lastFailure;
+    }
+
+    /**
+     * Takes {@code opengl32.dll} and the driver's OpenGL library out of the process, for a context
+     * lost with the device (ADR 082 §1.4, step 1): while the driver's library stays loaded no new
+     * context presents, and it does stay, alone, after {@code opengl32.dll} has gone, measured on
+     * 2026-10-29. Call it only after every context is deleted and LWJGL's binding destroyed.
+     *
+     * <p>The driver's library is found by what it exports rather than by name: every installable
+     * client driver exports {@code DrvCreateContext}, and nothing else in a process does.
+     *
+     * @return what was unloaded, for the log
+     */
+    static String unloadDriver() {
+        entries = null;
+        StringBuilder unloaded = new StringBuilder();
+        long opengl32 = WinBase.GetModuleHandle(null, "opengl32.dll");
+        if (opengl32 != NULL && freeCompletely(opengl32)) {
+            unloaded.append("opengl32.dll");
+        }
+        for (long module : loadedModules()) {
+            if (WinBase.GetProcAddress(null, module, "DrvCreateContext") != NULL && freeCompletely(module)) {
+                unloaded.append(unloaded.length() == 0 ? "" : ", ").append("the driver's library at 0x")
+                        .append(Long.toHexString(module));
+            }
+        }
+        return unloaded.length() == 0 ? "nothing" : unloaded.toString();
+    }
+
+    /**
+     * Puts the window class's own procedure back on {@code window} if something else is there, after
+     * {@link #unloadDriver}: with every procedure of the backend's own taken off first, anything
+     * left above the class's would be the unloaded runtime's, and the next message would call into
+     * nothing.
+     *
+     * @return whether a procedure had to be put back
+     */
+    static boolean restoreClassProcedure(long window) {
+        long user32 = WinBase.GetModuleHandle(null, "user32.dll");
+        long getWindowLong = WinBase.GetProcAddress(null, user32, "GetWindowLongPtrW");
+        long getClassLong = WinBase.GetProcAddress(null, user32, "GetClassLongPtrW");
+        long setWindowLong = WinBase.GetProcAddress(null, user32, "SetWindowLongPtrW");
+        long current = JNI.invokePPP(window, -4L, getWindowLong);    // GWLP_WNDPROC
+        long classProcedure = JNI.invokePPP(window, -24L, getClassLong); // GCLP_WNDPROC
+        if (current == classProcedure || classProcedure == NULL) {
+            return false;
+        }
+        JNI.invokePPPP(window, -4L, classProcedure, setWindowLong);
+        return true;
+    }
+
+    /** Frees {@code module} until the process no longer has it, at most as many times as it could hold. */
+    private static boolean freeCompletely(long module) {
+        for (int i = 0; i < 64; i++) {
+            if (!WinBase.FreeLibrary(null, module)) {
+                break;
+            }
+            if (!contains(loadedModules(), module)) {
+                return true;
+            }
+        }
+        return !contains(loadedModules(), module);
+    }
+
+    private static boolean contains(long[] modules, long module) {
+        for (long candidate : modules) {
+            if (candidate == module) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Every module of the process, through kernel32's {@code K32EnumProcessModules}. */
+    private static long[] loadedModules() {
+        long kernel32 = WinBase.GetModuleHandle(null, "kernel32.dll");
+        long enumerate = WinBase.GetProcAddress(null, kernel32, "K32EnumProcessModules");
+        if (enumerate == NULL) {
+            return new long[0];
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            int capacity = 1024;
+            java.nio.LongBuffer modules = stack.mallocLong(capacity);
+            IntBuffer needed = stack.mallocInt(1);
+            long currentProcess = -1L; // GetCurrentProcess()'s pseudo-handle
+            if (JNI.invokePPPI(currentProcess, MemoryUtil.memAddress(modules), capacity * Long.BYTES,
+                    MemoryUtil.memAddress(needed), enumerate) == 0) {
+                return new long[0];
+            }
+            long[] found = new long[Math.min(capacity, needed.get(0) / Long.BYTES)];
+            modules.get(found);
+            return found;
+        }
     }
 
     private final long surface;
@@ -260,6 +350,11 @@ final class WglContext implements WindowContext {
             LOG.log(System.Logger.Level.DEBUG, "wglChoosePixelFormatARB matched nothing; asking GDI");
         }
         return GDI32.ChoosePixelFormat(null, dc, legacyDescriptor(stack));
+    }
+
+    /** @return the window this context draws on: the GLFW window's, or a child surface of it */
+    long surface() {
+        return surface;
     }
 
     @Override

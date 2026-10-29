@@ -45,6 +45,21 @@ final class DesktopGl implements GlApi {
     }
 
     @Override
+    public void loadBinding() {
+        if (GL.getFunctionProvider() == null) {
+            GL.create();
+        }
+    }
+
+    @Override
+    public void destroyBinding() {
+        GL.setCapabilities(null);
+        if (GL.getFunctionProvider() != null) {
+            GL.destroy();
+        }
+    }
+
+    @Override
     public TargetProfile shadingProfile() {
         return TargetProfile.GLSL_330;
     }

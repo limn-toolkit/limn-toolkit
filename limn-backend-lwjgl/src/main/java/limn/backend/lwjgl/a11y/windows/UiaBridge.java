@@ -202,6 +202,27 @@ public final class UiaBridge extends PlatformBridge {
      * @param hwnd the window handle to place the tree under, from the backend's native window
      * @return a bridge, or {@link AccessibilityBridge#NONE} on a machine with no UI Automation
      */
+    /**
+     * Takes the bridge's window procedure off {@code hwnd} for a while, if it has one there, so that
+     * the OpenGL runtime can take its own off as it is unloaded (ADR 082 §1.4).
+     *
+     * @param hwnd a window the backend made
+     */
+    public static void stepAside(long hwnd) {
+        UiaWindow window = UiaWindow.on(hwnd);
+        if (window != null) {
+            window.stepAside();
+        }
+    }
+
+    /** Puts the bridge's window procedure back on {@code hwnd} after {@link #stepAside}. */
+    public static void stepBack(long hwnd) {
+        UiaWindow window = UiaWindow.on(hwnd);
+        if (window != null) {
+            window.stepBack();
+        }
+    }
+
     public static AccessibilityBridge openIfEnabled(long hwnd) {
         if (!Uia.isAvailable() || !UiaWindow.isAvailable() || hwnd == 0) {
             return AccessibilityBridge.NONE;

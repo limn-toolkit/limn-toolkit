@@ -143,7 +143,14 @@ final class LwjglWindow implements WindowPeer {
      */
     private limn.backend.AccessibilityBridge accessibility;
     /** The context this window draws with, and who made it; see {@link WindowContext}. */
-    private final WindowContext context;
+    private WindowContext context;
+    /**
+     * The child window this window draws on after a lost context was made again (ADR 082 §1.4), on
+     * Windows; NULL until then, when the context is on the window itself.
+     */
+    private long drawingSurface = NULL;
+    /** Between {@link #forgetContext} and a successful {@link #remakeContext}: nothing may draw or delete. */
+    private boolean contextGone;
     /**
      * The content view whose input method {@link MacInputContextGate} switches, on macOS; {@code NULL}
      * elsewhere, or where the gate could not be made.
@@ -152,9 +159,9 @@ final class LwjglWindow implements WindowPeer {
     /** What {@link #setSizeLimits} last applied, for {@link #sizeLimits()}. */
     private limn.backend.SizeLimits sizeLimits = limn.backend.SizeLimits.NONE;
     /** This window's context's entry points, of the process's profile ({@link GlApi#createCapabilities}). */
-    private final Object glCapabilities;
+    private Object glCapabilities;
     /** The kind of context {@link #glCapabilities} were kept for, given back when the window goes. */
-    private final GlCapabilitiesCache.Key glCapabilitiesKey;
+    private GlCapabilitiesCache.Key glCapabilitiesKey;
     private final GlRenderer renderer;
     private final limn.backend.Clipboard clipboard;
     private final ChildPopups childPopups = new ChildPopups();
@@ -466,6 +473,9 @@ final class LwjglWindow implements WindowPeer {
             framebufferHeight = height;
             windowed.answered(); // an answer to a window leaving fullscreen, while one is watched
             context.drawableChanged(); // GLFW resizes the drawables it owns, and only those
+            if (drawingSurface != NULL) {
+                WglSurface.resize(drawingSurface, width, height);
+            }
             updatePixelsPerScreenCoord();
             if (input != null) {
                 input.windowResized(logicalWidth(), logicalHeight());
@@ -849,6 +859,104 @@ final class LwjglWindow implements WindowPeer {
         context.makeCurrent();
     }
 
+    /**
+     * Whether this window's context still draws: a colour cleared into one pixel of the back buffer
+     * reads back as that colour (ADR 082 §1.3). The question is asked of the context the window has
+     * had all along, whose answer a lost device was measured to make black; a whole frame is asked
+     * for after it, since the pixel is left in the buffer. Stalls the GPU once: only on a signal.
+     */
+    boolean contextDraws() {
+        if (contextGone) {
+            return false;
+        }
+        if (destroyed || framebufferWidth == 0 || framebufferHeight == 0) {
+            return true; // nothing to ask of a minimized window; it is asked when it comes back
+        }
+        makeContextCurrent();
+        Gl.api().setCapabilities(glCapabilities);
+        int rgb;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            Gl.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, 0);
+            Gl.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+            Gl.glScissor(0, 0, 1, 1);
+            Gl.glClearColor(1f, 0f, 1f, 1f);
+            Gl.glClear(org.lwjgl.opengl.GL33C.GL_COLOR_BUFFER_BIT);
+            java.nio.ByteBuffer pixel = stack.malloc(4);
+            Gl.glReadPixels(0, 0, 1, 1, org.lwjgl.opengl.GL33C.GL_RGBA, org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE, pixel);
+            Gl.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+            rgb = ((pixel.get(0) & 0xff) << 16) | ((pixel.get(1) & 0xff) << 8) | (pixel.get(2) & 0xff);
+        }
+        requestWholeFrame();
+        return rgb == 0xFF00FF;
+    }
+
+    /** The next frame draws everything, as the first frame at a size does: nothing in the buffers is kept. */
+    private void requestWholeFrame() {
+        presentsAtSize = 0;
+        frameRequested = true;
+    }
+
+    /**
+     * Lets go of a lost context (ADR 082 §1.4): every GL object of the window forgotten without a GL
+     * call, the context deleted, its capabilities given back. The window draws nothing until
+     * {@link #remakeContext}.
+     */
+    void forgetContext() {
+        if (contextGone) {
+            return;
+        }
+        contextGone = true;
+        renderer.contextLost();
+        context.dispose();
+        if (drawingSurface != NULL) {
+            WglSurface.destroy(drawingSurface);
+            drawingSurface = NULL;
+        }
+        backend.glCapabilities().release(glCapabilitiesKey);
+        glCapabilities = null;
+        if (WINDOWS) {
+            // The OpenGL runtime subclassed this window when its pixel format was set, and takes
+            // itself out of the chain as it is unloaded only if it is the outermost procedure.
+            limn.backend.lwjgl.a11y.windows.UiaBridge.stepAside(
+                    org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle));
+        }
+    }
+
+    /**
+     * Makes this window's context again after {@link #forgetContext} and the driver's unload, on a
+     * child window covering the client area, since the window itself keeps the pixel format of the
+     * driver that was unloaded (ADR 082 §1.4, step 1). Windows only.
+     *
+     * @return whether a context was made; the caller verifies that it draws
+     */
+    boolean remakeContext() {
+        long top = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
+        if (WglContext.restoreClassProcedure(top)) {
+            LOG.log(System.Logger.Level.WARNING, "the unloaded OpenGL runtime''s procedure was still on the "
+                    + "window ''{0}''; the window''s own was put back", title);
+        }
+        limn.backend.lwjgl.a11y.windows.UiaBridge.stepBack(top); // above what the window has now
+        long surface = WglSurface.create(top, framebufferWidth, framebufferHeight, this::requestWholeFrame);
+        if (surface == NULL) {
+            return false;
+        }
+        WglContext remade = WglContext.create(surface);
+        if (remade == null) {
+            WglSurface.destroy(surface);
+            return false;
+        }
+        drawingSurface = surface;
+        context = remade;
+        contextGone = false;
+        makeContextCurrent();
+        glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
+        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
+        setSwapInterval(1);
+        requestWholeFrame();
+        return true;
+    }
+
     private void setSwapInterval(int interval) {
         context.setSwapInterval(interval);
     }
@@ -1172,6 +1280,10 @@ final class LwjglWindow implements WindowPeer {
         if (destroyed || rendering) {
             return false;
         }
+        if (contextGone) {
+            frameRequested = true; // drawn once the context is made again
+            return false;
+        }
         if (deferNextRender) {
             // A programmatic resize just happened; the drawable is not yet consistent
             // with the new size. Skip this one present and render on the next loop
@@ -1291,18 +1403,29 @@ final class LwjglWindow implements WindowPeer {
         // A parent must never outlive-close its popups: dismiss them first so
         // a floating (always-on-top) popup can't be orphaned on screen.
         childPopups.closeAll();
-        // GL resources (VBO/shader) must die on their own context.
-        makeContextCurrent();
-        Gl.api().setCapabilities(glCapabilities);
+        // GL resources (VBO/shader) must die on their own context; one that went with the device
+        // took them along, and there is nothing left to delete or to release.
+        if (!contextGone) {
+            makeContextCurrent();
+            Gl.api().setCapabilities(glCapabilities);
+        }
         try {
-            renderer.dispose();
+            if (!contextGone) {
+                renderer.dispose();
+            }
         } catch (RuntimeException | LinkageError error) {
             // Contained for the reason the close callback is: this method runs once, and what
             // follows gives back the callbacks and the window itself.
             LOG.log(System.Logger.Level.ERROR, "the renderer threw as its window closed; the window is still"
                     + " destroyed", error);
         }
-        context.dispose();
+        if (!contextGone) {
+            context.dispose();
+        }
+        if (drawingSurface != NULL) {
+            WglSurface.destroy(drawingSurface);
+            drawingSurface = NULL;
+        }
         // glfwFreeCallbacks predates the preedit patch and does not free this
         // callback; its native upcall stub pins this window (and its scene)
         // through a JNI global ref unless freed explicitly.
@@ -1335,7 +1458,9 @@ final class LwjglWindow implements WindowPeer {
             linuxDrag = null;
         }
         glfwDestroyWindow(handle);
-        backend.glCapabilities().release(glCapabilitiesKey);
+        if (!contextGone) {
+            backend.glCapabilities().release(glCapabilitiesKey);
+        }
     }
 
     @Override

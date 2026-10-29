@@ -43,6 +43,20 @@ interface GlApi {
     /** Where this profile looks its entry points up, for the queries made before there are capabilities. */
     FunctionProvider functionProvider();
 
+    /**
+     * Loads this profile's library and binding if they are not loaded, as after
+     * {@link #destroyBinding}: before a context of this profile is made by the backend itself, whose
+     * window-system calls need the library in the process.
+     */
+    void loadBinding();
+
+    /**
+     * Destroys LWJGL's binding of this profile and lets its library go, for a context lost with
+     * the device (ADR 082): LWJGL frees its tables only then, and the library's own count reaches
+     * zero only once LWJGL's hold on it is gone. Every capability made before is dead after it.
+     */
+    void destroyBinding();
+
     /** The shading language this profile compiles: what replaces a shader's {@code #version 330 core}. */
     TargetProfile shadingProfile();
 

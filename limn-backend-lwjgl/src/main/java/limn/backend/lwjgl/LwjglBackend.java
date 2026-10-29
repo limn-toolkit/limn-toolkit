@@ -115,6 +115,8 @@ public final class LwjglBackend implements BackendPeer {
             new GlCapabilitiesCache<>(GlCapabilitiesCache.reusesByDefault(Platform.current().os(),
                     System.getProperty(GlCapabilitiesCache.PROPERTY)));
     private final List<LwjglWindow> windows = new ArrayList<>();
+    /** Notices contexts lost with the device and makes them again (ADR 082). */
+    private final ContextLossWatch lossWatch = new ContextLossWatch();
     // The same windows, the one given the keyboard last first: the order an ending application
     // asks them in (ADR 048 §1.2). A new window opens in front, as it does on every desktop.
     private final List<LwjglWindow> frontToBack = new ArrayList<>();
@@ -965,6 +967,10 @@ public final class LwjglBackend implements BackendPeer {
                             && (sleepBudgetNanos < 0 || sleepBudgetNanos > COVERED_RECHECK_NANOS)) {
                         sleepBudgetNanos = COVERED_RECHECK_NANOS;
                     }
+                    if (lossWatch.rebuilding()
+                            && (sleepBudgetNanos < 0 || sleepBudgetNanos > ContextLossWatch.RETRY_NANOS)) {
+                        sleepBudgetNanos = ContextLossWatch.RETRY_NANOS; // the next attempt at a lost context
+                    }
                     try {
                         parkedInPump = true;
                         try {
@@ -982,6 +988,9 @@ public final class LwjglBackend implements BackendPeer {
                         if (macMenuBar != null) {
                             macMenuBar.sync(); // the window with the keyboard may have changed
                         }
+                        // Before any window draws: one whose context went with the device would draw
+                        // nothing, and a rebuild must happen between frames.
+                        lossWatch.afterPoll(windows);
                     } catch (Crashes.ShutdownRequested shutdown) {
                         throw shutdown;
                     } catch (Throwable error) {

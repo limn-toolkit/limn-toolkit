@@ -1,0 +1,107 @@
+package limn.backend.lwjgl;
+
+import limn.backend.Platform;
+
+import java.util.List;
+
+/**
+ * Notices that the windows' contexts stopped drawing and makes them again in the same windows
+ * (ADR 082 §1.3 and §1.4), once a turn of the event loop.
+ *
+ * <p><b>Noticing.</b> The driver that loses its contexts at a virtual machine's resume says nothing
+ * of it: no error, no reset status. What says the machine was away is the wall clock moving further
+ * than the monotonic one between two turns of the loop (310 s against no gap, measured at one
+ * resume). On that signal, and only then, each window is asked whether its context still draws,
+ * which stalls the GPU once.
+ *
+ * <p><b>Making them again.</b> Every window lets go of its context, LWJGL's binding is destroyed,
+ * {@code opengl32.dll} and the driver's library leave the process, and each window gets a new
+ * context on a child surface, verified by drawing. A rebuild that does not verify is tried again a
+ * tenth of a second later, since a machine suspended again in the middle of one is the case that
+ * needs it; the process never ends for it. Windows only for now: elsewhere a loss is noticed and
+ * said.
+ */
+final class ContextLossWatch {
+
+    private static final System.Logger LOG = System.getLogger(ContextLossWatch.class.getName());
+
+    /** A gap between the two clocks larger than any a loop turn's own scheduling makes. */
+    private static final long JUMP_MILLIS = 2_000;
+    /** How long a rebuild that does not verify is tried, a tenth of a second apart. */
+    private static final int MAX_ATTEMPTS = 100;
+    /** The wait between two attempts. */
+    static final long RETRY_NANOS = 100_000_000L;
+
+    private static final boolean REBUILDS = Platform.current().os() == Platform.Os.WINDOWS;
+
+    private long wall = System.currentTimeMillis();
+    private long monotonic = System.nanoTime();
+    private boolean rebuilding;
+    private int attempts;
+    private long lostAt;
+
+    /** Whether a rebuild is under way, so that the loop wakes for the next attempt rather than sleeping. */
+    boolean rebuilding() {
+        return rebuilding;
+    }
+
+    /** Called once a turn of the event loop, after the poll and before any window draws. */
+    void afterPoll(List<LwjglWindow> windows) {
+        long wallNow = System.currentTimeMillis();
+        long monotonicNow = System.nanoTime();
+        long jump = (wallNow - wall) - (monotonicNow - monotonic) / 1_000_000L;
+        wall = wallNow;
+        monotonic = monotonicNow;
+        if (!rebuilding) {
+            if (Math.abs(jump) <= JUMP_MILLIS || windows.isEmpty()) {
+                return;
+            }
+            LOG.log(System.Logger.Level.INFO, "the wall clock moved {0} ms more than the monotonic one, as "
+                    + "after a suspension: asking each window''s context whether it still draws", jump);
+            boolean lost = false;
+            for (LwjglWindow window : windows) {
+                if (!window.contextDraws()) {
+                    lost = true;
+                    break;
+                }
+            }
+            if (!lost) {
+                return;
+            }
+            if (!REBUILDS) {
+                LOG.log(System.Logger.Level.ERROR, "a window's OpenGL context no longer draws, and on this "
+                        + "system the toolkit does not make it again yet (ADR 082)");
+                return;
+            }
+            LOG.log(System.Logger.Level.WARNING, "a window's OpenGL context no longer draws: the device was "
+                    + "lost; making every window's context again");
+            rebuilding = true;
+            attempts = 0;
+            lostAt = monotonicNow;
+        }
+        attempt(windows);
+    }
+
+    private void attempt(List<LwjglWindow> windows) {
+        attempts++;
+        for (LwjglWindow window : windows) {
+            window.forgetContext();
+        }
+        Gl.api().destroyBinding();
+        String unloaded = WglContext.unloadDriver();
+        boolean drawing = true;
+        for (LwjglWindow window : windows) {
+            drawing &= window.remakeContext() && window.contextDraws();
+        }
+        if (drawing) {
+            rebuilding = false;
+            LOG.log(System.Logger.Level.WARNING, "every window''s OpenGL context was made again on a "
+                    + "surface of its own, {0} ms after the loss and on attempt {1}, having unloaded {2}",
+                    (System.nanoTime() - lostAt) / 1_000_000L, attempts, unloaded);
+        } else if (attempts >= MAX_ATTEMPTS) {
+            rebuilding = false;
+            LOG.log(System.Logger.Level.ERROR, "the windows'' OpenGL contexts could not be made again in "
+                    + "{0} attempts; they are tried again at the next sign that the machine was away", attempts);
+        }
+    }
+}
