@@ -2,17 +2,18 @@
 
 - **Status:** **Proposed 2026-10-29**, at the owner's request after a native image of the Showcase
   was found black and unresponsive on the Windows guest when he resumed its virtual machine; every number in §0 was
-  measured that day on that guest, with him suspending and resuming it thirteen times; the step
-  that brings the system's OpenGL back (§1.3, step 1) follows his suspicion that something old was
+  measured that day on that guest, with him suspending and resuming it some thirty times; the step
+  that brings the system's OpenGL back (§1.4, step 1) follows his suspicion that something old was
   still drawing, which the measurements confirmed. §6 holds the questions.
 - **Date:** 2026-10-29
 - **Scope:** what the toolkit does when the graphics context behind its windows stops drawing
   while the process runs: a virtual machine resumed, a driver reset or updated, a GPU removed. It
   covers detecting it, rebuilding the windows' drawing in the same native windows, and choosing
   between the system's OpenGL and ANGLE to rebuild it on.
-- **Changes:** ADR 080 and the fallback of `AngleFallback`, which take ANGLE only at startup and
-  for the whole process (`Gl.java`: "one profile per process"); this record lets a running process
-  move onto it.
+- **Changes:** who makes the OpenGL contexts: GLFW today, the toolkit on all three systems under
+  this record (§1.1), GLFW keeping the windows. And ADR 080 and the fallback of `AngleFallback`,
+  which take ANGLE only at startup and for the whole process (`Gl.java`: "one profile per
+  process"); this record lets a running process move onto it.
 - **Compatibility:** no API change is proposed (§6, question 3). In behaviour, an application that
   stayed black until killed draws again.
 
@@ -50,12 +51,16 @@ reading each window's composed pixel and the screen's.
 | One window kept with the toolkit's own context; the context deleted, the driver's OpenGL library and its Direct3D user-mode driver freed, a new context on the same window | No context could be made: the window's pixel format belongs to the driver that was unloaded |
 | The context on a child window covering the top-level; on the loss the child destroyed (which unloaded the Direct3D user-mode driver), the OpenGL library freed, a new child and context | **Presents again**, the top-level window untouched |
 | **The top-level window living as the toolkit's do, with GLFW's context; on the loss GLFW's context deleted, LWJGL's binding destroyed, `opengl32.dll` and the driver's library freed once each, then a child window with a new context** | **Presents again** (screen pixel), `opengl32.dll` reloaded at the same address, so the pointers GLFW kept stay valid. Without freeing the two libraries: black |
+| One window recovering at every suspension, the owner suspending it again and again, some in quick succession, on the x64 JDK (emulated on that ARM guest) and the ARM64 one side by side | The processes died at a reload whenever `opengl32.dll` came back **at another address**: WGL was being called through pointers LWJGL resolved at the first load (each crash report's address inside the library's old range). With every WGL entry point looked up again after each load: four recoveries on each JDK, the library moving twice, quick suspensions included; the ARM64 JDK back in 0.6 to 1.7 s, the emulated one in 1.1 to 5.5 s |
+| The same windows closed at the end | **Both processes crashed in `glfwDestroyWindow`**: GLFW deletes the context it made through the `wglDeleteContext` it looked up at the first load, in the library's old range |
+| **GLFW making the windows with no context (`GLFW_NO_API`), the probe making every WGL context itself (3.3 core forward-compatible through `wglCreateContextAttribsARB`, vsync, a second window sharing the first's objects), entry points looked up after every load** | **Every loss recovered on both JDKs, main and popup together, about 2.2 to 2.6 s including a 2 s settle, the library moving on the first reload; and closing the windows ended both processes cleanly**, no crash report |
+| A child surface of the system's static class | White while the window was dragged: the class paints its background. A class of the toolkit's own (no background, transparent to hit testing, drawing again on `WM_PAINT`) did not |
 
 Two more facts from the same day. Restarting the display adapter (`pnputil /restart-device`, close to
 a driver reset) killed the JVM and the executable alike inside the virtual machine's OpenGL
 driver, during `SwapBuffers`: nothing in the process can answer that. A jump of the guest's clock
 by +19 h and −6 h with nothing suspended changed nothing. The hang of §0.1 was not reproduced: in
-thirteen suspensions of one to five minutes the windows went black and stayed responsive.
+some thirty suspensions of a few seconds to five minutes the windows went black and stayed responsive.
 
 ### 0.3 What the measurements decide
 
@@ -69,17 +74,32 @@ thirteen suspensions of one to five minutes the windows went black and stayed re
   once EGL is built again; and a window whose OpenGL died takes ANGLE afterwards.
 - What the system composed for a window (`PrintWindow`) is what the user sees, so it can verify a
   rebuild where OpenGL's own read-back cannot.
+- Unloading and loading `opengl32.dll` again moves it, so nothing may call it through a pointer
+  kept from an earlier load: not LWJGL's WGL class and not GLFW, which keeps its own for the
+  contexts it makes and calls them when a window is destroyed. A context the toolkit makes itself,
+  on a window GLFW made without one, has no such pointer anywhere.
 
 ## 1. Decision
 
-### 1.1 The windows stay; their drawing is rebuilt
+### 1.1 GLFW makes the windows, the toolkit makes the contexts
+
+On all three systems, as the owner asked for one design rather than one per system, GLFW makes
+every window with no context (`GLFW_NO_API`) and the toolkit makes and owns every OpenGL context:
+WGL on Windows (`wglCreateContextAttribsARB`, 3.3 core forward-compatible, shared between the
+windows of the process), NSOpenGL on macOS (where `MacSoftwareGl` already makes its own), and EGL,
+or GLX on an X11 server without EGL, on Linux. It looks up the entry points it calls each time the
+library is loaded and keeps none across a reload. The swap interval, the pixel format, a
+transparent window's alpha, and which context is current are the toolkit's from then on, on every
+machine and not only after a loss. ANGLE was already the toolkit's own EGL; it stays so.
+
+### 1.2 The windows stay; their drawing is rebuilt
 
 A loss never closes, recreates or moves a native window. Its handle is where the screen reader's
 provider, the system's drag and drop, the input method, the tray's owner and the menus are
 attached, and a new window would drop all of them and the position the user gave it. What is
 rebuilt is the drawing: the context, its surface on the same window, and every GPU object.
 
-### 1.2 Detecting a loss
+### 1.3 Detecting a loss
 
 - **ANGLE, and a system OpenGL with robustness:** contexts are made asking to lose the context on
   reset, and the reset status is read once a frame; ANGLE's `EGL_CONTEXT_LOST` from a swap or a
@@ -92,19 +112,22 @@ rebuilt is the drawing: the context, its surface on the same window, and every G
   disconnecting (`WM_WTSSESSION_CHANGE`); and on the first frame after the window is restored from
   minimized.
 
-### 1.3 Rebuilding: the system's OpenGL first, then ANGLE
+### 1.4 Rebuilding: the system's OpenGL first, then ANGLE
 
 As the owner asked, the toolkit first tries to stay where it was:
 
-1. **On the system's OpenGL, through a child surface:** every context deleted, GLFW's included;
-   LWJGL's binding destroyed; `opengl32.dll` and the driver's OpenGL library freed if they are
+1. **On the system's OpenGL, through a child surface:** a settle of about two seconds, since the
+   owner's quick suspensions showed a machine can go away again mid-recovery; every context
+   deleted; LWJGL's binding destroyed; `opengl32.dll` and the driver's OpenGL library freed if they are
    still in the process; then, in each top-level window, a child window covering its client area,
    disabled so that the input stays with the top-level, and a new context on it; every GPU object
-   rebuilt; one whole frame drawn in a colour the toolkit chooses and the screen's pixel read where
+   rebuilt, with every entry point looked up again; one whole frame drawn in a colour the toolkit
+   chooses and the screen's pixel read where
    the window shows. The screen's colour is the verdict, not OpenGL's read-back, which §0.2 shows
    lying; `PrintWindow` read a child's static background at times, so it is used only for a window
-   that is covered, with a child class that paints nothing. Until a loss, nothing of this exists:
-   windows draw on GLFW's context as today.
+   that is covered. The child is of the toolkit's own class: no background, transparent to hit
+   testing, drawing the current frame again on `WM_PAINT`. Until a loss there is no child: the
+   toolkit's context is on the top-level window.
 2. **On ANGLE, when the first fails or cannot be verified:** the toolkit's OpenGL binding is
    destroyed (LWJGL frees its tables only then, which is what allows the switch), ANGLE is brought
    up through EGL on each existing window, and the process stays on ANGLE from then on (§6,
@@ -113,13 +136,13 @@ As the owner asked, the toolkit first tries to stay where it was:
    measured.
 
 If none succeeds the toolkit logs why at `SEVERE`, keeps the windows and keeps trying at each of the
-signals of §1.2. It never ends the process.
+signals of §1.3. It never ends the process.
 
 On macOS the same ladder holds with ANGLE on Metal (`CALayer` as EGL's window); on Linux, which
 has no ANGLE in this toolkit, only step 1 exists, verified by reading back, since X11 and Wayland
 have no `PrintWindow` the toolkit can trust without measuring it (§6, question 1).
 
-### 1.4 What is rebuilt, and from what
+### 1.5 What is rebuilt, and from what
 
 Eighteen classes of the backend make GPU objects. After a loss their handles are forgotten
 without a GL call, since the objects are gone with the context, and each is made again the next
@@ -135,7 +158,7 @@ time it is needed:
 
 The scene is untouched: the next frame is a whole frame (buffer age 0), as after a resize.
 
-### 1.5 The application
+### 1.6 The application
 
 Nothing is asked of it: the toolkit owns every GPU object an application can reach through its API
 (images, surfaces from `Expr`, 3D content, video). A loss and its outcome are logged at `WARNING`,
@@ -145,9 +168,9 @@ with the route taken.
 
 - **Restarting the process,** which §0.2 shows works: ruled out by the owner.
 - **A new native window:** measured black on this driver while its OpenGL library stayed loaded
-  (§0.2), and it drops every attachment §1.1 lists.
+  (§0.2), and it drops every attachment §1.2 lists.
 - **A child surface from the start, on every window:** measured working, and it would make step 1
-  of §1.3 only a matter of replacing the child; not chosen, because it changes every window on
+  of §1.4 only a matter of replacing the child; not chosen, because it changes every window on
   every machine (transparency, opacity, the input method's position, the pinch) for a case most
   never meet, when §0.2 shows the child can come at the loss.
 - **Freeing the driver's library by hand** is the least comfortable part of step 1: the toolkit
@@ -157,22 +180,27 @@ with the route taken.
 - **Going to ANGLE directly, without trying the system's OpenGL:** simpler, and on this driver
   just as good. Not chosen because the owner asked for the system's OpenGL first, and because on
   drivers with robustness a reset context is meant to be replaced in place, keeping the faster and
-  more capable path; §1.3 tries it and verifies it, so a driver that lies costs one failed attempt.
+  more capable path; §1.4 tries it and verifies it, so a driver that lies costs one failed attempt.
 - **Doing nothing:** an application in a virtual machine, the way many corporate desktops run on a
   Mac, goes black at every resume until killed.
 
 ## 3. What it costs
 
-- **Rebuildable GPU objects (§1.4):** the largest part. Eighteen classes learn to forget their
+- **Rebuildable GPU objects (§1.5):** the largest part. Eighteen classes learn to forget their
   handles and make them again; the renderer gains a generation number that every cached handle is
   checked against. Testable on any machine by forcing a loss: destroying the context under a live
   scene and asking for a frame.
-- **Contexts and child windows the toolkit makes itself:** GLFW makes a window and its context
-  together and cannot give an existing window another one, so the rebuilt contexts (WGL on a child
-  window, EGL on the top-level) are the toolkit's, through LWJGL's WGL and EGL bindings, with
-  GLFW's context deleted under it; the swap interval, the pixel format and the window's opacity
-  and transparency are then the toolkit's to set on the child. Unloading the two libraries is a
-  few lines; proving it on more than one driver is §4's.
+- **The toolkit's own contexts on three systems (§1.1):** the second largest part, and the one
+  that touches every machine. What GLFW does for the toolkit's contexts today is done by the
+  toolkit: on Windows the pixel format with alpha, `wglCreateContextAttribsARB` through a first
+  throw-away context, sharing, `wglSwapIntervalEXT`, the transparent window through the system's
+  compositor; on macOS NSOpenGL, of which `MacSoftwareGl` already holds most; on Linux EGL on X11
+  and Wayland (`wl_egl_window`) and GLX where EGL is missing. The probe of §0.2 did the Windows
+  part in about two hundred lines. Every capability GLFW gave (sRGB, the double buffer, the
+  context's version) gets a test on each system, since a mistake there shows on machines that
+  never lose anything.
+- **Child windows and the driver's libraries (Windows):** a window class, one child per window at
+  a loss, two libraries unloaded. Proving it on more than one driver is §4's.
 - **Moving a running process from OpenGL to OpenGL ES:** `Gl.use(GlesGl)` after start, the shaders
   generated again for GLSL ES (`GlslCodegen` already writes both), every capability cache cleared.
 - **Detection:** a clock comparison per loop turn, three window messages on Windows, the reset
@@ -201,16 +229,18 @@ with the route taken.
 
 ## 6. Questions for the owner
 
-1. **Which systems.** Windows is measured; macOS rarely loses a context on sleep but does on an
-   external GPU removed; Linux with one vendor's proprietary driver loses GPU memory on suspend unless
-   the driver is told to keep it. **Recommendation:** build §1.2–§1.4 for all three, the ANGLE step for
-   Windows and macOS, and measure macOS and Linux on the guests before claiming them.
+1. **Which systems recover.** The owner decided the contexts are the toolkit's on all three
+   (§1.1). Recovery is measured on Windows only; macOS rarely loses a context on sleep but does on
+   an external GPU removed; Linux with one vendor's proprietary driver loses GPU memory on suspend
+   unless the driver is told to keep it. **Recommendation:** detection and rebuilding (§1.3–§1.5)
+   on all three, the ANGLE step on Windows and macOS, and the macOS and Linux guests measured,
+   suspended as the Windows one was, before either is claimed.
 2. **Once on ANGLE, stay there?** **Recommendation:** yes, for the rest of the process: the
    system's OpenGL already failed once in it, and switching back would need its own verification
    and a second rebuild.
 3. **An event for the application?** **Recommendation:** none: it owns no GPU object the toolkit
    does not rebuild; the log says what happened.
-4. **When to look without a signal.** **Recommendation:** only on the signals of §1.2; a periodic
+4. **When to look without a signal.** **Recommendation:** only on the signals of §1.3; a periodic
    read-back would stall the GPU on machines that never lose anything.
 5. **Remote desktop.** Connecting to the guest from the Mac needs a client there and his Windows
    password, both his. **Recommendation:** one run in stage 0, before building, since a session
