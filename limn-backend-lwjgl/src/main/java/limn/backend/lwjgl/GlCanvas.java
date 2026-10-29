@@ -129,7 +129,8 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     // at a time (no nested frames).
     private static GlCanvas current;
 
-    private final GlBatch batch = new GlBatch();
+    /** Replaced whole after a lost context (ADR 082): every one of its objects is a final field. */
+    private GlBatch batch = new GlBatch();
     private final GlyphAtlas atlas = new GlyphAtlas();
     private final ImageTextureCache imageTextures = new ImageTextureCache();
     private final FontStore fontStore;
@@ -229,14 +230,46 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         this.fontStore = fontStore;
         states.add(new State());
         // Built with its context current (the batch above has just made its buffers in it), and a
-        // context's renderer never changes, so it is read once.
+        // context's renderer never changes, so it is read once per context.
+        readRenderer();
+    }
+
+    private void readRenderer() {
         boolean software = GraphicsProbe.isSoftwareRenderer(
                 Gl.glGetString(org.lwjgl.opengl.GL33C.GL_RENDERER));
         flatInteriors = software;
         depthAtNaturalSize = software;
     }
 
+    /**
+     * Forgets every GL object this canvas holds, its own and its 3D and video resources', without
+     * a GL call, the context they lived in being gone (ADR 082). Called between frames; the next
+     * {@link #beginFrame}, with the new context current, makes the batch again and reads the new
+     * renderer, and everything else is made again where it was made first, on first use. The 3D
+     * and video contexts stay the same objects, so that the application's handles, which check
+     * their owner by identity, stay this window's.
+     */
+    void contextLost() {
+        batch = null;
+        atlas.contextLost();
+        imageTextures.contextLost();
+        backdrop = null;
+        layers = null;
+        openLayers = 0;
+        baseFramebuffer = 0;
+        if (gl3d != null) {
+            gl3d.contextLost();
+        }
+        if (glVideo != null) {
+            glVideo.contextLost();
+        }
+    }
+
     void beginFrame(int framebufferWidth, int framebufferHeight, float contentScale) {
+        if (batch == null) {
+            batch = new GlBatch(); // the first frame in a new context
+            readRenderer();
+        }
         fbWidth = framebufferWidth;
         fbHeight = framebufferHeight;
         scale = contentScale;
@@ -302,7 +335,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     }
 
     int drawCallsLastFrame() {
-        return batch.drawCalls();
+        return batch != null ? batch.drawCalls() : 0;
     }
 
     /** @return how many rectangles this frame drew with the flat program (see {@link #emitFlatRect}) */
@@ -364,7 +397,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         if (layers != null) {
             layers.dispose();
         }
-        batch.close();
+        if (batch != null) {
+            batch.close();
+        }
         if (ownRuler != null) {
             ownRuler.close(); // the ruler a canvas without a backend made for itself
         }

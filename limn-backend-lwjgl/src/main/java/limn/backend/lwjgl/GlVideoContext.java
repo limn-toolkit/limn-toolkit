@@ -310,6 +310,20 @@ final class GlVideoContext {
     }
 
     /** Releases every surface and the shared program. The context must be current. */
+    /**
+     * Forgets the conversion programs and the vertex array without a GL call, the context they
+     * lived in being gone (ADR 082); the surfaces stay this context's and wait for their next
+     * picture.
+     */
+    void contextLost() {
+        for (GlVideoSurface surface : surfaces) {
+            surface.contextLost();
+        }
+        uploaded = null;
+        rectangle = null;
+        vao = 0;
+    }
+
     void dispose() {
         for (GlVideoSurface surface : new ArrayList<>(surfaces)) {
             surface.dispose(); // removes itself from `surfaces`

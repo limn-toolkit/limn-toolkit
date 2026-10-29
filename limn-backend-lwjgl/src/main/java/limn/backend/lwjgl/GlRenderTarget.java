@@ -28,6 +28,8 @@ final class GlRenderTarget implements RenderTarget {
     private int resolveFbo;
     /** Set by the first dispose, which is the only one that reaches the driver. */
     private boolean disposed;
+    /** Whether the objects went with a lost context and are made again before the next use. */
+    private boolean lost;
     private int colorTex;
     private int resolveDepthRbo; // only when samples == 1 (depth lives on the resolve FBO)
 
@@ -116,13 +118,42 @@ final class GlRenderTarget implements RenderTarget {
         Gl.requireFramebufferComplete("3D " + which, this::deleteGl);
     }
 
+    /**
+     * Forgets the target's objects without a GL call, the context they lived in being gone (ADR
+     * 082). They are made again at the same size before the target is next used, and the next 3D
+     * pass draws into them anew; the bloom pair stays lazy, as after a resize.
+     */
+    void contextLost() {
+        resolveFbo = 0;
+        colorTex = 0;
+        resolveDepthRbo = 0;
+        msaaFbo = 0;
+        msaaColorRbo = 0;
+        msaaDepthRbo = 0;
+        bloomFboA = 0;
+        bloomTexA = 0;
+        bloomFboB = 0;
+        bloomTexB = 0;
+        lost = true;
+    }
+
+    /** Makes the objects again after {@link #contextLost}, before anything reads them. */
+    private void ensureAllocated() {
+        if (lost && !disposed) {
+            lost = false;
+            allocate();
+        }
+    }
+
     /** The FBO 3D content renders into (multisample when MSAA is on). */
     int renderFramebuffer() {
+        ensureAllocated();
         return samples > 1 ? msaaFbo : resolveFbo;
     }
 
     /** Resolves the multisample color into the single-sample texture (no-op without MSAA). */
     void resolve() {
+        ensureAllocated();
         if (samples <= 1) {
             return;
         }
@@ -133,6 +164,7 @@ final class GlRenderTarget implements RenderTarget {
     }
 
     int colorTexture() {
+        ensureAllocated();
         return colorTex;
     }
 
@@ -141,6 +173,7 @@ final class GlRenderTarget implements RenderTarget {
      * destination.
      */
     int resolveFramebuffer() {
+        ensureAllocated();
         return resolveFbo;
     }
 
@@ -248,7 +281,8 @@ final class GlRenderTarget implements RenderTarget {
      * into the top-down order every pixel type in the toolkit uses.
      */
     private float[] readFloats(int x, int y, int w, int h) {
-        Checks.notDisposed(colorTex == 0, "the render target");
+        Checks.notDisposed(disposed, "the render target");
+        ensureAllocated();
         if (w <= 0 || h <= 0 || x < 0 || y < 0 || x + w > width || y + h > height) {
             throw new IllegalArgumentException("read rectangle " + x + "," + y + " " + w + "x" + h
                     + " is not inside " + width + "x" + height);
@@ -309,6 +343,11 @@ final class GlRenderTarget implements RenderTarget {
         if (w == width && h == height) {
             return;
         }
+        if (lost) {
+            width = w;
+            height = h;
+            return; // made at the new size when next used
+        }
         deleteGl();
         width = w;
         height = h;
@@ -347,7 +386,9 @@ final class GlRenderTarget implements RenderTarget {
             return;
         }
         disposed = true;
-        deleteGl();
+        if (!lost) {
+            deleteGl();
+        }
         owner.forget(this);
     }
 

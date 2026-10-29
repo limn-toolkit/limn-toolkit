@@ -278,6 +278,17 @@ final class GlyphAtlas implements AutoCloseable {
     }
 
     /**
+     * Forgets every page and glyph without a GL call, the context they lived in being gone (ADR
+     * 082): the next frame rasterises again what it draws, since a glyph's bitmap is freed once it
+     * is on its page.
+     */
+    void contextLost() {
+        pages.clear();
+        glyphs.clear();
+        lastTouched = null;
+    }
+
+    /**
      * Minimal open-addressing {@code long → Glyph} map (linear probing), so the
      * per-glyph cache-hit lookup never boxes the key. A slot is empty iff its
      * value is {@code null} (glyph values are never null), so no key sentinel is

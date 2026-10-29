@@ -145,6 +145,21 @@ final class GlRenderer implements GpuRenderer {
         return canvas != null ? canvas.render3DStats() : limn.render3d.Render3DStats.EMPTY;
     }
 
+    /**
+     * Forgets every GL object of this window without a GL call, the context they lived in being
+     * gone (ADR 082): the timer queries, with what was in flight on them, and the canvas's. Called
+     * between frames; the next frame, in the new context, makes them again.
+     */
+    void contextLost() {
+        timerQueries = null;
+        java.util.Arrays.fill(timerInFlight, false);
+        timerActive = false;
+        timerNext = 0;
+        if (canvas != null) {
+            canvas.contextLost();
+        }
+    }
+
     void dispose() {
         // Context is current here (LwjglWindow.destroy); queries die with it.
         if (timerQueries != null && timerQueries.length > 0) {

@@ -187,6 +187,23 @@ final class GlVideoSurface implements VideoSurface {
         owner.forget(this);
     }
 
+    /**
+     * Forgets the planes, the converted picture and its framebuffer without a GL or EGL call, the
+     * context they lived in being gone (ADR 082). The surface has no picture until its next upload,
+     * which makes everything again at the picture's size.
+     */
+    void contextLost() {
+        java.util.Arrays.fill(planeTextures, 0);
+        java.util.Arrays.fill(planePbuffers, 0L);
+        colorTexture = 0;
+        framebuffer = 0;
+        format = null;
+        width = 0;
+        height = 0;
+        deviceBacked = false;
+        picture = false;
+    }
+
     /** The RGBA8 texture holding the converted picture, or 0 before the first upload. */
     int colorTexture() {
         return colorTexture;

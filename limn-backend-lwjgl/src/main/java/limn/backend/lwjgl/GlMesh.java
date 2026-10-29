@@ -47,6 +47,12 @@ final class GlMesh implements GpuMesh {
     private int vbo;
     private int ebo;
     private float[] interleaved = new float[0];
+    /** Floats of {@link #interleaved} that are live: what the vertex buffer holds. */
+    private int liveFloats;
+    /** The live indices, kept so that the buffers can be made again in a new context (ADR 082). */
+    private int[] indexCopy = new int[0];
+    /** Whether the buffers went with a lost context and are made again before the next draw. */
+    private boolean lost;
     private boolean disposed;
 
     GlMesh(Gl3DContext owner, MeshData mesh, MeshUsage usage) {
@@ -63,6 +69,15 @@ final class GlMesh implements GpuMesh {
         }
         this.stride = floats;
 
+        allocate();
+        write(mesh);
+        Gl.glBindVertexArray(0);
+        Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, 0);
+        Gl.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
+
+    /** Makes the vertex array and both buffers, and leaves the vertex array bound. */
+    private void allocate() {
         vao = Gl.glGenVertexArrays();
         vbo = Gl.glGenBuffers();
         ebo = Gl.glGenBuffers();
@@ -77,10 +92,6 @@ final class GlMesh implements GpuMesh {
             Gl.glEnableVertexAttribArray(a.location);
             offset += a.components;
         }
-        write(mesh);
-        Gl.glBindVertexArray(0);
-        Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, 0);
-        Gl.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, 0);
     }
 
     @Override
@@ -94,7 +105,12 @@ final class GlMesh implements GpuMesh {
             throw new IllegalArgumentException("update changes the vertex layout: uploaded with "
                     + layout + ", updated with " + mesh.presentAttributes());
         }
-        Gl.glBindVertexArray(vao);
+        if (lost) {
+            allocate();
+            lost = false;
+        } else {
+            Gl.glBindVertexArray(vao);
+        }
         write(mesh);
         Gl.glBindVertexArray(0);
         Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, 0);
@@ -123,12 +139,30 @@ final class GlMesh implements GpuMesh {
 
         this.bounds = mesh.bounds();
         this.indexCount = mesh.indexCount();
+        this.liveFloats = floats;
+        this.indexCopy = Arrays.copyOf(mesh.indices(), indexCount);
+        upload();
+        this.gpuBytes = (long) floats * Float.BYTES + (long) indexCount * Integer.BYTES;
+    }
+
+    /** Fills both buffers from what this mesh keeps. The vertex array must be bound. */
+    private void upload() {
         int hint = usage == MeshUsage.DYNAMIC ? GL33C.GL_DYNAMIC_DRAW : GL33C.GL_STATIC_DRAW;
         Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, vbo);
-        Gl.glBufferData(GL33C.GL_ARRAY_BUFFER, prefix(interleaved, floats), hint);
+        Gl.glBufferData(GL33C.GL_ARRAY_BUFFER, prefix(interleaved, liveFloats), hint);
         Gl.glBindBuffer(GL33C.GL_ELEMENT_ARRAY_BUFFER, ebo);
-        Gl.glBufferData(GL33C.GL_ELEMENT_ARRAY_BUFFER, prefix(mesh.indices(), indexCount), hint);
-        this.gpuBytes = (long) floats * Float.BYTES + (long) indexCount * Integer.BYTES;
+        Gl.glBufferData(GL33C.GL_ELEMENT_ARRAY_BUFFER, indexCopy, hint);
+    }
+
+    /**
+     * Forgets the buffers without a GL call, the context they lived in being gone (ADR 082); they
+     * are made again from what this mesh keeps before it is next drawn or updated.
+     */
+    void contextLost() {
+        vao = 0;
+        vbo = 0;
+        ebo = 0;
+        lost = true;
     }
 
     /**
@@ -140,14 +174,28 @@ final class GlMesh implements GpuMesh {
         return data.length == count ? data : Arrays.copyOf(data, count);
     }
 
-    private static int[] prefix(int[] data, int count) {
-        return data.length == count ? data : Arrays.copyOf(data, count);
-    }
-
     void drawTriangles() {
+        ensureAllocated();
         Gl.glBindVertexArray(vao);
         Gl.glDrawElements(GL33C.GL_TRIANGLES, indexCount, GL33C.GL_UNSIGNED_INT, 0L);
         Gl.glBindVertexArray(0);
+    }
+
+    /** Makes the buffers again from what this mesh keeps, after {@link #contextLost}. */
+    private void ensureAllocated() {
+        if (lost) {
+            allocate();
+            upload();
+            lost = false;
+            Gl.glBindVertexArray(0);
+            Gl.glBindBuffer(GL33C.GL_ARRAY_BUFFER, 0);
+        }
+    }
+
+    /** @return the vertex array, made again first if the context was lost; for tests */
+    int vertexArray() {
+        ensureAllocated();
+        return vao;
     }
 
     /** Triangle count (for render stats). */
@@ -178,9 +226,11 @@ final class GlMesh implements GpuMesh {
             return;
         }
         disposed = true;
-        Gl.glDeleteVertexArrays(vao);
-        Gl.glDeleteBuffers(vbo);
-        Gl.glDeleteBuffers(ebo);
+        if (!lost) {
+            Gl.glDeleteVertexArrays(vao);
+            Gl.glDeleteBuffers(vbo);
+            Gl.glDeleteBuffers(ebo);
+        }
         owner.forget(this);
     }
 }
