@@ -63,9 +63,11 @@ toolkit's fonts, icons and catalogs.
   formats. `-H:+IncludeAllLocales` fixes it and costs about 33 MB; `-H:IncludeLocales=` with the
   application's languages costs less. GraalVM 25 calls the first option experimental.
 - **On macOS the default locale comes from `LANG` only.** The JVM reads the system's language
-  preference; the image does not, so one started from the Finder, where `LANG` is unset, comes
-  up in English on a Portuguese system. Started from a terminal, or with `-Duser.language`, it
-  is right. Windows read the system language without help.
+  preference; the image does not, so one started with no `LANG`, as a `.app` bundle is by the
+  system, comes up in English on a Portuguese system (measured with `env -i`, where the JVM
+  reads pt-BR). A bare executable double-clicked in the Finder is right, because the Finder runs
+  it in the terminal application, which sets `LANG`; so is one given `-Duser.language`. Windows
+  read the system language without help.
 - **One reflective probe misjudges unknown classes.** `Widget.paintsItself()` asks a widget class
   whether it declares `onPaint` through `getDeclaredMethod`. For a class the metadata does not
   list the answer is "no", and all that is lost is the developer warning about a painting widget
