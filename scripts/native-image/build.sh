@@ -4,6 +4,7 @@
 #
 #   GRAALVM_HOME, DEMO_JAR, PLATFORM  as in agent-run.sh
 #   JOBS                              cores native-image may use (default 4)
+#   XMX                               the builder's heap (default 6g; 3g fits a 4 GB machine with swap)
 #
 # Extra arguments go to native-image. -H:+IncludeAllLocales is on because an image otherwise
 # carries only the build machine's locale data, and the Showcase then shows its own translations
@@ -21,7 +22,7 @@ esac
 meta="$here/metadata/${PLATFORM:-$default}"
 out="$here/../../build/native-image"
 mkdir -p "$out"
-exec "$GRAALVM_HOME/bin/native-image" -J-Xmx6g --parallelism="${JOBS:-4}" \
+exec "$GRAALVM_HOME/bin/native-image" -J-Xmx"${XMX:-6g}" --parallelism="${JOBS:-4}" \
   --enable-native-access=ALL-UNNAMED -H:+IncludeAllLocales \
   -H:ConfigurationFileDirectories="$meta,$meta/resources" \
   "$@" -jar "$DEMO_JAR" -o "$out/limn-demo"

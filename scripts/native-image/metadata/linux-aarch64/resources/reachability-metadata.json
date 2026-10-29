@@ -1,0 +1,24 @@
+{
+  "resources": [
+    {"glob": "limn/demo/media/*"},
+    {"glob": "limn/video/ffmpeg/native/linux-aarch64/*"},
+    {"glob": "limn/svg/native/linux-aarch64/*"},
+    {"glob": "linux/arm64/**"},
+    {"glob": "META-INF/linux/arm64/**"},
+    {"glob": "limn/**/*.properties"},
+    {"glob": "limn/**/*.ttf"},
+    {"glob": "limn/**/*.otf"},
+    {"glob": "limn/**/*.svg"},
+    {"glob": "limn/**/*.png"},
+    {"glob": "limn/**/*.json"},
+    {"glob": "limn/**/*.txt"},
+    {"glob": "limn/**/*.frag"},
+    {"glob": "limn/**/*.vert"},
+    {"glob": "limn/**/*.webp"},
+    {"glob": "limn/**/*.gltf"},
+    {"glob": "limn/**/*.blob"},
+    {"glob": "limn/**/*.index"},
+    {"glob": "i18n/*.properties"},
+    {"glob": "javazoom/**/*.ser"}
+  ]
+}
