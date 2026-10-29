@@ -18,6 +18,9 @@ module limn.backend.lwjgl {
     requires transitive limn.toolkit;
     // The nullness annotations on this module's signatures, as limn.toolkit requires them.
     requires static transitive org.jspecify;
+    // GraalVM's SDK, for NativeImageFeature alone, which only the native-image builder loads; it
+    // is a compile-time dependency and absent at run time.
+    requires static org.graalvm.nativeimage;
     requires org.lwjgl;
     requires org.lwjgl.glfw;
     requires org.lwjgl.egl;

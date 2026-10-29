@@ -1,0 +1,14 @@
+{
+  "reflection": [
+    {"type": "float[]", "serializable": true}
+  ],
+  "resources": [
+    {"glob": "limn/backend/lwjgl/shaders/*.frag"},
+    {"glob": "limn/backend/lwjgl/shaders/*.vert"},
+    {"glob": "limn/backend/lwjgl/i18n/*.properties"},
+    {"glob": "limn/backend/lwjgl/fonts/*.ttf"},
+    {"glob": "limn/fonts/*.ttf"},
+    {"glob": "limn/fonts/*.otf"},
+    {"glob": "javazoom/jl/decoder/*.ser"}
+  ]
+}

@@ -131,6 +131,7 @@ export default defineConfig({
             { slug: "docs/performance" },
             { slug: "docs/testing" },
             { slug: "docs/packaging" },
+            { slug: "docs/native-image" },
             { slug: "docs/troubleshooting" },
           ],
         },

@@ -11,6 +11,7 @@ import limn.sound.Playback;
 import limn.sound.Sounds;
 import org.jspecify.annotations.Nullable;
 
+import java.lang.System.Logger.Level;
 import java.lang.ref.WeakReference;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -130,6 +131,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @see VideoClock for the timing policy this player supplies a master and a queue to
  */
 public final class MediaPlayer implements AutoCloseable {
+
+    private static final System.Logger LOG = System.getLogger(MediaPlayer.class.getName());
 
     /** Pictures held ahead of the one being shown, when nothing says otherwise. */
     public static final int DEFAULT_RING_CAPACITY = 3;
@@ -1134,7 +1137,10 @@ public final class MediaPlayer implements AutoCloseable {
             lock.notifyAll();
         }
         // Somewhere a user can see it: a decode thread belongs to no event-loop phase, so without
-        // this the only trace of a broken stream would be a widget saying it cannot be played.
+        // this the only trace of a broken stream would be a widget saying it cannot be played. The
+        // log line first, because the default crash handler ignores a report and a widget's notice
+        // carries no cause.
+        LOG.log(Level.WARNING, "a media stream could not be decoded, so it stops here", error);
         Crashes.report(CrashPhase.DECODE, error);
         return Step.DONE;
     }

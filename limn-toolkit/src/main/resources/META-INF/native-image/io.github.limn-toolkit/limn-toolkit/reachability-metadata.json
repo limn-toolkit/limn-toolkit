@@ -1,0 +1,14 @@
+{
+  "reflection": [
+    {"type": "limn.accessibility.Accessibility"},
+    {"type": "limn.scene.Scene"},
+    {"type": "limn.video.VideoFrame", "fields": [{"name": "generation"}]}
+  ],
+  "resources": [
+    {"glob": "limn/i18n/*.properties"},
+    {"glob": "limn/i18n/internal/*.txt"},
+    {"glob": "limn/components/icons/*.svg"},
+    {"glob": "limn/icons/*/icons.blob"},
+    {"glob": "limn/icons/*/icons.index"}
+  ]
+}

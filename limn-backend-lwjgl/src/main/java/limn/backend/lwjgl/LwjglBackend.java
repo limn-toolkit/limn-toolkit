@@ -365,6 +365,7 @@ public final class LwjglBackend implements BackendPeer {
             if (Platform.current().isMacOs()) {
                 // Before the library builds the system's menus, which read the numbers' locale.
                 MacApplication.numbersInTheCLocale();
+                MacApplication.followSystemLanguage();
                 macAgent = MacApplication.isAgent();
                 if (macAgent) {
                     // No bar of the library's and, with it, no making of an ordinary application

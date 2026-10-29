@@ -2,6 +2,8 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.backend.CrashPhase;
+import limn.backend.Crashes;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -23,6 +25,7 @@ import limn.video.VideoSurface;
 import limn.video.VideoSurfaces;
 import org.jspecify.annotations.Nullable;
 
+import java.lang.System.Logger.Level;
 import java.util.Objects;
 
 /**
@@ -202,6 +205,8 @@ public final class VideoView extends Widget<VideoView> {
 
     /** How often a paused view asks whether something outside it has resumed the player. */
     private static final long PAUSED_POLL_MILLIS = 150;
+
+    private static final System.Logger LOG = System.getLogger(VideoView.class.getName());
 
     /**
      * Whether installing a source starts it playing. False by default: a video that begins the
@@ -1015,6 +1020,11 @@ public final class VideoView extends Widget<VideoView> {
             seeked = false; // the screen shows the current position again
         } catch (RuntimeException error) {
             failure = error;
+            // Said where whoever is building this will look, as well as on the picture: the notice
+            // is a few words with no cause in them, and the default crash handler ignores a report,
+            // so without this line the reason the video cannot be played is written nowhere.
+            LOG.log(Level.WARNING, "a video picture could not be shown, so this view stops here", error);
+            Crashes.report(CrashPhase.FRAME, error);
             // The paint running now goes on to draw the notice, and nothing else about this view
             // changes: no damage is declared, the ticker stops at the next tick because a failed
             // view is not runnable, and the tree of this frame was published before this paint. So

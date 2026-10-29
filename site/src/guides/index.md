@@ -49,7 +49,8 @@ have.
 anything slow goes off the UI thread, and the toolkit gives you a shape for that.
 [Performance](/docs/performance/) says what a frame costs and how to keep it small,
 [Testing](/docs/testing/) drives a screen from a test with no display, and
-[Packaging](/docs/packaging/) turns the result into something you can send someone.
+[Packaging](/docs/packaging/) turns the result into something you can send someone, and
+[Native executable](/docs/native-image/) compiles it into one executable with no JDK to ship.
 [Troubleshooting](/docs/troubleshooting/) is where to look when a machine you sent it to will
 not start it, or a message you have not met before appears.
 

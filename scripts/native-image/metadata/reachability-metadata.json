@@ -1,0 +1,8 @@
+{
+  "resources": [
+    {"glob": "limn/demo/media/*"},
+    {"glob": "limn/demo/images/*"},
+    {"glob": "limn/demo/models/*"},
+    {"glob": "i18n/*.properties"}
+  ]
+}

@@ -162,11 +162,130 @@ jobs:
           fi
           echo "no successful publish run for $TAG yet"
 
+  # The Showcase compiled ahead of time with GraalVM's native-image, from nothing but the metadata
+  # the toolkit's own jars carry and the demo's list of its own files, on one machine of each
+  # system. It is a gate before the upload, like check: the jars a release publishes are the ones
+  # an application builds its image from, and a resource or a lookup left out of their metadata
+  # breaks that image and no test on the JVM. Here and not on every push because a build takes
+  # minutes per system and what it guards changes rarely.
+  #
+  # Linux and Windows also start the image and open the video page, which loads every kind of
+  # native library the toolkit ships: under Xvfb with Mesa as ci.yml runs the tests, and on ANGLE
+  # over Direct3D's software device as angle.yml does. The macOS runner is a virtual machine with
+  # no GPU and nothing has measured what context a window gets there, so it builds only.
+  native-image:
+    needs: verify
+    name: Native image, ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux-x64, runner: ubuntu-latest, archive: linux-x64_bin.tar.gz,
+              sha256: 05ccbbe783210b6886ff7b08fcd0b061c5dce4852b05db87284fc0e24abb08e2 }
+          - { os: macos-aarch64, runner: macos-latest, archive: macos-aarch64_bin.tar.gz,
+              sha256: 4ec9932aa4aab1afca0ea31982d32d6f956615c61fe21a227b49756b25adda4f }
+          - { os: windows-x64, runner: windows-2025, archive: windows-x64_bin.zip,
+              sha256: 2733ea1331f1a98b05dd55a768b07347051dad48f030dbbfa191b11a2ccf4144 }
+    defaults:
+      run:
+        shell: bash
+    env:
+      # The GraalVM the site's guide names, from its own releases, checked against the digest
+      # written above rather than one fetched beside the archive.
+      GRAAL_TAG: graal-25.4.4.1.1
+      GRAAL_PREFIX: graalvm-community-jdk-25i4-25.0.4.1.1_
+    steps:
+      - name: Line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Build the runnable demo jar
+        run: ./gradlew :limn-demo:fatJar -PlimnVersion="$VERSION"
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+
+      - name: Install GraalVM
+        run: |
+          mkdir -p "$RUNNER_TEMP/graalvm" && cd "$RUNNER_TEMP/graalvm"
+          curl -fsSLo "graalvm-${{ matrix.archive }}" \
+            "https://github.com/graalvm/graalvm-ce-builds/releases/download/$GRAAL_TAG/$GRAAL_PREFIX${{ matrix.archive }}"
+          sum=sha256sum; command -v sha256sum >/dev/null || sum="shasum -a 256"
+          echo "${{ matrix.sha256 }}  graalvm-${{ matrix.archive }}" | $sum -c
+          case "${{ matrix.archive }}" in
+            *.zip) unzip -q "graalvm-${{ matrix.archive }}" ;;
+            *) tar xzf "graalvm-${{ matrix.archive }}" ;;
+          esac
+          home=$(find "$PWD" -maxdepth 4 -type f \( -name native-image -o -name native-image.cmd \) -path '*/bin/*' | head -1)
+          home=$(dirname "$(dirname "$home")")
+          [ "$RUNNER_OS" = Windows ] && home=$(cygpath -w "$home")
+          echo "GRAALVM_HOME=$home" >> "$GITHUB_ENV"
+
+      - name: Build the image (Linux, macOS)
+        if: runner.os != 'Windows'
+        # The macOS runner has 7 GB; the builder's default heap here is 6 GB.
+        run: XMX=${{ runner.os == 'macOS' && '4g' || '6g' }} JOBS=3 scripts/native-image/build.sh
+        env:
+          DEMO_JAR: limn-demo/build/libs/limn-demo-all.jar
+
+      - name: Build the image (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: scripts\native-image\build.cmd
+        env:
+          DEMO_JAR: limn-demo\build\libs\limn-demo-all.jar
+
+      - name: Install Xvfb and Mesa
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libgl1-mesa-dri libglx-mesa0 libxrandr2 libxinerama1 \
+            libxcursor1 libxi6 libxxf86vm1
+
+      # The video page: the clip comes out of the image's resources, FFmpeg's libraries are
+      # extracted from it and decode the clip, and the picture is drawn, so a library, a shader or
+      # a lookup missing from the metadata stops it here.
+      - name: Start the image on the video page
+        if: runner.os != 'macOS'
+        run: |
+          image=build/native-image/limn-demo
+          run=()
+          [ "$RUNNER_OS" = Linux ] && run=(xvfb-run -a)
+          "${run[@]}" "$image" -Dlimn.demo.page=video --scene app \
+            --screenshot build/native-image/video.png --exit-after 30000 2>&1 | tee build/native-image/video.log
+          grep -q "Video: 'Clip' opened" build/native-image/video.log
+          test -s build/native-image/video.png
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: native-image-${{ matrix.os }}
+          path: |
+            build/native-image/*.png
+            build/native-image/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   # No native build in here any more (ADR 037): the FFmpeg payload is the limn-ffmpeg-natives
   # artifact, released from its own repository on FFmpeg's schedule, and the version this
   # toolkit was tested with is pinned in gradle/libs.versions.toml like any other dependency.
+  # (The native-image job above compiles the demo, not a payload.)
   publish:
-    needs: verify
+    needs: [verify, native-image]
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:

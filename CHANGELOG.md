@@ -14,6 +14,13 @@ Maven Central say which number that was.
   when the screen has no room below, with nothing mapped by the caller. `showAnchored` takes its
   rectangle in scene coordinates, and handing it the widget's own `0, 0`, as the menus guide
   showed, opened the menu at the window's edge; the guide now shows `showFor(button)`.
+- An application compiles to a native executable with GraalVM's `native-image` and nothing to
+  configure for the toolkit: `limn-toolkit`, `limn-backend-lwjgl` and `limn-video-ffmpeg` carry
+  `META-INF/native-image/` metadata naming their resources, their reflection and the FFmpeg
+  decoder's JNI lookups, and the backend's build step adds the native libraries of the system
+  being built for and no other. The new [Native executable](https://limn-toolkit.github.io/limn-toolkit/docs/native-image/)
+  guide says what an application still names (its own files and reflection) and what differs from
+  the JVM. Compiled against GraalVM's SDK, which no POM names.
 
 ### Fixed
 
@@ -22,6 +29,14 @@ Maven Central say which number that was.
   (`LANG=pt_BR.UTF-8`, for one). The Java launcher hands the C library the environment's locale,
   and with its numbers in such a locale the system drew neither; the backend now puts that one
   category back in `"C"`, where a program the system starts has it.
+- A video that cannot be shown, or a stream that cannot be decoded, now says why in the log, as a
+  warning from `VideoView` or `MediaPlayer` with the exception. The view showed "This video
+  cannot be played" and the default crash handler ignores a report, so the cause was written
+  nowhere.
+- A native executable on macOS starts in the language the user chose in the system's settings,
+  as the JVM does, when it is started with no `LANG`, as the system starts a `.app`; it came up
+  in English. A `-Duser.language` on its command line, or an `I18n.setLocale` before the backend
+  starts, still decides.
 
 ## After 0.9.0
 

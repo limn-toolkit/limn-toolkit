@@ -41,6 +41,11 @@ limn-lunasvg-natives = "3.5.0.0"
 # classifiers (Windows and macOS: Linux has Mesa), and loads them only when a machine's own OpenGL
 # gives a window no context (ADR 003).
 limn-angle-natives = "2.1.8078.0"
+# GraalVM's native-image SDK: the Feature interface the backend's NativeImageFeature implements,
+# compileOnly, so no POM names it and nothing loads it on the JVM. Its classes target Java 11, so
+# the 17 the artifacts target compiles against it; the Feature API it uses has not changed since
+# 22.3, and an image built with any GraalVM for JDK 25 runs it.
+graalvm-nativeimage = "25.0.4"
 
 [libraries]
 lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
@@ -63,6 +68,7 @@ limn-lunasvg-natives = { module = "io.github.limn-toolkit:limn-lunasvg-natives",
 limn-angle-natives = { module = "io.github.limn-toolkit:limn-angle-natives", version.ref = "limn-angle-natives" }
 limn-icons-tabler = { module = "io.github.limn-toolkit:limn-icons-tabler", version.ref = "limn-icons-tabler" }
 jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+graalvm-nativeimage = { module = "org.graalvm.sdk:nativeimage", version.ref = "graalvm-nativeimage" }
 glavo-webp = { module = "org.glavo:webp", version.ref = "glavo-webp" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }

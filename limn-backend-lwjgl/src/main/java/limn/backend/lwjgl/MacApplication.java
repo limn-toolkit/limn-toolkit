@@ -1,11 +1,16 @@
 package limn.backend.lwjgl;
 
 import limn.backend.lwjgl.internal.ObjC;
+import limn.i18n.I18n;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.libc.LibCLocale;
 
 import java.lang.System.Logger.Level;
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
 
@@ -98,6 +103,113 @@ final class MacApplication {
             LOG.log(Level.DEBUG, "the C library's number locale could not be set", refused);
             return null;
         }
+    }
+
+    /** The environment variables that name a language, in the order the C library consults them. */
+    private static final List<String> LANGUAGE_VARIABLES = List.of("LC_ALL", "LC_MESSAGES", "LANG");
+
+    /**
+     * Makes a native image start in the language the user chose in the system's settings, as the
+     * JVM does. The JVM on macOS reads that choice from the system; a native image takes its
+     * default locale from {@code LANG} alone, and a {@code .app} started by the system has no
+     * {@code LANG}, so it came up in English on a Portuguese system, measured with a native image
+     * of the Showcase started with an empty environment against the JVM reading {@code pt-BR}.
+     * A terminal sets {@code LANG}, and an image started from one already follows it.
+     *
+     * <p>Only when nothing has chosen a language: a {@code -Duser.language} on the command line
+     * stands, and the toolkit's language follows only if no {@link I18n#setLocale} before the
+     * backend started chose another.
+     */
+    static void followSystemLanguage() {
+        try {
+            Locale preferred = languageToFollow(System.getProperty("org.graalvm.nativeimage.imagecode"),
+                    System::getenv, System.getProperty("user.language", ""),
+                    ProcessHandle.current().info().arguments().map(List::of).orElse(List.of()),
+                    MacApplication::preferredLocale);
+            if (preferred == null) {
+                return;
+            }
+            Locale before = Locale.getDefault();
+            Locale.setDefault(preferred);
+            if (I18n.processLocale().equals(before)) {
+                I18n.setLocale(preferred);
+            }
+        } catch (Throwable refused) {
+            LOG.log(Level.DEBUG, "the system's language could not be followed", refused);
+        }
+    }
+
+    /**
+     * The decision behind {@link #followSystemLanguage}, apart from the system it reads.
+     *
+     * @param imageCode   the {@code org.graalvm.nativeimage.imagecode} property: set only inside a
+     *                    native image, where the JVM's own reading is absent
+     * @param environment the process environment
+     * @param language    the {@code user.language} property as the process has it
+     * @param arguments   the process's command line, or nothing where it cannot be read
+     * @param preference  the system's preferred language, read only when it is needed
+     * @return the locale to adopt, or {@code null} when the process already has the right one
+     */
+    static @Nullable Locale languageToFollow(@Nullable String imageCode,
+                                             Function<String, @Nullable String> environment,
+                                             String language, List<String> arguments,
+                                             Supplier<@Nullable Locale> preference) {
+        if (imageCode == null) {
+            return null; // the JVM, which read the system's choice itself
+        }
+        for (String variable : LANGUAGE_VARIABLES) {
+            String value = environment.apply(variable);
+            if (value != null && !value.isEmpty()) {
+                return null; // a terminal's choice, which the image has already taken
+            }
+        }
+        for (String argument : arguments) {
+            if (argument.startsWith("-Duser.language=") || argument.startsWith("-Duser.country=")
+                    || argument.startsWith("-Duser.region=")) {
+                return null; // the command line's choice
+            }
+        }
+        // With no language in its environment an image says English; anything else was chosen,
+        // by a -D the command line above could not show or by the application before this ran.
+        if (!language.equals("en")) {
+            return null;
+        }
+        return preference.get();
+    }
+
+    /**
+     * The first language in the system's list of preferred languages, with the region the system's
+     * formats use when the language names none: {@code pt-BR} as it stands, {@code en} with the
+     * region of the user's formats. {@code null} when it cannot be read.
+     */
+    static @Nullable Locale preferredLocale() {
+        try {
+            long locale = ObjC.cls("NSLocale");
+            long languages = ObjC.msg(locale, "preferredLanguages");
+            long first = languages == NULL ? NULL : ObjC.msg(languages, "firstObject");
+            String tag = utf8(first);
+            if (tag == null) {
+                return null;
+            }
+            Locale language = Locale.forLanguageTag(tag);
+            if (language.getLanguage().isEmpty()) {
+                return null;
+            }
+            if (!language.getCountry().isEmpty()) {
+                return language;
+            }
+            long current = ObjC.msg(locale, "currentLocale");
+            String region = utf8(current == NULL ? NULL : ObjC.msg(current, "countryCode"));
+            return region == null ? language : new Locale.Builder().setLocale(language).setRegion(region).build();
+        } catch (Throwable unreadable) {
+            LOG.log(Level.DEBUG, "the system's preferred language could not be read", unreadable);
+            return null;
+        }
+    }
+
+    private static @Nullable String utf8(long string) {
+        long bytes = string == NULL ? NULL : ObjC.msg(string, "UTF8String");
+        return bytes == NULL ? null : MemoryUtil.memUTF8(bytes);
     }
 
     /** @return the C library's locale for a category, read without changing it, or {@code null} */

@@ -31,6 +31,8 @@ dependencies {
     api(project(":limn-toolkit"))
     // The nullness annotations on this module's own signatures; see limn-toolkit's build.
     api(libs.jspecify)
+    // GraalVM's SDK, for NativeImageFeature, which only the native-image builder loads.
+    compileOnly(libs.graalvm.nativeimage)
 
     // The faces, as artifacts (ADR 036): each versions with its font, so a toolkit release
     // stops re-shipping megabytes that did not change and an application's cache keeps them
@@ -113,6 +115,8 @@ dependencies {
     testImplementation(project(":limn-test"))
     // RepositoryRoot, for the tests that read a file of the checkout's.
     testImplementation(testFixtures(project(":limn-toolkit")))
+    // NativeImageFeatureTest loads the feature, which implements the SDK's interface.
+    testImplementation(libs.graalvm.nativeimage)
     testRuntimeOnly(libs.junit.platform.launcher)
     // The opt-in faces, for the tests only: the CJK/emoji fallback chain, the colour-emoji
     // pipeline and VendoredFontsTest's digests all exercise what an APPLICATION may add, and

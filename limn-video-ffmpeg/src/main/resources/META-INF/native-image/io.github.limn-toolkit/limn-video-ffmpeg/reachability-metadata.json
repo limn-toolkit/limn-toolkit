@@ -1,0 +1,7 @@
+{
+  "reflection": [
+    {"type": "java.lang.String", "jniAccessible": true},
+    {"type": "limn.video.ffmpeg.FfmpegException", "jniAccessible": true,
+     "methods": [{"name": "<init>", "parameterTypes": ["java.lang.String"]}]}
+  ]
+}

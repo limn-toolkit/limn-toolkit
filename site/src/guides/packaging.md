@@ -201,6 +201,9 @@ For something users can double-click, `jlink` trims a runtime to the modules you
 use and `jpackage` wraps that into an `.app`, an `.msi` or a `.deb`. Both ship with the JDK;
 neither needs anything from the toolkit.
 
+Or compile it ahead of time into one executable per system, with no runtime to ship at all:
+[Native executable](/docs/native-image/) shows how.
+
 ## On the module path
 
 Most applications run from the class path, and nothing in this section applies to them.
