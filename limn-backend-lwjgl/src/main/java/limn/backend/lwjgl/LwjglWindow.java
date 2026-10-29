@@ -46,6 +46,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_FLOATING;
 import static org.lwjgl.glfw.GLFW.GLFW_FOCUS_ON_SHOW;
 import static org.lwjgl.glfw.GLFW.GLFW_FORMAT_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
+import static org.lwjgl.glfw.GLFW.GLFW_OPENGL_API;
 import static org.lwjgl.glfw.GLFW.GLFW_IME;
 import static org.lwjgl.glfw.GLFW.GLFW_MAXIMIZED;
 import static org.lwjgl.glfw.GLFW.GLFW_RAW_MOUSE_MOTION;
@@ -329,13 +330,31 @@ final class LwjglWindow implements WindowPeer {
         long created;
         GraphicsProbe.Failure failure = null;
         String angleFailure = null;
+        WglContext ownWgl = null;
         if (angle) {
             created = AngleFallback.createWindow(config.width(), config.height(), config.title(), null);
             angleFailure = created == NULL ? AngleFallback.failure() : null;
         } else {
-            created = softwareGl ? NULL
-                    : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
-            failure = created == NULL && !softwareGl ? GraphicsProbe.lastFailure() : null;
+            if (WINDOWS) {
+                // The window from GLFW, the context from the backend (ADR 082 §1.1): one GLFW made
+                // could not be deleted and made again after the driver's library moved.
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+                created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                failure = created == NULL ? GraphicsProbe.lastFailure() : null;
+                if (created != NULL) {
+                    ownWgl = WglContext.create(org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(created));
+                    if (ownWgl == null) {
+                        failure = WglContext.lastFailure();
+                        glfwDestroyWindow(created);
+                        created = NULL;
+                    }
+                }
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API); // for an ANGLE attempt
+            } else {
+                created = softwareGl ? NULL
+                        : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                failure = created == NULL && !softwareGl ? GraphicsProbe.lastFailure() : null;
+            }
             if (created == NULL && !softwareGl && AngleFallback.answers(Platform.current().os(), failure.code())) {
                 created = AngleFallback.createWindow(config.width(), config.height(), config.title(), failure);
                 angle = created != NULL;
@@ -413,7 +432,8 @@ final class LwjglWindow implements WindowPeer {
                 macSoftwareGl = true;
             }
         }
-        context = softwareContext != NULL ? WindowContext.nsgl(softwareContext) : WindowContext.glfw(handle);
+        context = softwareContext != NULL ? WindowContext.nsgl(softwareContext)
+                : ownWgl != null ? ownWgl : WindowContext.glfw(handle);
         if (!angle) {
             AngleFallback.nativeContextMade();
         }
@@ -2530,6 +2550,7 @@ final class LwjglWindow implements WindowPeer {
     }
 
     private static final boolean MACOS = Platform.current().isMacOs();
+    private static final boolean WINDOWS = Platform.current().os() == Platform.Os.WINDOWS;
 
     /** {@code NSEventTypeScrollWheel}. */
     private static final long NS_SCROLL_WHEEL = 22;
