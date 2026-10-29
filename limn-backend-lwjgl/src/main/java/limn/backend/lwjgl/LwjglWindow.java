@@ -338,6 +338,7 @@ final class LwjglWindow implements WindowPeer {
         GraphicsProbe.Failure failure = null;
         String angleFailure = null;
         WglContext ownWgl = null;
+        long ownNsgl = NULL;
         if (angle) {
             created = AngleFallback.createWindow(config.width(), config.height(), config.title(), null);
             angleFailure = created == NULL ? AngleFallback.failure() : null;
@@ -352,6 +353,23 @@ final class LwjglWindow implements WindowPeer {
                     ownWgl = WglContext.create(org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(created));
                     if (ownWgl == null) {
                         failure = WglContext.lastFailure();
+                        glfwDestroyWindow(created);
+                        created = NULL;
+                    }
+                }
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API); // for an ANGLE attempt
+            } else if (MACOS && !softwareGl) {
+                // As on Windows, the window from GLFW and the context from the backend, with the
+                // pixel format GLFW asked AppKit for (ADR 082 §1.1).
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+                created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                failure = created == NULL ? GraphicsProbe.lastFailure() : null;
+                if (created != NULL) {
+                    ownNsgl = MacSoftwareGl.createContext(created, config.transparent(), false, true);
+                    if (ownNsgl == NULL) {
+                        // GLFW's words for the same refusal, which the fallbacks below answer.
+                        failure = new GraphicsProbe.Failure(GLFW_FORMAT_UNAVAILABLE,
+                                "NSGL: Failed to find a suitable pixel format");
                         glfwDestroyWindow(created);
                         created = NULL;
                     }
@@ -423,7 +441,7 @@ final class LwjglWindow implements WindowPeer {
         long softwareContext = NULL;
         if (softwareGl) {
             softwareContext = MacSoftwareGl.createContext(handle, config.transparent(),
-                    MacSoftwareGl.forced());
+                    MacSoftwareGl.forced(), false);
             if (softwareContext == NULL) {
                 glfwDestroyWindow(handle);
                 throw new IllegalStateException("this Mac offers no OpenGL 3.2 core pixel format "
@@ -440,6 +458,7 @@ final class LwjglWindow implements WindowPeer {
             }
         }
         context = softwareContext != NULL ? WindowContext.nsgl(softwareContext)
+                : ownNsgl != NULL ? WindowContext.nsgl(ownNsgl)
                 : ownWgl != null ? ownWgl : WindowContext.glfw(handle);
         if (!angle) {
             AngleFallback.nativeContextMade();

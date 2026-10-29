@@ -1571,6 +1571,11 @@ public final class LwjglBackend implements BackendPeer {
     }
 
     /** @return the capabilities windows of one kind of context share; see {@link GlCapabilitiesCache} */
+    /** @return what notices lost contexts; for tests */
+    ContextLossWatch lossWatch() {
+        return lossWatch;
+    }
+
     GlCapabilitiesCache<Object> glCapabilities() {
         return glCapabilities;
     }

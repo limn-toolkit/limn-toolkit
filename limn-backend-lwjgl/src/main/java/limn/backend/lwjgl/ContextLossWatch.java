@@ -82,6 +82,14 @@ final class ContextLossWatch {
         attempt(windows);
     }
 
+    /** Makes every window's context again now, as a loss would; for tests. */
+    void rebuildNow(List<LwjglWindow> windows) {
+        rebuilding = true;
+        attempts = 0;
+        lostAt = System.nanoTime();
+        attempt(windows);
+    }
+
     private void attempt(List<LwjglWindow> windows) {
         attempts++;
         for (LwjglWindow window : windows) {
