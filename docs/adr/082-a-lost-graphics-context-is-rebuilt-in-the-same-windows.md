@@ -267,5 +267,7 @@ with the route taken.
    the session manager's log. Four windows of the probe that owns its contexts (two processes,
    x64 and ARM64) and the Showcase on GLFW's contexts ran through both moves: **no loss** in
    either probe, the colours on screen afterwards, and the Showcase logged only its new monitor
-   scale. On this guest a session change does not lose a context; a resume does.
+   scale. On this guest a session change does not lose a context; a resume does. During the
+   remote session `PrintWindow` read black for every probe window while the owner saw them all
+   drawing in the remote window, which is one more reason §1.4 does not take its verdict from it.
 
