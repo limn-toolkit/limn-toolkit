@@ -78,7 +78,6 @@ import static org.lwjgl.glfw.GLFW.glfwGetWindowPos;
 import static org.lwjgl.glfw.GLFW.glfwGetWindowContentScale;
 import static org.lwjgl.glfw.GLFW.glfwGetWindowSize;
 import static org.lwjgl.glfw.GLFW.glfwHideWindow;
-import static org.lwjgl.glfw.GLFW.glfwMakeContextCurrent;
 import static org.lwjgl.glfw.GLFW.glfwRequestWindowAttention;
 import static org.lwjgl.glfw.GLFW.glfwRestoreWindow;
 import static org.lwjgl.glfw.GLFW.glfwSetCharCallback;
@@ -112,8 +111,6 @@ import static org.lwjgl.glfw.GLFW.glfwSetWindowSize;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowSizeLimits;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowTitle;
 import static org.lwjgl.glfw.GLFW.glfwShowWindow;
-import static org.lwjgl.glfw.GLFW.glfwSwapBuffers;
-import static org.lwjgl.glfw.GLFW.glfwSwapInterval;
 import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
 import static limn.backend.lwjgl.Gl.glViewport;
@@ -144,11 +141,8 @@ final class LwjglWindow implements WindowPeer {
      * this machine has none", and the difference is a platform gate that has or has not been read.
      */
     private limn.backend.AccessibilityBridge accessibility;
-    // The hand-built macOS software-renderer context, or NULL on every normal
-    // window (which is every window on every other platform, and nearly all of
-    // them on macOS). Non-NULL means GLFW owns no context for this window, so
-    // make-current, swap and swap-interval go through the ObjC object instead.
-    private final long nsglContext;
+    /** The context this window draws with, and who made it; see {@link WindowContext}. */
+    private final WindowContext context;
     /**
      * The content view whose input method {@link MacInputContextGate} switches, on macOS; {@code NULL}
      * elsewhere, or where the gate could not be made.
@@ -419,7 +413,7 @@ final class LwjglWindow implements WindowPeer {
                 macSoftwareGl = true;
             }
         }
-        nsglContext = softwareContext;
+        context = softwareContext != NULL ? WindowContext.nsgl(softwareContext) : WindowContext.glfw(handle);
         if (!angle) {
             AngleFallback.nativeContextMade();
         }
@@ -451,10 +445,7 @@ final class LwjglWindow implements WindowPeer {
             framebufferWidth = width;
             framebufferHeight = height;
             windowed.answered(); // an answer to a window leaving fullscreen, while one is watched
-            if (nsglContext != NULL) {
-                // GLFW resizes the drawables it owns; this one is ours to tell.
-                MacSoftwareGl.update(nsglContext);
-            }
+            context.drawableChanged(); // GLFW resizes the drawables it owns, and only those
             updatePixelsPerScreenCoord();
             if (input != null) {
                 input.windowResized(logicalWidth(), logicalHeight());
@@ -834,32 +825,16 @@ final class LwjglWindow implements WindowPeer {
         return destroyed ? NULL : handle;
     }
 
-    // The three context calls GLFW cannot make for a window created with no client
-    // API. Everywhere but the macOS software fallback these ARE the GLFW calls, and
-    // nsglContext is NULL, so the branch is a field test against a constant.
-
     private void makeContextCurrent() {
-        if (nsglContext == NULL) {
-            glfwMakeContextCurrent(handle);
-        } else {
-            MacSoftwareGl.makeCurrent(nsglContext);
-        }
+        context.makeCurrent();
     }
 
     private void setSwapInterval(int interval) {
-        if (nsglContext == NULL) {
-            glfwSwapInterval(interval);
-        } else {
-            MacSoftwareGl.setSwapInterval(nsglContext, interval);
-        }
+        context.setSwapInterval(interval);
     }
 
     private void swapBuffers() {
-        if (nsglContext == NULL) {
-            glfwSwapBuffers(handle);
-        } else {
-            MacSoftwareGl.swapBuffers(nsglContext);
-        }
+        context.swapBuffers();
     }
 
     /** @return this window's resident texture stats (glyph atlas + image cache). */
@@ -1307,10 +1282,7 @@ final class LwjglWindow implements WindowPeer {
             LOG.log(System.Logger.Level.ERROR, "the renderer threw as its window closed; the window is still"
                     + " destroyed", error);
         }
-        if (nsglContext != NULL) {
-            // Ours to release, and it must let go of the view before the window goes.
-            MacSoftwareGl.dispose(nsglContext);
-        }
+        context.dispose();
         // glfwFreeCallbacks predates the preedit patch and does not free this
         // callback; its native upcall stub pins this window (and its scene)
         // through a JNI global ref unless freed explicitly.
@@ -1540,10 +1512,7 @@ final class LwjglWindow implements WindowPeer {
         }
         glfwShowWindow(handle);
         stateMayHaveChanged();
-        if (nsglContext != NULL) {
-            // A window built hidden (every popup) gets its drawable here.
-            MacSoftwareGl.update(nsglContext);
-        }
+        context.drawableChanged(); // a window built hidden (every popup) gets its drawable here
     }
 
     @Override
