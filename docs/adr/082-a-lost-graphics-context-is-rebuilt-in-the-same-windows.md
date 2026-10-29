@@ -54,6 +54,8 @@ reading each window's composed pixel and the screen's.
 | One window recovering at every suspension, the owner suspending it again and again, some in quick succession, on the x64 JDK (emulated on that ARM guest) and the ARM64 one side by side | The processes died at a reload whenever `opengl32.dll` came back **at another address**: WGL was being called through pointers LWJGL resolved at the first load (each crash report's address inside the library's old range). With every WGL entry point looked up again after each load: four recoveries on each JDK, the library moving twice, quick suspensions included; the ARM64 JDK back in 0.6 to 1.7 s, the emulated one in 1.1 to 5.5 s |
 | The same windows closed at the end | **Both processes crashed in `glfwDestroyWindow`**: GLFW deletes the context it made through the `wglDeleteContext` it looked up at the first load, in the library's old range |
 | **GLFW making the windows with no context (`GLFW_NO_API`), the probe making every WGL context itself (3.3 core forward-compatible through `wglCreateContextAttribsARB`, vsync, a second window sharing the first's objects), entry points looked up after every load** | **Every loss recovered on both JDKs, main and popup together, about 2.2 to 2.6 s including a 2 s settle, the library moving on the first reload; and closing the windows ended both processes cleanly**, no crash report |
+| The same with no settle: rebuilt at once on the loss, verified by a pixel read back on the new context (it cannot lie here, the old driver being gone), tried again 0.1 s later if not | **Every loss back on the first attempt, 0.3 to 0.8 s after it was read**, on both JDKs, the screen showing the colours again the next second |
+| The Ubuntu guest (virgl over the same host GPU, Mesa, X11) and the macOS guest (the toolkit already on ANGLE over Metal, the system's OpenGL offering no pixel format there), the Showcase and a probe on each, suspended and resumed by the owner | **No loss on either**: the colours read back right through every resume, Mesa's reset status (it has `ARB_robustness`) stayed 0, nothing flickered. The clock comparison of §1.3 fired on Ubuntu (the wall clock off the monotonic one by six hours, then by five seconds) |
 | A child surface of the system's static class | White while the window was dragged: the class paints its background. A class of the toolkit's own (no background, transparent to hit testing, drawing again on `WM_PAINT`) did not |
 
 Two more facts from the same day. Restarting the display adapter (`pnputil /restart-device`, close to
@@ -116,18 +118,19 @@ rebuilt is the drawing: the context, its surface on the same window, and every G
 
 As the owner asked, the toolkit first tries to stay where it was:
 
-1. **On the system's OpenGL, through a child surface:** a settle of about two seconds, since the
-   owner's quick suspensions showed a machine can go away again mid-recovery; every context
-   deleted; LWJGL's binding destroyed; `opengl32.dll` and the driver's OpenGL library freed if they are
-   still in the process; then, in each top-level window, a child window covering its client area,
-   disabled so that the input stays with the top-level, and a new context on it; every GPU object
-   rebuilt, with every entry point looked up again; one whole frame drawn in a colour the toolkit
-   chooses and the screen's pixel read where
-   the window shows. The screen's colour is the verdict, not OpenGL's read-back, which §0.2 shows
-   lying; `PrintWindow` read a child's static background at times, so it is used only for a window
-   that is covered. The child is of the toolkit's own class: no background, transparent to hit
-   testing, drawing the current frame again on `WM_PAINT`. Until a loss there is no child: the
-   toolkit's context is on the top-level window.
+1. **On the system's OpenGL, through a child surface:** at once, with no settle (the owner did
+   not want one, and §0.2 measured none needed); every context deleted; LWJGL's binding
+   destroyed; `opengl32.dll` and the driver's OpenGL library freed if they are still in the
+   process; then, in each top-level window, a child window covering its client area, transparent
+   to hit testing so that the input stays with the top-level, and a new context on it; every GPU
+   object rebuilt, with every entry point looked up again; one whole frame drawn in a colour the
+   toolkit chooses and read back. The read-back is trusted here because the driver that lied in
+   §0.2 has left the process; where the window shows, the screen's pixel confirms it, and
+   `PrintWindow`, which read a child's static background at times, is not used. The child is of
+   the toolkit's own class: no background, drawing the current frame again on `WM_PAINT`. Until a
+   loss there is no child: the toolkit's context is on the top-level window. A rebuild that does
+   not verify is tried again a tenth of a second later, since a machine suspended again in the
+   middle of one is the case that needs it.
 2. **On ANGLE, when the first fails or cannot be verified:** the toolkit's OpenGL binding is
    destroyed (LWJGL frees its tables only then, which is what allows the switch), ANGLE is brought
    up through EGL on each existing window, and the process stays on ANGLE from then on (§6,
@@ -230,11 +233,13 @@ with the route taken.
 ## 6. Questions for the owner
 
 1. **Which systems recover.** The owner decided the contexts are the toolkit's on all three
-   (§1.1). Recovery is measured on Windows only; macOS rarely loses a context on sleep but does on
-   an external GPU removed; Linux with one vendor's proprietary driver loses GPU memory on suspend
-   unless the driver is told to keep it. **Recommendation:** detection and rebuilding (§1.3–§1.5)
-   on all three, the ANGLE step on Windows and macOS, and the macOS and Linux guests measured,
-   suspended as the Windows one was, before either is claimed.
+   (§1.1). A loss happened only on the Windows guest; the Ubuntu and macOS guests lost nothing at a
+   resume (§0.2), so the lab has no loss to test a rebuild against there. macOS loses a context
+   when an external GPU is removed; Linux with one vendor's proprietary driver loses GPU memory on
+   suspend unless the driver is told to keep it. **Recommendation:** detection and rebuilding
+   (§1.3–§1.5) written once for all three, with Linux's reset status read every frame since Mesa
+   has it; tested on macOS and Linux by forcing a loss in tests (§4), and claimed for real
+   hardware there only once a machine that loses one has been run.
 2. **Once on ANGLE, stay there?** **Recommendation:** yes, for the rest of the process: the
    system's OpenGL already failed once in it, and switching back would need its own verification
    and a second rebuild.
