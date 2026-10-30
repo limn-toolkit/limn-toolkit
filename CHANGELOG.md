@@ -38,6 +38,10 @@ Maven Central say which number that was.
   (`LANG=pt_BR.UTF-8`, for one). The Java launcher hands the C library the environment's locale,
   and with its numbers in such a locale the system drew neither; the backend now puts that one
   category back in `"C"`, where a program the system starts has it.
+- The date picker's calendar button no longer covers the picker's rounded border under the
+  pointer. Its hover was a small pill drawn over the border, whose corners hid the border's arcs on
+  that side; it now stops at the border's inner edge with corners concentric with it, as its focus
+  ring does. The text field's button and the spinner's arrows, in the same place, already did.
 - A video that cannot be shown, or a stream that cannot be decoded, now says why in the log, as a
   warning from `VideoView` or `MediaPlayer` with the exception. The view showed "This video
   cannot be played" and the default crash handler ignores a report, so the cause was written
