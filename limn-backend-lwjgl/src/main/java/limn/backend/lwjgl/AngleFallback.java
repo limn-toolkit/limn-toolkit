@@ -148,6 +148,7 @@ final class AngleFallback {
         }
         if (!taken) {
             taken = true;
+            leaveDesktopBinding();
             Gl.use(GlesGl.INSTANCE);
             // Before the first window's programs are compiled, so that every later window finds them.
             EglProgramCache.install(org.lwjgl.glfw.GLFWNativeEGL.glfwGetEGLDisplay());
@@ -181,6 +182,7 @@ final class AngleFallback {
         ownContext = context;
         if (!taken) {
             taken = true;
+            leaveDesktopBinding();
             Gl.use(GlesGl.INSTANCE);
             EglProgramCache.install(EglContext.angleDisplay());
             LOG.log(System.Logger.Level.INFO, "OpenGL context: {0}, {1}; OpenGL ES 3.0, and taken by "
@@ -211,6 +213,7 @@ final class AngleFallback {
         }
         if (!taken) {
             taken = true;
+            leaveDesktopBinding();
             Gl.use(GlesGl.INSTANCE);
             long display = EglContext.angleDisplay();
             if (display != NULL) {
@@ -220,6 +223,19 @@ final class AngleFallback {
                     + "not come back after the device was lost; OpenGL ES 3.0 from here on", describe());
         }
         return true;
+    }
+
+    /**
+     * Destroys LWJGL's desktop OpenGL binding before the process takes the ES one: only one of the
+     * two can exist, and creating the second while the first stands throws. The backend's own WGL
+     * context loads the desktop binding before it asks for a context, so on a machine whose OpenGL
+     * refuses one, as a build runner's software display does, it is standing when ANGLE is taken
+     * for the first window; after a loss the watch has destroyed it already.
+     */
+    private static void leaveDesktopBinding() {
+        if (Gl.api() != GlesGl.INSTANCE) {
+            Gl.api().destroyBinding();
+        }
     }
 
     /** @return why the last {@link #createWindow} gave no window */
