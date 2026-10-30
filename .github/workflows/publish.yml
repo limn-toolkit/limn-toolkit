@@ -221,13 +221,30 @@ jobs:
           mkdir -p "$RUNNER_TEMP/graalvm" && cd "$RUNNER_TEMP/graalvm"
           curl -fsSLo "graalvm-${{ matrix.archive }}" \
             "https://github.com/graalvm/graalvm-ce-builds/releases/download/${GRAAL_TAG}/${GRAAL_PREFIX}${{ matrix.archive }}"
-          sum=sha256sum; command -v sha256sum >/dev/null || sum="shasum -a 256"
-          echo "${{ matrix.sha256 }}  graalvm-${{ matrix.archive }}" | $sum -c
+          # The digest compared as a string: a check list read from stdin is GNU's, and the macOS
+          # runner's sha256sum is the BSD one, which reads none.
+          if command -v shasum >/dev/null; then
+            actual=$(shasum -a 256 "graalvm-${{ matrix.archive }}" | cut -d' ' -f1)
+          else
+            actual=$(sha256sum "graalvm-${{ matrix.archive }}" | cut -d' ' -f1)
+          fi
+          if [ "$actual" != "${{ matrix.sha256 }}" ]; then
+            echo "::error::graalvm-${{ matrix.archive }} has sha256 $actual, not ${{ matrix.sha256 }}"
+            exit 1
+          fi
           case "${{ matrix.archive }}" in
             *.zip) unzip -q "graalvm-${{ matrix.archive }}" ;;
             *) tar xzf "graalvm-${{ matrix.archive }}" ;;
           esac
-          home=$(find "$PWD" -maxdepth 4 -type f \( -name native-image -o -name native-image.cmd \) -path '*/bin/*' | head -1)
+          # Any kind of file, since bin/native-image is a symbolic link on Linux and macOS, five
+          # levels down for macOS's Contents/Home, and not the launcher under lib/svm/bin that
+          # the link points at.
+          home=$(find "$PWD" -maxdepth 5 \( -name native-image -o -name native-image.cmd \) -path '*/bin/*' \
+            ! -path '*/lib/*' | head -1)
+          if [ -z "$home" ]; then
+            echo "::error::no bin/native-image in the GraalVM archive"
+            exit 1
+          fi
           home=$(dirname "$(dirname "$home")")
           [ "$RUNNER_OS" = Windows ] && home=$(cygpath -w "$home")
           echo "GRAALVM_HOME=$home" >> "$GITHUB_ENV"
