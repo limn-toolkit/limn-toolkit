@@ -1,5 +1,7 @@
 package limn.backend.lwjgl;
 
+import org.jspecify.annotations.Nullable;
+
 import static org.lwjgl.glfw.GLFW.glfwMakeContextCurrent;
 import static org.lwjgl.glfw.GLFW.glfwSwapBuffers;
 import static org.lwjgl.glfw.GLFW.glfwSwapInterval;
@@ -35,6 +37,15 @@ interface WindowContext {
     default void dispose() {
     }
 
+    /**
+     * @return how the backend made this context, for the graphics report ("WGL", "EGL", "EGL, ANGLE
+     *         on Direct3D 11 (fallback)", "NSOpenGL"); null for a context GLFW made, which GLFW's
+     *         window attributes describe
+     */
+    default @Nullable String createdVia() {
+        return null;
+    }
+
     /** @return the context GLFW made with {@code window}, which GLFW keeps and releases */
     static WindowContext glfw(long window) {
         return new WindowContext() {
@@ -55,9 +66,17 @@ interface WindowContext {
         };
     }
 
-    /** @return the {@code NSOpenGLContext} {@link MacSoftwareGl} made, which is ours to release */
-    static WindowContext nsgl(long context) {
+    /**
+     * @param via how the report names it: the accelerated context, or the software fallback
+     * @return the {@code NSOpenGLContext} {@link MacSoftwareGl} made, which is ours to release
+     */
+    static WindowContext nsgl(long context, String via) {
         return new WindowContext() {
+            @Override
+            public String createdVia() {
+                return via;
+            }
+
             @Override
             public void makeCurrent() {
                 MacSoftwareGl.makeCurrent(context);

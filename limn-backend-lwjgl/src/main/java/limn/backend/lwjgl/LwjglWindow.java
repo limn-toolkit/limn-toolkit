@@ -490,8 +490,8 @@ final class LwjglWindow implements WindowPeer {
         }
         EglContext ownAngle = angle ? AngleFallback.takeOwnContext() : null;
         context = ownAngle != null ? ownAngle
-                : softwareContext != NULL ? WindowContext.nsgl(softwareContext)
-                : ownNsgl != NULL ? WindowContext.nsgl(ownNsgl)
+                : softwareContext != NULL ? WindowContext.nsgl(softwareContext, "NSOpenGL, macOS software fallback")
+                : ownNsgl != NULL ? WindowContext.nsgl(ownNsgl, "NSOpenGL")
                 : ownWgl != null ? ownWgl
                 : ownEgl != null ? ownEgl : WindowContext.glfw(handle);
         if (!angle) {
@@ -1103,7 +1103,7 @@ final class LwjglWindow implements WindowPeer {
     limn.backend.GraphicsInfo readGraphicsInfo() {
         makeContextCurrent();
         Gl.api().setCapabilities(glCapabilities);
-        return GraphicsProbe.read(handle);
+        return GraphicsProbe.read(handle, context.createdVia());
     }
 
     /** @return this window's 3D-subsystem stats (meshes/textures/targets/bytes + last-frame workload). */

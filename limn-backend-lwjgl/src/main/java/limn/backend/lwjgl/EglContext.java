@@ -83,6 +83,11 @@ final class EglContext implements WindowContext {
     /** Whether a swap or a make-current said the context is lost: ANGLE's word, which the watch asks. */
     private boolean lost;
 
+    @Override
+    public String createdVia() {
+        return display != NULL && display == angleDisplay ? "EGL, " + AngleFallback.describe() : "EGL";
+    }
+
     private EglContext(long window, long display, long config, long eglWindow, long surface, boolean ownSurface,
             long context) {
         this.window = window;

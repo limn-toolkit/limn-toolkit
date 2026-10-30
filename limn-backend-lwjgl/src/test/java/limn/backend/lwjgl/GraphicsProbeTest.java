@@ -29,7 +29,7 @@ class GraphicsProbeTest {
     @Test
     void reportsTheContextItIsGiven() {
         HeadlessGl.assumeWindow();
-        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window());
+        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window(), null);
 
         assertNull(info.failure(), "a live context is not a failure");
         assertTrue(info.available());
@@ -51,7 +51,7 @@ class GraphicsProbeTest {
     @Test
     void namesTheGrantedProfileAndNotTheRequestedOne() {
         HeadlessGl.assumeWindow();
-        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window());
+        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window(), null);
 
         if (HeadlessGl.isEs()) {
             // ANGLE's context (ADR 003): ES has no profiles, and 3.0 is the floor asked for.
@@ -66,6 +66,26 @@ class GraphicsProbeTest {
         }
         assertFalse(info.contextApi().isBlank(), "context creation API");
         assertNotEquals("unknown", info.windowPlatform(), "window platform");
+    }
+
+    /**
+     * A context the backend made itself, on a window GLFW made with no context, is described by the
+     * context and by how the backend made it: GLFW's attributes for such a window are all zero, and
+     * reading them reported "OpenGL, from a context GLFW did not create" made by "the application's
+     * own" on every machine, ANGLE's included, which the ANGLE workflow's check for "ANGLE on
+     * Direct3D 11" then failed on.
+     */
+    @Test
+    void describesAContextTheBackendMadeFromTheContextAndHowItWasMade() {
+        HeadlessGl.assumeWindow();
+        GraphicsInfo info = GraphicsProbe.read(HeadlessGl.window(), "EGL, ANGLE on Direct3D 11 (fallback)");
+
+        assertEquals("EGL, ANGLE on Direct3D 11 (fallback)", info.contextApi());
+        if (HeadlessGl.isEs()) {
+            assertTrue(info.api().startsWith("OpenGL ES 3."), "client API: " + info.api());
+        } else {
+            assertTrue(info.api().matches("OpenGL [34]\\.\\d+ core"), "client API: " + info.api());
+        }
     }
 
     /**

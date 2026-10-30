@@ -273,6 +273,11 @@ final class WglContext implements WindowContext {
     private final long dc;
     private final long context;
 
+    @Override
+    public String createdVia() {
+        return "WGL";
+    }
+
     private WglContext(long surface, long dc, long context) {
         this.surface = surface;
         this.dc = dc;

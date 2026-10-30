@@ -52,16 +52,17 @@ final class GraphicsProbe {
     }
 
     /**
-     * @param window the GLFW window whose context is <em>already current</em> on
-     *               the calling thread
+     * @param window     the GLFW window whose context is <em>already current</em> on
+     *                   the calling thread
+     * @param createdVia how the backend made that context, or null if GLFW made it
      */
-    static GraphicsInfo read(long window) {
+    static GraphicsInfo read(long window, @Nullable String createdVia) {
         List<String> extensions = extensions();
         return new GraphicsInfo(
                 platformName(),
                 glfwGetVersionString(),
-                apiName(window),
-                contextApiName(window),
+                createdVia != null ? ownApiName() : apiName(window),
+                createdVia != null ? createdVia : contextApiName(window),
                 Gl.glGetString(GL33C.GL_VENDOR),
                 Gl.glGetString(GL33C.GL_RENDERER),
                 Gl.glGetString(GL33C.GL_VERSION),
@@ -266,6 +267,22 @@ final class GraphicsProbe {
         }
         Collections.sort(names);
         return names;
+    }
+
+    /**
+     * The API, version and profile of a context the backend made, read from the context itself:
+     * GLFW's attributes for a window it made with no context are all zero.
+     */
+    private static String ownApiName() {
+        int major = Gl.glGetInteger(GL33C.GL_MAJOR_VERSION);
+        int minor = Gl.glGetInteger(GL33C.GL_MINOR_VERSION);
+        if (Gl.api() == GlesGl.INSTANCE) {
+            return "OpenGL ES " + major + "." + minor;
+        }
+        int mask = Gl.glGetInteger(GL33C.GL_CONTEXT_PROFILE_MASK);
+        String profile = (mask & GL33C.GL_CONTEXT_CORE_PROFILE_BIT) != 0 ? " core"
+                : (mask & GL33C.GL_CONTEXT_COMPATIBILITY_PROFILE_BIT) != 0 ? " compatibility" : "";
+        return "OpenGL " + major + "." + minor + profile;
     }
 
     private static String apiName(long window) {

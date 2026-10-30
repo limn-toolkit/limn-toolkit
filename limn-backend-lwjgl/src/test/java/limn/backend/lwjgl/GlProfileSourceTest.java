@@ -35,6 +35,8 @@ class GlProfileSourceTest {
             "GL_BACK_LEFT", "the default framebuffer's colour buffer, GL_BACK on ES (GlApi#defaultColorBuffer)",
             "GL_CONTEXT_PROFILE_MASK", "read by GraphicsProbe on the desktop profile only",
             "GL_CONTEXT_FLAGS", "read by GraphicsProbe on the desktop profile only",
+            "GL_CONTEXT_CORE_PROFILE_BIT", "read by GraphicsProbe on the desktop profile only",
+            "GL_CONTEXT_COMPATIBILITY_PROFILE_BIT", "read by GraphicsProbe on the desktop profile only",
             "GL_TIME_ELAPSED", "org.lwjgl.opengles.EXTDisjointTimerQuery.GL_TIME_ELAPSED_EXT",
             "GL_R16", "org.lwjgl.opengles.EXTTextureNorm16.GL_R16_EXT",
             "GL_RG16", "org.lwjgl.opengles.EXTTextureNorm16.GL_RG16_EXT");
