@@ -20,9 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A window's OpenGL context is the backend's own on macOS and Windows (ADR 082 §1.1): GLFW made the
- * window without one, and the backend's draws. On Windows the context is then made again as after
- * a lost device, the driver's library unloaded and a child surface drawn on, and it draws again.
+ * A window's OpenGL context is the backend's own (ADR 082 §1.1), and it draws. On Windows and Linux
+ * it is then made again as after a lost device (on Windows the driver's library unloaded and a child
+ * surface drawn on, on Linux a new EGL context on the same window), and it draws again.
  *
  * <p>Run in a JVM of its own, for the reasons {@link ClosedWindowTest} gives: a backend terminates
  * GLFW when it closes, and on Windows this one unloads the OpenGL runtime.
@@ -38,8 +38,6 @@ class OwnContextTest {
     @Test
     void theBackendMakesTheContextAndMakesItAgain() throws Exception {
         Platform.Os os = Platform.current().os();
-        Assumptions.assumeTrue(os == Platform.Os.MACOS || os == Platform.Os.WINDOWS,
-                "the backend makes its own contexts on macOS and Windows so far");
         List<String> command = new ArrayList<>();
         command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
         if (Platform.current().isMacOs()) {
@@ -62,7 +60,7 @@ class OwnContextTest {
                 () -> "this machine's windows are on another context (ANGLE or the software one):\n" + output);
         assertEquals(0, child.exitValue(), output);
         assertTrue(output.contains("own context draws"), output);
-        if (os == Platform.Os.WINDOWS) {
+        if (os != Platform.Os.MACOS) {
             assertTrue(output.contains("made again, draws"), output);
         }
         assertTrue(output.contains("loop ended"), output);
@@ -89,13 +87,15 @@ class OwnContextTest {
         }
 
         private static void check(LwjglBackend backend, LwjglWindow window) {
-            if (GLFW.glfwGetWindowAttrib(window.handle(), GLFW.GLFW_CLIENT_API) != GLFW.GLFW_NO_API
-                    || AngleFallback.taken()) {
+            boolean own = Platform.current().isMacOs()
+                    ? GLFW.glfwGetWindowAttrib(window.handle(), GLFW.GLFW_CLIENT_API) == GLFW.GLFW_NO_API
+                    : window.contextRemakeable();
+            if (!own || AngleFallback.taken()) {
                 System.out.println("not the backend's own context");
                 System.exit(NOT_OWN);
             }
             System.out.println(window.contextDraws() ? "own context draws" : "own context does NOT draw");
-            if (Platform.current().os() == Platform.Os.WINDOWS) {
+            if (!Platform.current().isMacOs()) {
                 backend.lossWatch().rebuildNow(List.of(window));
                 System.out.println(window.contextDraws() ? "made again, draws" : "made again, does NOT draw");
             }

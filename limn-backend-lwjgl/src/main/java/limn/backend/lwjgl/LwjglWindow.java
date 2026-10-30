@@ -31,6 +31,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_AUTO_ICONIFY;
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_NATIVE_CONTEXT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_CREATION_API;
+import static org.lwjgl.glfw.GLFW.GLFW_EGL_CONTEXT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_API_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR;
@@ -197,7 +198,7 @@ final class LwjglWindow implements WindowPeer {
     private int presentedHeight = -1;
 
     /** Reads the back buffer's age from the driver, on X11 and Wayland; see {@link #bufferAge}. */
-    private final BufferAgeQuery bufferAgeQuery;
+    private BufferAgeQuery bufferAgeQuery;
 
     /**
      * How old the back buffer's contents are, for partial rendering: what the driver says where it
@@ -339,6 +340,7 @@ final class LwjglWindow implements WindowPeer {
         String angleFailure = null;
         WglContext ownWgl = null;
         long ownNsgl = NULL;
+        EglContext ownEgl = null;
         if (angle) {
             created = AngleFallback.createWindow(config.width(), config.height(), config.title(), null);
             angleFailure = created == NULL ? AngleFallback.failure() : null;
@@ -375,6 +377,31 @@ final class LwjglWindow implements WindowPeer {
                     }
                 }
                 glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API); // for an ANGLE attempt
+            } else if (LINUX) {
+                // The context from the backend here too (ADR 082 §1.1). On Wayland the window comes
+                // with none; on X11 GLFW makes an EGL one that only chooses the visual, since a
+                // window without one has no alpha, and the backend's draws on GLFW's surface.
+                boolean wayland = org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WAYLAND;
+                if (wayland) {
+                    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+                } else {
+                    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+                }
+                created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                if (created != NULL) {
+                    ownEgl = wayland ? EglContext.onWayland(created) : EglContext.onGlfwSurface(created);
+                    if (ownEgl == null && wayland) {
+                        glfwDestroyWindow(created); // no context at all on it: GLFW's own, below
+                        created = NULL;
+                    }
+                }
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+                glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
+                if (created == NULL) {
+                    // No EGL, or no 3.3 core through it: GLFW's own context, as before.
+                    created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                    failure = created == NULL ? GraphicsProbe.lastFailure() : null;
+                }
             } else {
                 created = softwareGl ? NULL
                         : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
@@ -459,7 +486,8 @@ final class LwjglWindow implements WindowPeer {
         }
         context = softwareContext != NULL ? WindowContext.nsgl(softwareContext)
                 : ownNsgl != NULL ? WindowContext.nsgl(ownNsgl)
-                : ownWgl != null ? ownWgl : WindowContext.glfw(handle);
+                : ownWgl != null ? ownWgl
+                : ownEgl != null ? ownEgl : WindowContext.glfw(handle);
         if (!angle) {
             AngleFallback.nativeContextMade();
         }
@@ -470,7 +498,8 @@ final class LwjglWindow implements WindowPeer {
         glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
         Gl.api().setCapabilities(glCapabilities);
         // With the context current, as the query needs; the software macOS context has none to ask.
-        bufferAgeQuery = BufferAgeQuery.forWindow(handle);
+        bufferAgeQuery = context instanceof EglContext egl
+                ? BufferAgeQuery.forEgl(egl.display(), egl.surface()) : BufferAgeQuery.forWindow(handle);
         setSwapInterval(1); // vsync
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -942,6 +971,33 @@ final class LwjglWindow implements WindowPeer {
     }
 
     /**
+     * On Linux nothing is unloaded and the window keeps its surface: a new EGL context on the same
+     * window, through the same path the first was made by (ADR 082 §1.4, step 1).
+     */
+    private boolean remakeEglContext() {
+        boolean wayland = org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WAYLAND;
+        EglContext remade = wayland ? EglContext.onWayland(handle) : EglContext.onGlfwSurface(handle);
+        if (remade == null) {
+            return false;
+        }
+        context = remade;
+        contextGone = false;
+        makeContextCurrent();
+        glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
+        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
+        bufferAgeQuery = BufferAgeQuery.forEgl(remade.display(), remade.surface());
+        setSwapInterval(1);
+        requestWholeFrame();
+        return true;
+    }
+
+    /** @return whether this window draws with a context the backend can make again after a loss */
+    boolean contextRemakeable() {
+        return context instanceof WglContext || context instanceof EglContext;
+    }
+
+    /**
      * Makes this window's context again after {@link #forgetContext} and the driver's unload, on a
      * child window covering the client area, since the window itself keeps the pixel format of the
      * driver that was unloaded (ADR 082 §1.4, step 1). Windows only.
@@ -949,6 +1005,9 @@ final class LwjglWindow implements WindowPeer {
      * @return whether a context was made; the caller verifies that it draws
      */
     boolean remakeContext() {
+        if (LINUX) {
+            return remakeEglContext();
+        }
         long top = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
         if (WglContext.restoreClassProcedure(top)) {
             LOG.log(System.Logger.Level.WARNING, "the unloaded OpenGL runtime''s procedure was still on the "
@@ -2695,6 +2754,7 @@ final class LwjglWindow implements WindowPeer {
 
     private static final boolean MACOS = Platform.current().isMacOs();
     private static final boolean WINDOWS = Platform.current().os() == Platform.Os.WINDOWS;
+    private static final boolean LINUX = Platform.current().os() == Platform.Os.LINUX;
 
     /** {@code NSEventTypeScrollWheel}. */
     private static final long NS_SCROLL_WHEEL = 22;

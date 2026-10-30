@@ -32,7 +32,7 @@ final class ContextLossWatch {
     /** The wait between two attempts. */
     static final long RETRY_NANOS = 100_000_000L;
 
-    private static final boolean REBUILDS = Platform.current().os() == Platform.Os.WINDOWS;
+    private static final boolean WINDOWS = Platform.current().os() == Platform.Os.WINDOWS;
 
     private long wall = System.currentTimeMillis();
     private long monotonic = System.nanoTime();
@@ -68,7 +68,7 @@ final class ContextLossWatch {
             if (!lost) {
                 return;
             }
-            if (!REBUILDS) {
+            if (!windows.stream().allMatch(LwjglWindow::contextRemakeable)) {
                 LOG.log(System.Logger.Level.ERROR, "a window's OpenGL context no longer draws, and on this "
                         + "system the toolkit does not make it again yet (ADR 082)");
                 return;
@@ -95,17 +95,22 @@ final class ContextLossWatch {
         for (LwjglWindow window : windows) {
             window.forgetContext();
         }
-        Gl.api().destroyBinding();
-        String unloaded = WglContext.unloadDriver();
+        String unloaded = "nothing";
+        if (WINDOWS) {
+            // A context of the system's OpenGL does not come back while the driver's library stays
+            // loaded (§0.2); on Linux nothing is unloaded, and a new context is enough.
+            Gl.api().destroyBinding();
+            unloaded = WglContext.unloadDriver();
+        }
         boolean drawing = true;
         for (LwjglWindow window : windows) {
             drawing &= window.remakeContext() && window.contextDraws();
         }
         if (drawing) {
             rebuilding = false;
-            LOG.log(System.Logger.Level.WARNING, "every window''s OpenGL context was made again on a "
-                    + "surface of its own, {0} ms after the loss and on attempt {1}, having unloaded {2}",
-                    (System.nanoTime() - lostAt) / 1_000_000L, attempts, unloaded);
+            LOG.log(System.Logger.Level.WARNING, "every window''s OpenGL context was made again, {0} ms "
+                    + "after the loss and on attempt {1}{2}", (System.nanoTime() - lostAt) / 1_000_000L, attempts,
+                    WINDOWS ? ", on a surface of its own, having unloaded " + unloaded : "");
         } else if (attempts >= MAX_ATTEMPTS) {
             rebuilding = false;
             LOG.log(System.Logger.Level.ERROR, "the windows'' OpenGL contexts could not be made again in "
