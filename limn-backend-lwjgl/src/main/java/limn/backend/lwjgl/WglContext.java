@@ -59,6 +59,9 @@ final class WglContext implements WindowContext {
     private static final int WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB = 0x2;
     private static final int WGL_CONTEXT_PROFILE_MASK_ARB = 0x9126;
     private static final int WGL_CONTEXT_CORE_PROFILE_BIT_ARB = 0x1;
+    private static final int WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB = 0x4;
+    private static final int WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB = 0x8256;
+    private static final int WGL_LOSE_CONTEXT_ON_RESET_ARB = 0x8252;
 
     /**
      * The WGL entry points of {@code opengl32.dll} as it is loaded now, and the extension functions
@@ -308,13 +311,25 @@ final class WglContext implements WindowContext {
                         "WGL: WGL_ARB_create_context is unavailable, so no OpenGL 3.3 core context");
                 return null;
             }
-            IntBuffer attributes = stack.ints(
+            // Robust first, so that a reset is reported once a frame (ADR 082 §1.3); a driver without
+            // WGL_ARB_create_context_robustness refuses the attributes, and gets the plain request.
+            IntBuffer robust = stack.ints(
                     WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
                     WGL_CONTEXT_MINOR_VERSION_ARB, 3,
                     WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-                    WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
+                    WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB | WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB,
+                    WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB, WGL_LOSE_CONTEXT_ON_RESET_ARB,
                     0);
-            long context = JNI.invokePPPP(dc, NULL, MemoryUtil.memAddress(attributes), wgl.createContextAttribs);
+            long context = JNI.invokePPPP(dc, NULL, MemoryUtil.memAddress(robust), wgl.createContextAttribs);
+            if (context == NULL) {
+                IntBuffer plain = stack.ints(
+                        WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+                        WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+                        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+                        WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
+                        0);
+                context = JNI.invokePPPP(dc, NULL, MemoryUtil.memAddress(plain), wgl.createContextAttribs);
+            }
             if (context == NULL) {
                 User32.ReleaseDC(surface, dc);
                 lastFailure = new GraphicsProbe.Failure(org.lwjgl.glfw.GLFW.GLFW_VERSION_UNAVAILABLE,

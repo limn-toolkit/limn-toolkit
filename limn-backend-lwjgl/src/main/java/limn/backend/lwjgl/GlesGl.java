@@ -52,6 +52,18 @@ final class GlesGl implements GlApi {
     }
 
     @Override
+    public int graphicsResetStatus() {
+        org.lwjgl.opengles.GLESCapabilities capabilities = GLES.getCapabilities();
+        if (capabilities.GL_KHR_robustness) {
+            return org.lwjgl.opengles.KHRRobustness.glGetGraphicsResetStatusKHR();
+        }
+        if (capabilities.GL_EXT_robustness) {
+            return org.lwjgl.opengles.EXTRobustness.glGetGraphicsResetStatusEXT();
+        }
+        return 0;
+    }
+
+    @Override
     public void destroyBinding() {
         GLES.setCapabilities(null);
         if (GLES.getFunctionProvider() != null) {

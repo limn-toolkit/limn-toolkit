@@ -152,6 +152,8 @@ final class LwjglWindow implements WindowPeer {
     private long drawingSurface = NULL;
     /** Between {@link #forgetContext} and a successful {@link #remakeContext}: nothing may draw or delete. */
     private boolean contextGone;
+    /** Whether the context's reset status said the device lost what it held, once a frame (ADR 082 §1.3). */
+    private boolean resetReported;
     /**
      * The content view whose input method {@link MacInputContextGate} switches, on macOS; {@code NULL}
      * elsewhere, or where the gate could not be made.
@@ -984,6 +986,7 @@ final class LwjglWindow implements WindowPeer {
         }
         context = remade;
         contextGone = false;
+        resetReported = false;
         makeContextCurrent();
         glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
         glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
@@ -1007,6 +1010,7 @@ final class LwjglWindow implements WindowPeer {
         }
         context = remade;
         contextGone = false;
+        resetReported = false;
         makeContextCurrent();
         glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
         glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
@@ -1019,7 +1023,7 @@ final class LwjglWindow implements WindowPeer {
 
     /** @return whether the context said by itself that it was lost, as ANGLE's does at a swap */
     boolean contextReportedLost() {
-        return !contextGone && context instanceof EglContext egl && egl.reportedLost();
+        return !contextGone && (resetReported || context instanceof EglContext egl && egl.reportedLost());
     }
 
     /** @return whether this window draws with a context the backend can make again after a loss */
@@ -1059,6 +1063,7 @@ final class LwjglWindow implements WindowPeer {
         drawingSurface = surface;
         context = remade;
         contextGone = false;
+        resetReported = false;
         makeContextCurrent();
         glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
         glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
@@ -1414,6 +1419,13 @@ final class LwjglWindow implements WindowPeer {
             makeContextCurrent();
             // LWJGL caps are thread-local per context: re-bind when hopping windows.
             Gl.api().setCapabilities(glCapabilities);
+            if (Gl.api().graphicsResetStatus() != 0) {
+                // The device lost what this context held: nothing drawn here would show. The watch
+                // makes it again before the next frame (ADR 082 §1.3).
+                resetReported = true;
+                frameRequested = true;
+                return false;
+            }
             // One window per loop iteration paces on vblank; the others swap
             // free into the same one (see renderNow). The interval is
             // per-context state, so re-assert it every frame.

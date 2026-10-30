@@ -62,6 +62,8 @@ final class EglContext implements WindowContext {
     private static final int EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE = 0x3208;
     private static final int EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY_EXT = 0x3138;
     private static final int EGL_LOSE_CONTEXT_ON_RESET_EXT = 0x31BF;
+    /** EGL 1.5's name for the strategy, which Mesa takes for desktop OpenGL contexts. */
+    private static final int EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY = 0x31BD;
 
     /** ANGLE's display, one for the process; NULL until the first ANGLE context, and after a loss. */
     private static long angleDisplay;
@@ -92,14 +94,31 @@ final class EglContext implements WindowContext {
         this.context = context;
     }
 
-    /** The 3.3 core context's attributes, for {@code eglCreateContext}. */
-    private static IntBuffer contextAttributes(MemoryStack stack) {
-        return stack.ints(
-                EGL_CONTEXT_MAJOR_VERSION, 3,
-                EGL_CONTEXT_MINOR_VERSION, 3,
-                EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
-                EGL_CONTEXT_FLAGS_KHR, EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR,
-                EGL10.EGL_NONE);
+    /** The 3.3 core context's attributes, for {@code eglCreateContext}, robust or not. */
+    private static IntBuffer contextAttributes(MemoryStack stack, boolean robust) {
+        return robust
+                ? stack.ints(
+                        EGL_CONTEXT_MAJOR_VERSION, 3,
+                        EGL_CONTEXT_MINOR_VERSION, 3,
+                        EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+                        EGL_CONTEXT_FLAGS_KHR, EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR,
+                        EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY, EGL_LOSE_CONTEXT_ON_RESET_EXT,
+                        EGL10.EGL_NONE)
+                : stack.ints(
+                        EGL_CONTEXT_MAJOR_VERSION, 3,
+                        EGL_CONTEXT_MINOR_VERSION, 3,
+                        EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+                        EGL_CONTEXT_FLAGS_KHR, EGL_CONTEXT_OPENGL_FORWARD_COMPATIBLE_BIT_KHR,
+                        EGL10.EGL_NONE);
+    }
+
+    /** A 3.3 core context, robust where the driver takes the request (ADR 082 §1.3), plain where not. */
+    private static long createDesktopContext(long display, long config, MemoryStack stack) {
+        long context = EGL10.eglCreateContext(display, config, EGL10.EGL_NO_CONTEXT, contextAttributes(stack, true));
+        if (context == NULL) {
+            context = EGL10.eglCreateContext(display, config, EGL10.EGL_NO_CONTEXT, contextAttributes(stack, false));
+        }
+        return context;
     }
 
     /**
@@ -142,7 +161,7 @@ final class EglContext implements WindowContext {
                 return null;
             }
             EGL12.eglBindAPI(EGL_OPENGL_API);
-            long context = EGL10.eglCreateContext(display, config, EGL10.EGL_NO_CONTEXT, contextAttributes(stack));
+            long context = createDesktopContext(display, config, stack);
             if (context == NULL) {
                 EGL10.eglDestroySurface(display, surface);
                 JNI.invokePV(eglWindow, NativeLibraries.address(library, "wl_egl_window_destroy"));
@@ -170,8 +189,7 @@ final class EglContext implements WindowContext {
                 return null;
             }
             EGL12.eglBindAPI(EGL_OPENGL_API);
-            long context = EGL10.eglCreateContext(display, config.get(0), EGL10.EGL_NO_CONTEXT,
-                    contextAttributes(stack));
+            long context = createDesktopContext(display, config.get(0), stack);
             if (context == NULL) {
                 return null;
             }

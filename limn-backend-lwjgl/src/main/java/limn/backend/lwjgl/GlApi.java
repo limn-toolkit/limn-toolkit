@@ -57,6 +57,13 @@ interface GlApi {
      */
     void destroyBinding();
 
+    /**
+     * The context's reset status, once a frame (ADR 082 §1.3): non-zero once the device lost what
+     * the context held. Zero where the context has no robustness to ask, which is as cheap as the
+     * call and never stalls.
+     */
+    int graphicsResetStatus();
+
     /** The shading language this profile compiles: what replaces a shader's {@code #version 330 core}. */
     TargetProfile shadingProfile();
 
