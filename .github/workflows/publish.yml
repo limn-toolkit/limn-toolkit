@@ -393,8 +393,21 @@ jobs:
             echo "a release already exists for $TAG; leaving it untouched"
             exit 0
           fi
-          # --notes is PREPENDED to what --generate-notes produces, so the coordinates lead and
-          # the commit list follows.
+          # The section of CHANGELOG.md this release ships: the newest, which the file's own rule
+          # makes complete on the day of the tag. Read through the API as data, as the jar is
+          # downloaded, so this job still runs nothing the tag brought. GitHub refuses a body over
+          # 125 000 characters, and the section 1.0.0 shipped had 189 000, so a section that long
+          # is left to the link below it.
+          CHANGES=$(gh api -H "Accept: application/vnd.github.raw" \
+              "repos/$GH_REPO/contents/CHANGELOG.md?ref=$TAG" \
+            | awk '/^## /{n++; if (n==1) {sub(/^## After /, "## What changed since "); print; next}} n==1')
+          if [ -z "$CHANGES" ] || [ ${#CHANGES} -gt 100000 ]; then
+            CHANGES="## What changed
+
+          Too long for this page: the newest section of the changelog linked below."
+          fi
+          # --notes is PREPENDED to what --generate-notes produces, so the coordinates lead, the
+          # changelog's section follows and the commit list closes.
           gh release create "$TAG" \
             --draft \
             --title "$TAG" \
@@ -448,7 +461,9 @@ jobs:
           release. For a machine with no network, the demo is also attached below as one file
           with every platform inside: \`jbang limn-demo-all.jar\`.
 
-          What changed since the previous release, and what to change in your code:
+          $CHANGES
+
+          Every release's changes, and what to change in your code when you move:
           [CHANGELOG.md](https://github.com/$GH_REPO/blob/$TAG/CHANGELOG.md).
 
           ---

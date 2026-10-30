@@ -60,6 +60,7 @@ final class MacSoftwareGl {
     private static final int PFA_DEPTH_SIZE = 12;
     private static final int PFA_STENCIL_SIZE = 13;
     private static final int PFA_RENDERER_ID = 70;
+    private static final int PFA_ACCELERATED = 73;
     private static final int PFA_CLOSEST_POLICY = 74;
     private static final int PFA_OPENGL_PROFILE = 99;
     /** The newest profile NSGL names. It is what yields the 4.1 context; there is no "3.3". */
@@ -87,10 +88,13 @@ final class MacSoftwareGl {
      * @param software    whether to name Apple's software renderer rather than accept whichever
      *                    renderer matches, which is what {@link #forced()} needs on a Mac whose GPU
      *                    would otherwise match
+     * @param accelerated whether to demand an accelerated renderer, as GLFW's request did: the
+     *                    context every Mac with a GPU draws with since the backend makes its own;
+     *                    false for the fallback this class was written for
      * @return the {@code NSOpenGLContext}, or {@link org.lwjgl.system.MemoryUtil#NULL} if even the
      *         unaccelerated format has no match — a machine with no usable OpenGL at all
      */
-    static long createContext(long window, boolean transparent, boolean software) {
+    static long createContext(long window, boolean transparent, boolean software, boolean accelerated) {
         long view = GLFWNativeCocoa.glfwGetCocoaView(window);
         if (view == NULL) {
             return NULL;
@@ -108,6 +112,7 @@ final class MacSoftwareGl {
                     PFA_STENCIL_SIZE, 8,
                     PFA_DOUBLE_BUFFER,
                     PFA_CLOSEST_POLICY,
+                    accelerated ? PFA_ACCELERATED : PFA_CLOSEST_POLICY,
                     software ? PFA_RENDERER_ID : 0, software ? RENDERER_APPLE_SOFTWARE : 0,
                     0);
             pixelFormat = ObjC.msg(ObjC.msg(ObjC.cls("NSOpenGLPixelFormat"), "alloc"),

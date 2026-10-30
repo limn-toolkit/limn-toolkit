@@ -61,13 +61,19 @@ final class UiaWindow {
             NativeLibraries.address(USER32, "SetWindowLongPtrW");
     private static final long CALL_WINDOW_PROC = NativeLibraries.address(USER32, "CallWindowProcW");
 
+    /** Every window this bridge has subclassed and not let go, by handle; UI thread only. */
+    private static final java.util.Map<Long, UiaWindow> ATTACHED = new java.util.HashMap<>();
+
     private final long hwnd;
-    private final long previous;
+    /** The procedure this one calls, in an array the procedure reads, so that {@link #stepBack} can change it. */
+    private final long[] previous;
+    /** Whether {@link #stepAside} took this procedure out of the chain. */
+    private boolean aside;
     private final Callback.Descriptor unusedButKept;
     private final UiaCom.WndProc procedure;
     private final long closure;
 
-    private UiaWindow(long hwnd, long previous, UiaCom.WndProc procedure, long closure) {
+    private UiaWindow(long hwnd, long[] previous, UiaCom.WndProc procedure, long closure) {
         this.hwnd = hwnd;
         this.previous = previous;
         this.procedure = procedure;
@@ -146,12 +152,45 @@ final class UiaWindow {
             Callback.free(closure);
             return null;
         }
-        return new UiaWindow(hwnd, previous[0], procedure, closure);
+        UiaWindow attached = new UiaWindow(hwnd, previous, procedure, closure);
+        ATTACHED.put(hwnd, attached);
+        return attached;
+    }
+
+    /**
+     * Takes this procedure out of the window's chain for a while, putting back the one it calls,
+     * and keeps it for {@link #stepBack}. The OpenGL runtime subclasses a window when its pixel
+     * format is set, and takes itself out of the chain when it is unloaded only while it is still
+     * the outermost procedure; with this one above it, the window would keep calling into the
+     * unloaded library (measured on 2026-10-29). Messages in between reach the window
+     * without this bridge, as they did before it was attached.
+     */
+    /** @return the procedure this bridge put on {@code hwnd}, or null */
+    static UiaWindow on(long hwnd) {
+        return ATTACHED.get(hwnd);
+    }
+
+    void stepAside() {
+        if (!aside) {
+            JNI.invokePPP(hwnd, GWLP_WNDPROC, previous[0], SET_WINDOW_LONG_PTR);
+            aside = true;
+        }
+    }
+
+    /** Puts this procedure back at the head of the chain, above whatever the window has now. */
+    void stepBack() {
+        if (aside) {
+            previous[0] = JNI.invokePPP(hwnd, GWLP_WNDPROC, closure, SET_WINDOW_LONG_PTR);
+            aside = false;
+        }
     }
 
     /** Puts the window's own procedure back and frees this one. */
     void detach() {
-        JNI.invokePPP(hwnd, GWLP_WNDPROC, previous, SET_WINDOW_LONG_PTR);
+        ATTACHED.remove(hwnd, this);
+        if (!aside) {
+            JNI.invokePPP(hwnd, GWLP_WNDPROC, previous[0], SET_WINDOW_LONG_PTR);
+        }
         Callback.free(closure);
     }
 }

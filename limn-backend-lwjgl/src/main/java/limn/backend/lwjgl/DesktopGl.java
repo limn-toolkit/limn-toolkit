@@ -45,6 +45,36 @@ final class DesktopGl implements GlApi {
     }
 
     @Override
+    public void loadBinding() {
+        if (GL.getFunctionProvider() == null) {
+            GL.create();
+        }
+    }
+
+    @Override
+    public int graphicsResetStatus() {
+        GLCapabilities capabilities = GL.getCapabilities();
+        if (capabilities.OpenGL45) {
+            return org.lwjgl.opengl.GL45C.glGetGraphicsResetStatus();
+        }
+        if (capabilities.GL_KHR_robustness) {
+            return org.lwjgl.opengl.KHRRobustness.glGetGraphicsResetStatus();
+        }
+        if (capabilities.GL_ARB_robustness) {
+            return org.lwjgl.opengl.ARBRobustness.glGetGraphicsResetStatusARB();
+        }
+        return 0;
+    }
+
+    @Override
+    public void destroyBinding() {
+        GL.setCapabilities(null);
+        if (GL.getFunctionProvider() != null) {
+            GL.destroy();
+        }
+    }
+
+    @Override
     public TargetProfile shadingProfile() {
         return TargetProfile.GLSL_330;
     }

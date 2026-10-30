@@ -31,6 +31,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_AUTO_ICONIFY;
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_NATIVE_CONTEXT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_CREATION_API;
+import static org.lwjgl.glfw.GLFW.GLFW_EGL_CONTEXT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_API_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR;
@@ -46,6 +47,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_FLOATING;
 import static org.lwjgl.glfw.GLFW.GLFW_FOCUS_ON_SHOW;
 import static org.lwjgl.glfw.GLFW.GLFW_FORMAT_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
+import static org.lwjgl.glfw.GLFW.GLFW_OPENGL_API;
 import static org.lwjgl.glfw.GLFW.GLFW_IME;
 import static org.lwjgl.glfw.GLFW.GLFW_MAXIMIZED;
 import static org.lwjgl.glfw.GLFW.GLFW_RAW_MOUSE_MOTION;
@@ -78,7 +80,6 @@ import static org.lwjgl.glfw.GLFW.glfwGetWindowPos;
 import static org.lwjgl.glfw.GLFW.glfwGetWindowContentScale;
 import static org.lwjgl.glfw.GLFW.glfwGetWindowSize;
 import static org.lwjgl.glfw.GLFW.glfwHideWindow;
-import static org.lwjgl.glfw.GLFW.glfwMakeContextCurrent;
 import static org.lwjgl.glfw.GLFW.glfwRequestWindowAttention;
 import static org.lwjgl.glfw.GLFW.glfwRestoreWindow;
 import static org.lwjgl.glfw.GLFW.glfwSetCharCallback;
@@ -112,8 +113,6 @@ import static org.lwjgl.glfw.GLFW.glfwSetWindowSize;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowSizeLimits;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowTitle;
 import static org.lwjgl.glfw.GLFW.glfwShowWindow;
-import static org.lwjgl.glfw.GLFW.glfwSwapBuffers;
-import static org.lwjgl.glfw.GLFW.glfwSwapInterval;
 import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
 import static limn.backend.lwjgl.Gl.glViewport;
@@ -144,11 +143,19 @@ final class LwjglWindow implements WindowPeer {
      * this machine has none", and the difference is a platform gate that has or has not been read.
      */
     private limn.backend.AccessibilityBridge accessibility;
-    // The hand-built macOS software-renderer context, or NULL on every normal
-    // window (which is every window on every other platform, and nearly all of
-    // them on macOS). Non-NULL means GLFW owns no context for this window, so
-    // make-current, swap and swap-interval go through the ObjC object instead.
-    private final long nsglContext;
+    /** The context this window draws with, and who made it; see {@link WindowContext}. */
+    private WindowContext context;
+    /**
+     * The child window this window draws on after a lost context was made again, on
+     * Windows; NULL until then, when the context is on the window itself.
+     */
+    private long drawingSurface = NULL;
+    /** Between {@link #forgetContext} and a successful {@link #remakeContext}: nothing may draw or delete. */
+    private boolean contextGone;
+    /** Whether the context's reset status said the device lost what it held, once a frame. */
+    private boolean resetReported;
+    /** Set by a rebuild, so that the first frame drawn after it is said in the log. */
+    private boolean firstFrameAfterRebuild;
     /**
      * The content view whose input method {@link MacInputContextGate} switches, on macOS; {@code NULL}
      * elsewhere, or where the gate could not be made.
@@ -157,9 +164,9 @@ final class LwjglWindow implements WindowPeer {
     /** What {@link #setSizeLimits} last applied, for {@link #sizeLimits()}. */
     private limn.backend.SizeLimits sizeLimits = limn.backend.SizeLimits.NONE;
     /** This window's context's entry points, of the process's profile ({@link GlApi#createCapabilities}). */
-    private final Object glCapabilities;
+    private Object glCapabilities;
     /** The kind of context {@link #glCapabilities} were kept for, given back when the window goes. */
-    private final GlCapabilitiesCache.Key glCapabilitiesKey;
+    private GlCapabilitiesCache.Key glCapabilitiesKey;
     private final GlRenderer renderer;
     private final limn.backend.Clipboard clipboard;
     private final ChildPopups childPopups = new ChildPopups();
@@ -195,7 +202,7 @@ final class LwjglWindow implements WindowPeer {
     private int presentedHeight = -1;
 
     /** Reads the back buffer's age from the driver, on X11 and Wayland; see {@link #bufferAge}. */
-    private final BufferAgeQuery bufferAgeQuery;
+    private BufferAgeQuery bufferAgeQuery;
 
     /**
      * How old the back buffer's contents are, for partial rendering: what the driver says where it
@@ -335,13 +342,75 @@ final class LwjglWindow implements WindowPeer {
         long created;
         GraphicsProbe.Failure failure = null;
         String angleFailure = null;
+        WglContext ownWgl = null;
+        long ownNsgl = NULL;
+        EglContext ownEgl = null;
         if (angle) {
             created = AngleFallback.createWindow(config.width(), config.height(), config.title(), null);
             angleFailure = created == NULL ? AngleFallback.failure() : null;
         } else {
-            created = softwareGl ? NULL
-                    : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
-            failure = created == NULL && !softwareGl ? GraphicsProbe.lastFailure() : null;
+            if (WINDOWS) {
+                // The window from GLFW, the context from the backend (ADR 082 §1.1): one GLFW made
+                // could not be deleted and made again after the driver's library moved.
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+                created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                failure = created == NULL ? GraphicsProbe.lastFailure() : null;
+                if (created != NULL) {
+                    ownWgl = WglContext.create(org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(created));
+                    if (ownWgl == null) {
+                        failure = WglContext.lastFailure();
+                        glfwDestroyWindow(created);
+                        created = NULL;
+                    }
+                }
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API); // for an ANGLE attempt
+            } else if (MACOS && !softwareGl) {
+                // As on Windows, the window from GLFW and the context from the backend, with the
+                // pixel format GLFW asked AppKit for (ADR 082 §1.1).
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+                created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                failure = created == NULL ? GraphicsProbe.lastFailure() : null;
+                if (created != NULL) {
+                    ownNsgl = MacSoftwareGl.createContext(created, config.transparent(), false, true);
+                    if (ownNsgl == NULL) {
+                        // GLFW's words for the same refusal, which the fallbacks below answer.
+                        failure = new GraphicsProbe.Failure(GLFW_FORMAT_UNAVAILABLE,
+                                "NSGL: Failed to find a suitable pixel format");
+                        glfwDestroyWindow(created);
+                        created = NULL;
+                    }
+                }
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API); // for an ANGLE attempt
+            } else if (LINUX) {
+                // The context from the backend here too (ADR 082 §1.1). On Wayland the window comes
+                // with none; on X11 GLFW makes an EGL one that only chooses the visual, since a
+                // window without one has no alpha, and the backend's draws on GLFW's surface.
+                boolean wayland = org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WAYLAND;
+                if (wayland) {
+                    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+                } else {
+                    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+                }
+                created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                if (created != NULL) {
+                    ownEgl = wayland ? EglContext.onWayland(created) : EglContext.onGlfwSurface(created);
+                    if (ownEgl == null && wayland) {
+                        glfwDestroyWindow(created); // no context at all on it: GLFW's own, below
+                        created = NULL;
+                    }
+                }
+                glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+                glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
+                if (created == NULL) {
+                    // No EGL, or no 3.3 core through it: GLFW's own context, as before.
+                    created = glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                    failure = created == NULL ? GraphicsProbe.lastFailure() : null;
+                }
+            } else {
+                created = softwareGl ? NULL
+                        : glfwCreateWindow(config.width(), config.height(), config.title(), NULL, NULL);
+                failure = created == NULL && !softwareGl ? GraphicsProbe.lastFailure() : null;
+            }
             if (created == NULL && !softwareGl && AngleFallback.answers(Platform.current().os(), failure.code())) {
                 created = AngleFallback.createWindow(config.width(), config.height(), config.title(), failure);
                 angle = created != NULL;
@@ -403,7 +472,7 @@ final class LwjglWindow implements WindowPeer {
         long softwareContext = NULL;
         if (softwareGl) {
             softwareContext = MacSoftwareGl.createContext(handle, config.transparent(),
-                    MacSoftwareGl.forced());
+                    MacSoftwareGl.forced(), false);
             if (softwareContext == NULL) {
                 glfwDestroyWindow(handle);
                 throw new IllegalStateException("this Mac offers no OpenGL 3.2 core pixel format "
@@ -419,7 +488,12 @@ final class LwjglWindow implements WindowPeer {
                 macSoftwareGl = true;
             }
         }
-        nsglContext = softwareContext;
+        EglContext ownAngle = angle ? AngleFallback.takeOwnContext() : null;
+        context = ownAngle != null ? ownAngle
+                : softwareContext != NULL ? WindowContext.nsgl(softwareContext)
+                : ownNsgl != NULL ? WindowContext.nsgl(ownNsgl)
+                : ownWgl != null ? ownWgl
+                : ownEgl != null ? ownEgl : WindowContext.glfw(handle);
         if (!angle) {
             AngleFallback.nativeContextMade();
         }
@@ -430,7 +504,8 @@ final class LwjglWindow implements WindowPeer {
         glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
         Gl.api().setCapabilities(glCapabilities);
         // With the context current, as the query needs; the software macOS context has none to ask.
-        bufferAgeQuery = BufferAgeQuery.forWindow(handle);
+        bufferAgeQuery = context instanceof EglContext egl
+                ? BufferAgeQuery.forEgl(egl.display(), egl.surface()) : BufferAgeQuery.forWindow(handle);
         setSwapInterval(1); // vsync
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -451,9 +526,9 @@ final class LwjglWindow implements WindowPeer {
             framebufferWidth = width;
             framebufferHeight = height;
             windowed.answered(); // an answer to a window leaving fullscreen, while one is watched
-            if (nsglContext != NULL) {
-                // GLFW resizes the drawables it owns; this one is ours to tell.
-                MacSoftwareGl.update(nsglContext);
+            context.drawableChanged(); // GLFW resizes the drawables it owns, and only those
+            if (drawingSurface != NULL) {
+                WglSurface.resize(drawingSurface, width, height);
             }
             updatePixelsPerScreenCoord();
             if (input != null) {
@@ -834,32 +909,181 @@ final class LwjglWindow implements WindowPeer {
         return destroyed ? NULL : handle;
     }
 
-    // The three context calls GLFW cannot make for a window created with no client
-    // API. Everywhere but the macOS software fallback these ARE the GLFW calls, and
-    // nsglContext is NULL, so the branch is a field test against a constant.
-
     private void makeContextCurrent() {
-        if (nsglContext == NULL) {
-            glfwMakeContextCurrent(handle);
-        } else {
-            MacSoftwareGl.makeCurrent(nsglContext);
+        context.makeCurrent();
+    }
+
+    /**
+     * Whether this window's context still draws: a colour cleared into one pixel of the back buffer
+     * reads back as that colour. The question is asked of the context the window has
+     * had all along, whose answer a lost device was measured to make black; a whole frame is asked
+     * for after it, since the pixel is left in the buffer. Stalls the GPU once: only on a signal.
+     */
+    boolean contextDraws() {
+        if (contextGone) {
+            return false;
         }
+        if (destroyed || framebufferWidth == 0 || framebufferHeight == 0) {
+            return true; // nothing to ask of a minimized window; it is asked when it comes back
+        }
+        makeContextCurrent();
+        Gl.api().setCapabilities(glCapabilities);
+        int rgb;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            Gl.glBindFramebuffer(org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, 0);
+            Gl.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+            Gl.glScissor(0, 0, 1, 1);
+            Gl.glClearColor(1f, 0f, 1f, 1f);
+            Gl.glClear(org.lwjgl.opengl.GL33C.GL_COLOR_BUFFER_BIT);
+            java.nio.ByteBuffer pixel = stack.malloc(4);
+            Gl.glReadPixels(0, 0, 1, 1, org.lwjgl.opengl.GL33C.GL_RGBA, org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE, pixel);
+            Gl.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+            rgb = ((pixel.get(0) & 0xff) << 16) | ((pixel.get(1) & 0xff) << 8) | (pixel.get(2) & 0xff);
+        }
+        requestWholeFrame();
+        return rgb == 0xFF00FF;
+    }
+
+    /** The next frame draws everything, as the first frame at a size does: nothing in the buffers is kept. */
+    private void requestWholeFrame() {
+        presentsAtSize = 0;
+        frameRequested = true;
+    }
+
+    /**
+     * Lets go of a lost context: every GL object of the window forgotten without a GL
+     * call, the context deleted, its capabilities given back. The window draws nothing until
+     * {@link #remakeContext}.
+     */
+    void forgetContext() {
+        if (contextGone) {
+            return;
+        }
+        contextGone = true;
+        renderer.contextLost();
+        context.dispose();
+        if (drawingSurface != NULL) {
+            WglSurface.destroy(drawingSurface);
+            drawingSurface = NULL;
+        }
+        backend.glCapabilities().release(glCapabilitiesKey);
+        glCapabilities = null;
+        if (WINDOWS) {
+            // The OpenGL runtime subclassed this window when its pixel format was set, and takes
+            // itself out of the chain as it is unloaded only if it is the outermost procedure.
+            limn.backend.lwjgl.a11y.windows.UiaBridge.stepAside(
+                    org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle));
+        }
+    }
+
+    /**
+     * On Linux nothing is unloaded and the window keeps its surface: a new EGL context on the same
+     * window, through the same path the first was made by.
+     */
+    private boolean remakeEglContext() {
+        boolean wayland = org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WAYLAND;
+        EglContext remade = wayland ? EglContext.onWayland(handle) : EglContext.onGlfwSurface(handle);
+        if (remade == null) {
+            return false;
+        }
+        context = remade;
+        contextGone = false;
+        resetReported = false;
+        firstFrameAfterRebuild = true;
+        makeContextCurrent();
+        glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
+        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
+        bufferAgeQuery = BufferAgeQuery.forEgl(remade.display(), remade.surface());
+        setSwapInterval(1);
+        requestWholeFrame();
+        return true;
+    }
+
+    /**
+     * With the process on ANGLE: a new ANGLE context on the window itself, whose pixel format, set by
+     * the system's OpenGL, is nothing to Direct3D.
+     */
+    private boolean remakeAngleContext() {
+        long top = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
+        limn.backend.lwjgl.a11y.windows.UiaBridge.stepBack(top);
+        EglContext remade = EglContext.onAngle(handle, top);
+        if (remade == null) {
+            return false;
+        }
+        context = remade;
+        contextGone = false;
+        resetReported = false;
+        firstFrameAfterRebuild = true;
+        makeContextCurrent();
+        glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
+        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
+        bufferAgeQuery = BufferAgeQuery.forEgl(remade.display(), remade.surface());
+        setSwapInterval(1);
+        requestWholeFrame();
+        return true;
+    }
+
+    /** @return whether the context said by itself that it was lost, as ANGLE's does at a swap */
+    boolean contextReportedLost() {
+        return !contextGone && (resetReported || context instanceof EglContext egl && egl.reportedLost());
+    }
+
+    /** @return whether this window draws with a context the backend can make again after a loss */
+    boolean contextRemakeable() {
+        return context instanceof WglContext || context instanceof EglContext;
+    }
+
+    /**
+     * Makes this window's context again after {@link #forgetContext} and the driver's unload, on a
+     * child window covering the client area, since the window itself keeps the pixel format of the
+     * driver that was unloaded. Windows only.
+     *
+     * @return whether a context was made; the caller verifies that it draws
+     */
+    boolean remakeContext() {
+        if (LINUX) {
+            return remakeEglContext();
+        }
+        if (AngleFallback.taken()) {
+            return remakeAngleContext();
+        }
+        long top = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
+        if (WglContext.restoreClassProcedure(top)) {
+            LOG.log(System.Logger.Level.WARNING, "the unloaded OpenGL runtime''s procedure was still on the "
+                    + "window ''{0}''; the window''s own was put back", title);
+        }
+        limn.backend.lwjgl.a11y.windows.UiaBridge.stepBack(top); // above what the window has now
+        long surface = WglSurface.create(top, framebufferWidth, framebufferHeight, this::requestWholeFrame);
+        if (surface == NULL) {
+            return false;
+        }
+        WglContext remade = WglContext.create(surface);
+        if (remade == null) {
+            WglSurface.destroy(surface);
+            return false;
+        }
+        drawingSurface = surface;
+        context = remade;
+        contextGone = false;
+        resetReported = false;
+        firstFrameAfterRebuild = true;
+        makeContextCurrent();
+        glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
+        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
+        setSwapInterval(1);
+        requestWholeFrame();
+        return true;
     }
 
     private void setSwapInterval(int interval) {
-        if (nsglContext == NULL) {
-            glfwSwapInterval(interval);
-        } else {
-            MacSoftwareGl.setSwapInterval(nsglContext, interval);
-        }
+        context.setSwapInterval(interval);
     }
 
     private void swapBuffers() {
-        if (nsglContext == NULL) {
-            glfwSwapBuffers(handle);
-        } else {
-            MacSoftwareGl.swapBuffers(nsglContext);
-        }
+        context.swapBuffers();
     }
 
     /** @return this window's resident texture stats (glyph atlas + image cache). */
@@ -1177,6 +1401,10 @@ final class LwjglWindow implements WindowPeer {
         if (destroyed || rendering) {
             return false;
         }
+        if (contextGone) {
+            frameRequested = true; // drawn once the context is made again
+            return false;
+        }
         if (deferNextRender) {
             // A programmatic resize just happened; the drawable is not yet consistent
             // with the new size. Skip this one present and render on the next loop
@@ -1196,6 +1424,13 @@ final class LwjglWindow implements WindowPeer {
             makeContextCurrent();
             // LWJGL caps are thread-local per context: re-bind when hopping windows.
             Gl.api().setCapabilities(glCapabilities);
+            if (Gl.api().graphicsResetStatus() != 0) {
+                // The device lost what this context held: nothing drawn here would show. The watch
+                // makes it again before the next frame (ADR 082 §1.3).
+                resetReported = true;
+                frameRequested = true;
+                return false;
+            }
             // One window per loop iteration paces on vblank; the others swap
             // free into the same one (see renderNow). The interval is
             // per-context state, so re-assert it every frame.
@@ -1218,6 +1453,11 @@ final class LwjglWindow implements WindowPeer {
                 renderer.endFrame();
             }
             swapBuffers();
+            if (firstFrameAfterRebuild) {
+                firstFrameAfterRebuild = false;
+                LOG.log(System.Logger.Level.INFO, "window ''{0}'' drew its first frame on the context made again",
+                        title);
+            }
         } finally {
             rendering = false;
         }
@@ -1296,20 +1536,28 @@ final class LwjglWindow implements WindowPeer {
         // A parent must never outlive-close its popups: dismiss them first so
         // a floating (always-on-top) popup can't be orphaned on screen.
         childPopups.closeAll();
-        // GL resources (VBO/shader) must die on their own context.
-        makeContextCurrent();
-        Gl.api().setCapabilities(glCapabilities);
+        // GL resources (VBO/shader) must die on their own context; one that went with the device
+        // took them along, and there is nothing left to delete or to release.
+        if (!contextGone) {
+            makeContextCurrent();
+            Gl.api().setCapabilities(glCapabilities);
+        }
         try {
-            renderer.dispose();
+            if (!contextGone) {
+                renderer.dispose();
+            }
         } catch (RuntimeException | LinkageError error) {
             // Contained for the reason the close callback is: this method runs once, and what
             // follows gives back the callbacks and the window itself.
             LOG.log(System.Logger.Level.ERROR, "the renderer threw as its window closed; the window is still"
                     + " destroyed", error);
         }
-        if (nsglContext != NULL) {
-            // Ours to release, and it must let go of the view before the window goes.
-            MacSoftwareGl.dispose(nsglContext);
+        if (!contextGone) {
+            context.dispose();
+        }
+        if (drawingSurface != NULL) {
+            WglSurface.destroy(drawingSurface);
+            drawingSurface = NULL;
         }
         // glfwFreeCallbacks predates the preedit patch and does not free this
         // callback; its native upcall stub pins this window (and its scene)
@@ -1343,7 +1591,9 @@ final class LwjglWindow implements WindowPeer {
             linuxDrag = null;
         }
         glfwDestroyWindow(handle);
-        backend.glCapabilities().release(glCapabilitiesKey);
+        if (!contextGone) {
+            backend.glCapabilities().release(glCapabilitiesKey);
+        }
     }
 
     @Override
@@ -1540,10 +1790,7 @@ final class LwjglWindow implements WindowPeer {
         }
         glfwShowWindow(handle);
         stateMayHaveChanged();
-        if (nsglContext != NULL) {
-            // A window built hidden (every popup) gets its drawable here.
-            MacSoftwareGl.update(nsglContext);
-        }
+        context.drawableChanged(); // a window built hidden (every popup) gets its drawable here
     }
 
     @Override
@@ -2561,6 +2808,8 @@ final class LwjglWindow implements WindowPeer {
     }
 
     private static final boolean MACOS = Platform.current().isMacOs();
+    private static final boolean WINDOWS = Platform.current().os() == Platform.Os.WINDOWS;
+    private static final boolean LINUX = Platform.current().os() == Platform.Os.LINUX;
 
     /** {@code NSEventTypeScrollWheel}. */
     private static final long NS_SCROLL_WHEEL = 22;

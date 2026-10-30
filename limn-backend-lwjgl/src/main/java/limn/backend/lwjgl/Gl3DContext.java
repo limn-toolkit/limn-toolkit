@@ -1276,6 +1276,57 @@ final class Gl3DContext {
                 bytes, lastDrawCalls, lastTriangles);
     }
 
+    /**
+     * Forgets every program, buffer, texture and vertex array without a GL call, the context they
+     * lived in being gone, and resets the guards that set context state once (the uniform
+     * buffers' bindings, the attribute defaults) and the shadow map's reuse test, so that each is
+     * made again by the {@code ensure} that made it first. The application's targets, meshes and
+     * textures stay registered and remake themselves before their next use.
+     */
+    void contextLost() {
+        for (GlRenderTarget target : targets) {
+            target.contextLost();
+        }
+        for (GlMesh mesh : meshes) {
+            mesh.contextLost();
+        }
+        for (GlTexture texture : textures) {
+            texture.contextLost();
+        }
+        unlitProgram = null;
+        litProgram = null;
+        rawPrograms.clear();
+        surfacePrograms.clear();
+        pbrProgram = null;
+        passPrograms.clear();
+        frameData = null;
+        lightsData = null;
+        materialData = null;
+        frameUbo = 0;
+        lightsUbo = 0;
+        materialUbo = 0;
+        whiteTex = 0;
+        flatNormalTex = 0;
+        depthProgram = null;
+        shadowMap = null;
+        lastShadowDraws.clear();
+        lastShadowOnlyDraws.clear();
+        lastShadowRevisions = new int[0];
+        lastShadowOnlyRevisions = new int[0];
+        lastShadowDir = null;
+        lastShadowCenter = null;
+        lastShadowVp = null;
+        skyboxProgram = null;
+        skyboxVao = 0;
+        bloomBrightProgram = null;
+        bloomBlurProgram = null;
+        bloomCombineProgram = null;
+        bloomVao = 0;
+        lineProgram = null;
+        lineVao = 0;
+        lineVbo = 0;
+    }
+
     void dispose() {
         for (GlRenderTarget target : new ArrayList<>(targets)) {
             target.dispose(); // removes itself from `targets`

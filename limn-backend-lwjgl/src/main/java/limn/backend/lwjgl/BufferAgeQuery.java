@@ -59,8 +59,22 @@ final class BufferAgeQuery {
         boolean egl = platform == GLFW.GLFW_PLATFORM_WAYLAND
                 || GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_CONTEXT_CREATION_API) == GLFW.GLFW_EGL_CONTEXT_API;
         if (egl) {
-            long display = GLFWNativeEGL.glfwGetEGLDisplay();
-            long surface = GLFWNativeEGL.glfwGetEGLSurface(window);
+            return forEgl(GLFWNativeEGL.glfwGetEGLDisplay(), GLFWNativeEGL.glfwGetEGLSurface(window));
+        } else if (platform == GLFW.GLFW_PLATFORM_X11
+                && GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_CONTEXT_CREATION_API) == GLFW.GLFW_NATIVE_CONTEXT_API) {
+            long display = GLFWNativeX11.glfwGetX11Display();
+            long drawable = GLFWNativeGLX.glfwGetGLXWindow(window);
+            if (display != NULL && drawable != NULL
+                    && hasExtension(GLX14.glXQueryExtensionsString(display, 0), "GLX_EXT_buffer_age")) {
+                return new BufferAgeQuery(Kind.GLX, display, drawable);
+            }
+        }
+        return new BufferAgeQuery(Kind.NONE, NULL, NULL);
+    }
+
+    /** For an EGL surface, whoever made it: GLFW's, or the backend's own on Wayland. */
+    static BufferAgeQuery forEgl(long display, long surface) {
+        {
             if (display != NULL && surface != NULL) {
                 if (hasExtension(EGL10.eglQueryString(display, EGL10.EGL_EXTENSIONS), "EGL_EXT_buffer_age")) {
                     return new BufferAgeQuery(Kind.EGL, display, surface);
@@ -78,14 +92,6 @@ final class BufferAgeQuery {
                             && behaviour.get(0) == EGL_BUFFER_PRESERVED;
                     return new BufferAgeQuery(preserved ? Kind.PRESERVED : Kind.DESTROYED, display, surface);
                 }
-            }
-        } else if (platform == GLFW.GLFW_PLATFORM_X11
-                && GLFW.glfwGetWindowAttrib(window, GLFW.GLFW_CONTEXT_CREATION_API) == GLFW.GLFW_NATIVE_CONTEXT_API) {
-            long display = GLFWNativeX11.glfwGetX11Display();
-            long drawable = GLFWNativeGLX.glfwGetGLXWindow(window);
-            if (display != NULL && drawable != NULL
-                    && hasExtension(GLX14.glXQueryExtensionsString(display, 0), "GLX_EXT_buffer_age")) {
-                return new BufferAgeQuery(Kind.GLX, display, drawable);
             }
         }
         return new BufferAgeQuery(Kind.NONE, NULL, NULL);

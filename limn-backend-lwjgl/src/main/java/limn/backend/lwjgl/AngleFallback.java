@@ -63,6 +63,8 @@ final class AngleFallback {
     private static boolean taken;
     private static boolean nativeContextMade;
     private static @Nullable String failure;
+    /** The context {@link #createWindow} made itself on Windows, for the window to take. */
+    private static @Nullable EglContext ownContext;
 
     private AngleFallback() {
     }
@@ -130,6 +132,9 @@ final class AngleFallback {
             failure = AngleLibrary.failure();
             return NULL;
         }
+        if (Platform.current().os() == Platform.Os.WINDOWS) {
+            return createOwnWindow(width, height, title, why);
+        }
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
         glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -152,6 +157,69 @@ final class AngleFallback {
                     PROPERTY);
         }
         return window;
+    }
+
+    /**
+     * On Windows: a window GLFW makes with no context and ANGLE's context made by the backend on
+     * it, so that a context ANGLE reports lost can be made again on the same window.
+     */
+    private static long createOwnWindow(int width, int height, CharSequence title,
+            GraphicsProbe.@Nullable Failure why) {
+        glfwWindowHint(GLFW_CLIENT_API, org.lwjgl.glfw.GLFW.GLFW_NO_API);
+        long window = glfwCreateWindow(width, height, title, NULL, NULL);
+        glfwWindowHint(GLFW_CLIENT_API, org.lwjgl.glfw.GLFW.GLFW_OPENGL_API);
+        if (window == NULL) {
+            failure = GraphicsProbe.lastFailure().toString();
+            return NULL;
+        }
+        EglContext context = EglContext.onAngle(window, org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(window));
+        if (context == null) {
+            org.lwjgl.glfw.GLFW.glfwDestroyWindow(window);
+            failure = "ANGLE made no OpenGL ES 3.0 context on Direct3D 11";
+            return NULL;
+        }
+        ownContext = context;
+        if (!taken) {
+            taken = true;
+            Gl.use(GlesGl.INSTANCE);
+            EglProgramCache.install(EglContext.angleDisplay());
+            LOG.log(System.Logger.Level.INFO, "OpenGL context: {0}, {1}; OpenGL ES 3.0, and taken by "
+                    + "every window from here on; -D{2}=off refuses it, =force takes it anywhere",
+                    describe(), why == null ? "requested" : "the system''s OpenGL gave none (" + why + ")",
+                    PROPERTY);
+        }
+        return window;
+    }
+
+    /** @return the context {@link #createWindow} made on Windows for the window it returned, once */
+    static @Nullable EglContext takeOwnContext() {
+        EglContext context = ownContext;
+        ownContext = null;
+        return context;
+    }
+
+    /**
+     * Moves the running process onto ANGLE after the system's OpenGL did not come back from a lost
+     * device, on Windows. Called with every window's context forgotten and the
+     * desktop binding destroyed; the process stays on ANGLE from here on.
+     *
+     * @return whether ANGLE is loaded and the process is on its profile
+     */
+    static boolean takeAfterLoss() {
+        if (off() || !AngleLibrary.platformHasFallback() || !AngleLibrary.load()) {
+            return false;
+        }
+        if (!taken) {
+            taken = true;
+            Gl.use(GlesGl.INSTANCE);
+            long display = EglContext.angleDisplay();
+            if (display != NULL) {
+                EglProgramCache.install(display);
+            }
+            LOG.log(System.Logger.Level.WARNING, "OpenGL context: {0}, because the system''s OpenGL did "
+                    + "not come back after the device was lost; OpenGL ES 3.0 from here on", describe());
+        }
+        return true;
     }
 
     /** @return why the last {@link #createWindow} gave no window */

@@ -1343,10 +1343,22 @@ public final class DatePicker extends Widget<DatePicker> {
             Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(DatePicker.this);
             boolean enabled = isEnabled();
+            boolean rtl = DatePicker.this.isRightToLeft();
             if (hover && enabled) {
-                canvas.fillRoundRect(Strokes.SPINNER_HOVER_INSET, Strokes.SPINNER_HOVER_INSET,
-                        width() - 2 * Strokes.SPINNER_HOVER_INSET,
-                        height() - 2 * Strokes.SPINNER_HOVER_INSET, t.radiusSmall(),
+                // The picker drew its border before this button, so the fill stops at the
+                // border's inner edge, whatever weight the focus fade has given it, and the two
+                // corners against the picker's own take their radius less that weight, concentric
+                // with it. A small pill's corners there covered the border's arcs.
+                float pen = Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focusFade.value();
+                float outer = Math.max(0, t.radiusMedium() - pen);
+                float inner = t.radiusSmall();
+                float left = rtl ? pen : Strokes.SPINNER_HOVER_INSET;
+                float right = rtl ? Strokes.SPINNER_HOVER_INSET : pen;
+                float w = Math.max(0, width() - left - right);
+                float h = Math.max(0, height() - 2 * pen);
+                canvas.fillRoundRect(rtl
+                        ? new RoundRect(left, pen, w, h, outer, inner, inner, outer)
+                        : new RoundRect(left, pen, w, h, inner, outer, outer, inner),
                         theme.surfaceRaised());
             }
             Color ink = !enabled ? theme.disabledText()
@@ -1378,9 +1390,17 @@ public final class DatePicker extends Widget<DatePicker> {
 
             float focus = buttonFocus.value();
             if (focus > 0.001f) {
+                // Its centre line is the gap in from the picker's edge, so its corners on that
+                // side are the picker's radius less the gap, concentric with the border.
                 float gap = Strokes.FOCUS_GAP_BUTTON;
-                canvas.drawRoundRect(gap, gap, width() - 2 * gap, height() - 2 * gap,
-                        t.radiusSmall(), Strokes.FOCUS_RING, theme.focusRing().withAlpha(focus));
+                float outer = Math.max(0, t.radiusMedium() - gap);
+                float inner = t.radiusSmall();
+                float w = width() - 2 * gap;
+                float h = height() - 2 * gap;
+                canvas.drawRoundRect(rtl
+                        ? new RoundRect(gap, gap, w, h, outer, inner, inner, outer)
+                        : new RoundRect(gap, gap, w, h, inner, outer, outer, inner),
+                        Strokes.FOCUS_RING, theme.focusRing().withAlpha(focus));
             }
         }
 

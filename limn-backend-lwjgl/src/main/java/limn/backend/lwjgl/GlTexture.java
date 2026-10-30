@@ -22,18 +22,31 @@ final class GlTexture implements GpuTexture {
     private final int width;
     private final int height;
     private final boolean mipmapped;
+    /**
+     * The pixels, copied at upload so that the texture can be made again in a new context:
+     * the caller keeps its array, and what it does with it afterwards is not this texture's.
+     */
+    private final byte[] rgba8;
+    private final Sampler sampler;
     private int id;
+    /** Whether the texture went with a lost context and is made again before it is next bound. */
+    private boolean lost;
 
     GlTexture(Gl3DContext owner, TextureData data, Sampler sampler) {
         this.owner = owner;
         this.width = data.width();
         this.height = data.height();
         this.mipmapped = sampler.mipmaps();
+        this.rgba8 = data.rgba8().clone();
+        this.sampler = sampler;
+        allocate();
+    }
 
+    private void allocate() {
         id = Gl.glGenTextures();
         Gl.glBindTexture(GL33C.GL_TEXTURE_2D, id);
         Gl.glPixelStorei(GL33C.GL_UNPACK_ALIGNMENT, 1);
-        ByteBuffer pixels = OffHeap.copyOf(data.rgba8());
+        ByteBuffer pixels = OffHeap.copyOf(rgba8);
         try {
             Gl.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
@@ -52,7 +65,20 @@ final class GlTexture implements GpuTexture {
     }
 
     int id() {
+        if (lost) {
+            allocate();
+            lost = false;
+        }
         return id;
+    }
+
+    /**
+     * Forgets the texture without a GL call, the context it lived in being gone; it is
+     * uploaded again from the kept pixels before it is next bound.
+     */
+    void contextLost() {
+        id = 0;
+        lost = true;
     }
 
     private static int wrap(Sampler.Wrap w) {
@@ -94,10 +120,10 @@ final class GlTexture implements GpuTexture {
 
     @Override
     public void dispose() {
-        if (id != 0) {
+        if (id != 0 && !lost) {
             Gl.glDeleteTextures(id);
-            id = 0;
         }
+        id = 0;
         owner.forget(this);
     }
 }

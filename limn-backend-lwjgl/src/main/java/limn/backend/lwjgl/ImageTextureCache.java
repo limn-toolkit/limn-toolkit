@@ -172,4 +172,12 @@ final class ImageTextureCache implements AutoCloseable {
             glDeleteTextures(entry.texture);
         }
     }
+
+    /**
+     * Forgets every texture without a GL call, the context they lived in being gone: each
+     * image is uploaded again from its own pixels the next time it is drawn.
+     */
+    void contextLost() {
+        residency.clear();
+    }
 }
