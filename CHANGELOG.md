@@ -24,6 +24,15 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A window whose OpenGL context was lost with the device draws again by itself, in the same window,
+  with no restart, on Windows and Linux. A Windows virtual machine resumed from suspension left every
+  window black until the process was killed. The backend now notices the loss (a reset status where
+  the driver reports one, otherwise a pixel read back once the clock shows the machine was away),
+  forgets every GPU object and makes the context and the objects again, moving onto ANGLE on Windows
+  when the system's OpenGL does not come back; the screen reader's provider, drag and drop, the input
+  method, the tray and the menus stay attached. On macOS a loss is noticed and logged. To make this
+  possible the backend makes every window's OpenGL context itself, on all three systems, and GLFW
+  only the windows (ADR 082).
 - On macOS 27 the system's menus draw the check mark of a checked item and the arrow of a submenu
   again when the program is started from a terminal whose locale writes numbers with a comma
   (`LANG=pt_BR.UTF-8`, for one). The Java launcher hands the C library the environment's locale,

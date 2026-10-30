@@ -1,7 +1,7 @@
 # ADR 082: A lost graphics context is rebuilt in the same windows
 
-- **Status:** **Accepted 2026-10-29**: the owner took every recommendation of §6 and asked for
-  question 5's measurement first, which §7 records. Proposed the same day, at the owner's request after a native image of the Showcase
+- **Status:** **Accepted 2026-10-29 and built 2026-10-30** (§8): the owner took every
+  recommendation of §6 and asked for question 5's measurement first, which §7 records. Proposed the same day, at the owner's request after a native image of the Showcase
   was found black and unresponsive on the Windows guest when he resumed its virtual machine; every number in §0 was
   measured that day on that guest, with him suspending and resuming it some thirty times; the step
   that brings the system's OpenGL back (§1.4, step 1) follows his suspicion that something old was
@@ -271,3 +271,49 @@ with the route taken.
    remote session `PrintWindow` read black for every probe window while the owner saw them all
    drawing in the remote window, which is one more reason §1.4 does not take its verdict from it.
 
+
+## 8. Built, 2026-10-29 and 2026-10-30
+
+On the branch `claude/adr-082-graphics-loss`, in five steps, each seen on the guests before the next:
+
+1. **One seam for the window's context** (`WindowContext`): make current, present, the swap interval,
+   the drawable changing, release.
+2. **Every GL object forgettable without a GL call** (`contextLost` on the renderer, the canvas, the
+   atlas, the image cache, the 3D and video contexts and the application's meshes, textures, render
+   targets and video surfaces), made again on first use in the next context. The 3D and video
+   contexts stay the same objects, because the application's handles check their owner by identity.
+   A mesh now keeps a copy of its indices and a 3D texture a copy of its pixels, the memory §3
+   expected. `GlContextLossTest` and `Gl3DContextLossTest` draw in a real second context.
+3. **The backend's own contexts** (§1.1): `WglContext` on Windows, `MacSoftwareGl` making the
+   accelerated NSOpenGL context on macOS, `EglContext` on Linux and for ANGLE on Windows.
+   - On X11 a window GLFW makes with no context gets the default visual, with no alpha, measured; at
+     the owner's choice GLFW makes it with an EGL context that only chooses the visual and is never
+     made current, and the backend's context, of that configuration, draws on GLFW's surface. On
+     Wayland the window has no context of GLFW's.
+   - macOS's ANGLE windows are still GLFW's: macOS has no rebuild (below).
+4. **Noticing and rebuilding** (`ContextLossWatch`, once a turn of the loop): the clock comparison,
+   then a read-back on each window's own context; a reset status read once a frame where the context
+   is robust, asked for on WGL, EGL and ANGLE; ANGLE's `EGL_CONTEXT_LOST`. The ladder of §1.4 with no
+   settle: the system's OpenGL ten times, a tenth of a second apart, then ANGLE, and ANGLE made again
+   when it is the one lost.
+   - **A trap the first run found:** the OpenGL runtime subclasses a window when its pixel format is
+     set (`opengl32.dll+0x3ced0`), and takes itself out of the chain as it is unloaded only while it
+     is the outermost procedure. The UI Automation bridge's procedure sat above it, so the unloaded
+     library's address stayed in the chain and both processes crashed creating the child. The
+     bridge now steps aside around the unload and back after it; a procedure still above the
+     window class's own afterwards would be put right and logged, which no run needed.
+5. **Seen** on the Windows guest with the x64 and the ARM64 JDK, the owner suspending it: five
+   losses, each back on the first attempt in 136 to 493 ms, closed cleanly. `OwnContextTest` checks
+   on every system that the context is the backend's and draws; on Windows its child took all three
+   steps (the system's OpenGL made again, the move onto ANGLE, ANGLE made again) on both JDKs; on
+   the Ubuntu guest (X11) and the Fedora guest (Wayland) the EGL context was made again in 13 to
+   15 ms. The Showcase drew with each kind of context, its translucent popups included.
+
+**Not built, or owed.**
+- The system's resume, display and session messages of §1.3: the clock, the reset status and
+  ANGLE's report are what notice a loss; a session change was measured to lose nothing (§7).
+- The read-back on a window restored from minimized.
+- A rebuild on macOS, and the macOS ANGLE windows' own context; a loss there is said in the log.
+- Real hardware: a physical Mac running the Showcase on the backend's NSOpenGL context, a driver
+  reset on a physical Windows machine, a Linux machine that loses its contexts on suspend.
+- The thirteen-hour hang of §0.1, still not reproduced.
