@@ -220,7 +220,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/graalvm" && cd "$RUNNER_TEMP/graalvm"
           curl -fsSLo "graalvm-${{ matrix.archive }}" \
-            "https://github.com/graalvm/graalvm-ce-builds/releases/download/$GRAAL_TAG/$GRAAL_PREFIX${{ matrix.archive }}"
+            "https://github.com/graalvm/graalvm-ce-builds/releases/download/${GRAAL_TAG}/${GRAAL_PREFIX}${{ matrix.archive }}"
           sum=sha256sum; command -v sha256sum >/dev/null || sum="shasum -a 256"
           echo "${{ matrix.sha256 }}  graalvm-${{ matrix.archive }}" | $sum -c
           case "${{ matrix.archive }}" in
