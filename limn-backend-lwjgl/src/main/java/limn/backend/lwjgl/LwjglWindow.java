@@ -154,6 +154,8 @@ final class LwjglWindow implements WindowPeer {
     private boolean contextGone;
     /** Whether the context's reset status said the device lost what it held, once a frame (ADR 082 §1.3). */
     private boolean resetReported;
+    /** Set by a rebuild, so that the first frame drawn after it is said in the log. */
+    private boolean firstFrameAfterRebuild;
     /**
      * The content view whose input method {@link MacInputContextGate} switches, on macOS; {@code NULL}
      * elsewhere, or where the gate could not be made.
@@ -987,6 +989,7 @@ final class LwjglWindow implements WindowPeer {
         context = remade;
         contextGone = false;
         resetReported = false;
+        firstFrameAfterRebuild = true;
         makeContextCurrent();
         glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
         glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
@@ -1011,6 +1014,7 @@ final class LwjglWindow implements WindowPeer {
         context = remade;
         contextGone = false;
         resetReported = false;
+        firstFrameAfterRebuild = true;
         makeContextCurrent();
         glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
         glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
@@ -1064,6 +1068,7 @@ final class LwjglWindow implements WindowPeer {
         context = remade;
         contextGone = false;
         resetReported = false;
+        firstFrameAfterRebuild = true;
         makeContextCurrent();
         glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
         glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
@@ -1448,6 +1453,11 @@ final class LwjglWindow implements WindowPeer {
                 renderer.endFrame();
             }
             swapBuffers();
+            if (firstFrameAfterRebuild) {
+                firstFrameAfterRebuild = false;
+                LOG.log(System.Logger.Level.INFO, "window ''{0}'' drew its first frame on the context made again",
+                        title);
+            }
         } finally {
             rendering = false;
         }

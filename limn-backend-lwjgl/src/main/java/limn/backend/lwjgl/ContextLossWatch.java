@@ -36,6 +36,28 @@ final class ContextLossWatch {
 
     private static final boolean WINDOWS = Platform.current().os() == Platform.Os.WINDOWS;
 
+    /**
+     * {@code -Dlimn.backend.rebuildContextAfter=<seconds>}: makes every window's context again once,
+     * that long after the first turn, by the path a loss takes, with no loss; for checking a build,
+     * a native image above all, without suspending a machine. Unset, nothing happens.
+     */
+    static final String REBUILD_PROPERTY = "limn.backend.rebuildContextAfter";
+
+    private final long rebuildAfterNanos = rebuildAfterNanos();
+    private long firstTurn = -1;
+
+    private static long rebuildAfterNanos() {
+        String value = System.getProperty(REBUILD_PROPERTY);
+        if (value == null || value.isBlank()) {
+            return -1;
+        }
+        try {
+            return (long) (Double.parseDouble(value.trim()) * 1_000_000_000L);
+        } catch (NumberFormatException notANumber) {
+            return -1;
+        }
+    }
+
     private long wall = System.currentTimeMillis();
     private long monotonic = System.nanoTime();
     private boolean rebuilding;
@@ -54,6 +76,18 @@ final class ContextLossWatch {
         long jump = (wallNow - wall) - (monotonicNow - monotonic) / 1_000_000L;
         wall = wallNow;
         monotonic = monotonicNow;
+        if (firstTurn < 0) {
+            firstTurn = monotonicNow;
+        }
+        if (rebuildAfterNanos >= 0 && !rebuilding && !windows.isEmpty()
+                && monotonicNow - firstTurn >= rebuildAfterNanos
+                && windows.stream().allMatch(LwjglWindow::contextRemakeable)) {
+            firstTurn = Long.MAX_VALUE / 2; // once
+            LOG.log(System.Logger.Level.WARNING, "making every window''s context again, as -D{0} asks",
+                    REBUILD_PROPERTY);
+            rebuildNow(windows, false);
+            return;
+        }
         if (!rebuilding) {
             boolean reported = false;
             for (LwjglWindow window : windows) {

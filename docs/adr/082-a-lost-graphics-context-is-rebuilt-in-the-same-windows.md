@@ -308,12 +308,23 @@ On the branch `claude/adr-082-graphics-loss`, in five steps, each seen on the gu
    steps (the system's OpenGL made again, the move onto ANGLE, ANGLE made again) on both JDKs; on
    the Ubuntu guest (X11) and the Fedora guest (Wayland) the EGL context was made again in 13 to
    15 ms. The Showcase drew with each kind of context, its translucent popups included.
+6. **The native image** (GraalVM, the Showcase on the Windows guest): five losses, each back on the
+   first attempt in 132 to 1002 ms, the window drawing again and closed by the owner with its close
+   button (exit code 0). Two earlier runs of the same build ended on their own after a rebuild, with
+   no report from the system, before the exit code was recorded; none has since, recorded. A rebuild
+   can be asked for with no loss, `-Dlimn.backend.rebuildContextAfter=<seconds>`, by the same path,
+   to check a build without suspending a machine; the log says when each window has drawn its first
+   frame on the new context.
+   - **Not this decision's:** after some resumes the guest's title bars come back with the icon and
+     no title, the system's Character Map's as well as the Showcase's; the window's text is intact,
+     and it returns when the window is activated.
 
 **Not built, or owed.**
 - The system's resume, display and session messages of §1.3: the clock, the reset status and
   ANGLE's report are what notice a loss; a session change was measured to lose nothing (§7).
 - The read-back on a window restored from minimized.
 - A rebuild on macOS, and the macOS ANGLE windows' own context; a loss there is said in the log.
-- Real hardware: a physical Mac running the Showcase on the backend's NSOpenGL context, a driver
-  reset on a physical Windows machine, a Linux machine that loses its contexts on suspend.
+- Real hardware: a driver reset on a physical Windows machine, a Linux machine that loses its
+  contexts on suspend. The Showcase on the backend's NSOpenGL context was seen right by the owner
+  on a physical Mac, with no loss.
 - The thirteen-hour hang of §0.1, still not reproduced.

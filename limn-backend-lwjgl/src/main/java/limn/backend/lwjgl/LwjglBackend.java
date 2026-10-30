@@ -940,9 +940,11 @@ public final class LwjglBackend implements BackendPeer {
                     destroyClosedWindows();
                     if (quitting && windows.isEmpty()) {
                         quitting = false;
+                        LOG.log(System.Logger.Level.DEBUG, "event loop ends: the application quit");
                         return LoopEnd.QUIT;
                     }
                     if (windows.isEmpty() && lifetime == LoopLifetime.UNTIL_LAST_WINDOW) {
+                        LOG.log(System.Logger.Level.DEBUG, "event loop ends: the last window closed");
                         return LoopEnd.LAST_WINDOW_CLOSED;
                     }
 
