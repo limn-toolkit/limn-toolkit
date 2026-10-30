@@ -16,7 +16,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 
 /**
  * An OpenGL 3.3 core context the backend makes itself on a window GLFW made with no context
- * ({@code GLFW_NO_API}), on Windows (ADR 082 §1.1).
+ * ({@code GLFW_NO_API}), on Windows.
  *
  * <p><b>Why not GLFW's.</b> A context lost with the device does not come back while the driver's
  * OpenGL library stays loaded, and unloading it moves {@code opengl32.dll}: every pointer into it
@@ -178,7 +178,7 @@ final class WglContext implements WindowContext {
 
     /**
      * Takes {@code opengl32.dll} and the driver's OpenGL library out of the process, for a context
-     * lost with the device (ADR 082 §1.4, step 1): while the driver's library stays loaded no new
+     * lost with the device: while the driver's library stays loaded no new
      * context presents, and it does stay, alone, after {@code opengl32.dll} has gone, measured on
      * 2026-10-29. Call it only after every context is deleted and LWJGL's binding destroyed.
      *

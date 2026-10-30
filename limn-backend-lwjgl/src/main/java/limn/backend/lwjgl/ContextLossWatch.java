@@ -5,8 +5,8 @@ import limn.backend.Platform;
 import java.util.List;
 
 /**
- * Notices that the windows' contexts stopped drawing and makes them again in the same windows
- * (ADR 082 §1.3 and §1.4), once a turn of the event loop.
+ * Notices that the windows' contexts stopped drawing and makes them again in the same windows,
+ * once a turn of the event loop.
  *
  * <p><b>Noticing.</b> The driver that loses its contexts at a virtual machine's resume says nothing
  * of it: no error, no reset status. What says the machine was away is the wall clock moving further

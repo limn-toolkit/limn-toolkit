@@ -115,7 +115,7 @@ public final class LwjglBackend implements BackendPeer {
             new GlCapabilitiesCache<>(GlCapabilitiesCache.reusesByDefault(Platform.current().os(),
                     System.getProperty(GlCapabilitiesCache.PROPERTY)));
     private final List<LwjglWindow> windows = new ArrayList<>();
-    /** Notices contexts lost with the device and makes them again (ADR 082). */
+    /** Notices contexts lost with the device and makes them again. */
     private final ContextLossWatch lossWatch = new ContextLossWatch();
     // The same windows, the one given the keyboard last first: the order an ending application
     // asks them in (ADR 048 §1.2). A new window opens in front, as it does on every desktop.

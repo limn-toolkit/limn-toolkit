@@ -129,7 +129,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     // at a time (no nested frames).
     private static GlCanvas current;
 
-    /** Replaced whole after a lost context (ADR 082): every one of its objects is a final field. */
+    /** Replaced whole after a lost context: every one of its objects is a final field. */
     private GlBatch batch = new GlBatch();
     private final GlyphAtlas atlas = new GlyphAtlas();
     private final ImageTextureCache imageTextures = new ImageTextureCache();
@@ -243,7 +243,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
 
     /**
      * Forgets every GL object this canvas holds, its own and its 3D and video resources', without
-     * a GL call, the context they lived in being gone (ADR 082). Called between frames; the next
+     * a GL call, the context they lived in being gone. Called between frames; the next
      * {@link #beginFrame}, with the new context current, makes the batch again and reads the new
      * renderer, and everything else is made again where it was made first, on first use. The 3D
      * and video contexts stay the same objects, so that the application's handles, which check

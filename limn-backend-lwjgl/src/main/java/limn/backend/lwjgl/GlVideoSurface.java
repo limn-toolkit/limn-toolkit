@@ -189,7 +189,7 @@ final class GlVideoSurface implements VideoSurface {
 
     /**
      * Forgets the planes, the converted picture and its framebuffer without a GL or EGL call, the
-     * context they lived in being gone (ADR 082). The surface has no picture until its next upload,
+     * context they lived in being gone. The surface has no picture until its next upload,
      * which makes everything again at the picture's size.
      */
     void contextLost() {

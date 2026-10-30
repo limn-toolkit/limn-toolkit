@@ -14,8 +14,8 @@ import java.util.Map;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
 /**
- * A child window covering a top-level window's client area, to draw on after a lost context
- * (ADR 082 §1.4, step 1), on Windows.
+ * A child window covering a top-level window's client area, to draw on after a lost context,
+ * on Windows.
  *
  * <p>A window's pixel format belongs to the driver that set it, for the window's life, so once that
  * driver has been unloaded no context can be made on the top-level window again; a child that never

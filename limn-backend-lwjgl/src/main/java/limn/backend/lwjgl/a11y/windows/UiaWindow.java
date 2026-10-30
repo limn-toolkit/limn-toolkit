@@ -162,7 +162,7 @@ final class UiaWindow {
      * and keeps it for {@link #stepBack}. The OpenGL runtime subclasses a window when its pixel
      * format is set, and takes itself out of the chain when it is unloaded only while it is still
      * the outermost procedure; with this one above it, the window would keep calling into the
-     * unloaded library (ADR 082 §1.4, measured on 2026-10-29). Messages in between reach the window
+     * unloaded library (measured on 2026-10-29). Messages in between reach the window
      * without this bridge, as they did before it was attached.
      */
     /** @return the procedure this bridge put on {@code hwnd}, or null */

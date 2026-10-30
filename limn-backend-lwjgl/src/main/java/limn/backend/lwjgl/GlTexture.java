@@ -23,7 +23,7 @@ final class GlTexture implements GpuTexture {
     private final int height;
     private final boolean mipmapped;
     /**
-     * The pixels, copied at upload so that the texture can be made again in a new context (ADR 082):
+     * The pixels, copied at upload so that the texture can be made again in a new context:
      * the caller keeps its array, and what it does with it afterwards is not this texture's.
      */
     private final byte[] rgba8;
@@ -73,7 +73,7 @@ final class GlTexture implements GpuTexture {
     }
 
     /**
-     * Forgets the texture without a GL call, the context it lived in being gone (ADR 082); it is
+     * Forgets the texture without a GL call, the context it lived in being gone; it is
      * uploaded again from the kept pixels before it is next bound.
      */
     void contextLost() {

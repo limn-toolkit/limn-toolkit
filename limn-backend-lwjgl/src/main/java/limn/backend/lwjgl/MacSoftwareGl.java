@@ -89,8 +89,8 @@ final class MacSoftwareGl {
      *                    renderer matches, which is what {@link #forced()} needs on a Mac whose GPU
      *                    would otherwise match
      * @param accelerated whether to demand an accelerated renderer, as GLFW's request did: the
-     *                    context every Mac with a GPU draws with since the backend makes its own
-     *                    (ADR 082 §1.1); false for the fallback this class was written for
+     *                    context every Mac with a GPU draws with since the backend makes its own;
+     *                    false for the fallback this class was written for
      * @return the {@code NSOpenGLContext}, or {@link org.lwjgl.system.MemoryUtil#NULL} if even the
      *         unaccelerated format has no match — a machine with no usable OpenGL at all
      */

@@ -161,7 +161,7 @@ final class AngleFallback {
 
     /**
      * On Windows: a window GLFW makes with no context and ANGLE's context made by the backend on
-     * it, so that a context ANGLE reports lost can be made again on the same window (ADR 082 §1.4).
+     * it, so that a context ANGLE reports lost can be made again on the same window.
      */
     private static long createOwnWindow(int width, int height, CharSequence title,
             GraphicsProbe.@Nullable Failure why) {
@@ -200,7 +200,7 @@ final class AngleFallback {
 
     /**
      * Moves the running process onto ANGLE after the system's OpenGL did not come back from a lost
-     * device (ADR 082 §1.4, step 2), on Windows. Called with every window's context forgotten and the
+     * device, on Windows. Called with every window's context forgotten and the
      * desktop binding destroyed; the process stays on ANGLE from here on.
      *
      * @return whether ANGLE is loaded and the process is on its profile

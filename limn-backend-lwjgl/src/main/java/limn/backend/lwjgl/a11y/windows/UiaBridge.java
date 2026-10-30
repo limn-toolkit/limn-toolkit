@@ -204,7 +204,7 @@ public final class UiaBridge extends PlatformBridge {
      */
     /**
      * Takes the bridge's window procedure off {@code hwnd} for a while, if it has one there, so that
-     * the OpenGL runtime can take its own off as it is unloaded (ADR 082 §1.4).
+     * the OpenGL runtime can take its own off as it is unloaded.
      *
      * @param hwnd a window the backend made
      */

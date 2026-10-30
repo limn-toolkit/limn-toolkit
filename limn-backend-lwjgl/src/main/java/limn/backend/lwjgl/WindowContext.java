@@ -9,7 +9,7 @@ import static org.lwjgl.glfw.GLFW.glfwSwapInterval;
  * the context: the windowing library, or the backend itself on a window the library made with no
  * context of its own.
  *
- * <p>ADR 082 moves every context to the backend, so that one lost with the device can be deleted
+ * <p>The backend makes every context itself, so that one lost with the device can be deleted
  * and made again on the same native window, through entry points looked up after each load of the
  * driver; this seam is where that happens. All of it is UI thread only.
  */

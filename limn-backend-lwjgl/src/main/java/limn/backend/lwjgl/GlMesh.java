@@ -49,7 +49,7 @@ final class GlMesh implements GpuMesh {
     private float[] interleaved = new float[0];
     /** Floats of {@link #interleaved} that are live: what the vertex buffer holds. */
     private int liveFloats;
-    /** The live indices, kept so that the buffers can be made again in a new context (ADR 082). */
+    /** The live indices, kept so that the buffers can be made again in a new context. */
     private int[] indexCopy = new int[0];
     /** Whether the buffers went with a lost context and are made again before the next draw. */
     private boolean lost;
@@ -155,7 +155,7 @@ final class GlMesh implements GpuMesh {
     }
 
     /**
-     * Forgets the buffers without a GL call, the context they lived in being gone (ADR 082); they
+     * Forgets the buffers without a GL call, the context they lived in being gone; they
      * are made again from what this mesh keeps before it is next drawn or updated.
      */
     void contextLost() {

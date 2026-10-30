@@ -21,7 +21,7 @@ import java.nio.IntBuffer;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
 /**
- * An OpenGL 3.3 core context the backend makes itself through EGL, on Linux (ADR 082 §1.1).
+ * An OpenGL 3.3 core context the backend makes itself through EGL, on Linux.
  *
  * <p><b>On Wayland</b> GLFW makes the window with no context, and everything else is made here: the
  * {@code wl_egl_window} over the window's surface, the EGL surface on it and the context, from a
@@ -36,7 +36,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * context GLFW keeps holds no pointer that could go stale.
  *
  * <p><b>On Windows, ANGLE.</b> When the process draws with ANGLE, from the start or since the
- * system's OpenGL did not come back after a loss (ADR 082 §1.4, step 2), the context is ANGLE's on
+ * system's OpenGL did not come back after a loss, the context is ANGLE's on
  * Direct3D 11, on a window GLFW made with no context: one display for the process, terminated and
  * made again when ANGLE reports the context lost (step 3, measured on 2026-10-29).
  *
@@ -112,7 +112,7 @@ final class EglContext implements WindowContext {
                         EGL10.EGL_NONE);
     }
 
-    /** A 3.3 core context, robust where the driver takes the request (ADR 082 §1.3), plain where not. */
+    /** A 3.3 core context, robust where the driver takes the request, plain where not. */
     private static long createDesktopContext(long display, long config, MemoryStack stack) {
         long context = EGL10.eglCreateContext(display, config, EGL10.EGL_NO_CONTEXT, contextAttributes(stack, true));
         if (context == NULL) {
@@ -267,7 +267,7 @@ final class EglContext implements WindowContext {
 
     /**
      * Terminates ANGLE's display after its contexts were lost, so that the next context makes a new
-     * Direct3D device (ADR 082 §1.4, step 3). Every ANGLE context and surface must be gone first.
+     * Direct3D device. Every ANGLE context and surface must be gone first.
      */
     static void resetAngleDisplay() {
         if (angleDisplay != NULL) {

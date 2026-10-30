@@ -147,7 +147,7 @@ final class GlRenderer implements GpuRenderer {
 
     /**
      * Forgets every GL object of this window without a GL call, the context they lived in being
-     * gone (ADR 082): the timer queries, with what was in flight on them, and the canvas's. Called
+     * gone: the timer queries, with what was in flight on them, and the canvas's. Called
      * between frames; the next frame, in the new context, makes them again.
      */
     void contextLost() {

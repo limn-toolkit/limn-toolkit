@@ -146,13 +146,13 @@ final class LwjglWindow implements WindowPeer {
     /** The context this window draws with, and who made it; see {@link WindowContext}. */
     private WindowContext context;
     /**
-     * The child window this window draws on after a lost context was made again (ADR 082 §1.4), on
+     * The child window this window draws on after a lost context was made again, on
      * Windows; NULL until then, when the context is on the window itself.
      */
     private long drawingSurface = NULL;
     /** Between {@link #forgetContext} and a successful {@link #remakeContext}: nothing may draw or delete. */
     private boolean contextGone;
-    /** Whether the context's reset status said the device lost what it held, once a frame (ADR 082 §1.3). */
+    /** Whether the context's reset status said the device lost what it held, once a frame. */
     private boolean resetReported;
     /** Set by a rebuild, so that the first frame drawn after it is said in the log. */
     private boolean firstFrameAfterRebuild;
@@ -915,7 +915,7 @@ final class LwjglWindow implements WindowPeer {
 
     /**
      * Whether this window's context still draws: a colour cleared into one pixel of the back buffer
-     * reads back as that colour (ADR 082 §1.3). The question is asked of the context the window has
+     * reads back as that colour. The question is asked of the context the window has
      * had all along, whose answer a lost device was measured to make black; a whole frame is asked
      * for after it, since the pixel is left in the buffer. Stalls the GPU once: only on a signal.
      */
@@ -951,7 +951,7 @@ final class LwjglWindow implements WindowPeer {
     }
 
     /**
-     * Lets go of a lost context (ADR 082 §1.4): every GL object of the window forgotten without a GL
+     * Lets go of a lost context: every GL object of the window forgotten without a GL
      * call, the context deleted, its capabilities given back. The window draws nothing until
      * {@link #remakeContext}.
      */
@@ -978,7 +978,7 @@ final class LwjglWindow implements WindowPeer {
 
     /**
      * On Linux nothing is unloaded and the window keeps its surface: a new EGL context on the same
-     * window, through the same path the first was made by (ADR 082 §1.4, step 1).
+     * window, through the same path the first was made by.
      */
     private boolean remakeEglContext() {
         boolean wayland = org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WAYLAND;
@@ -1002,7 +1002,7 @@ final class LwjglWindow implements WindowPeer {
 
     /**
      * With the process on ANGLE: a new ANGLE context on the window itself, whose pixel format, set by
-     * the system's OpenGL, is nothing to Direct3D (ADR 082 §1.4, steps 2 and 3).
+     * the system's OpenGL, is nothing to Direct3D.
      */
     private boolean remakeAngleContext() {
         long top = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
@@ -1038,7 +1038,7 @@ final class LwjglWindow implements WindowPeer {
     /**
      * Makes this window's context again after {@link #forgetContext} and the driver's unload, on a
      * child window covering the client area, since the window itself keeps the pixel format of the
-     * driver that was unloaded (ADR 082 §1.4, step 1). Windows only.
+     * driver that was unloaded. Windows only.
      *
      * @return whether a context was made; the caller verifies that it draws
      */

@@ -72,7 +72,7 @@ final class BufferAgeQuery {
         return new BufferAgeQuery(Kind.NONE, NULL, NULL);
     }
 
-    /** For an EGL surface, whoever made it: GLFW's, or the backend's own on Wayland (ADR 082). */
+    /** For an EGL surface, whoever made it: GLFW's, or the backend's own on Wayland. */
     static BufferAgeQuery forEgl(long display, long surface) {
         {
             if (display != NULL && surface != NULL) {

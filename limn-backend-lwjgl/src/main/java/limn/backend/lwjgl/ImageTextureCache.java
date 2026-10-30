@@ -174,7 +174,7 @@ final class ImageTextureCache implements AutoCloseable {
     }
 
     /**
-     * Forgets every texture without a GL call, the context they lived in being gone (ADR 082): each
+     * Forgets every texture without a GL call, the context they lived in being gone: each
      * image is uploaded again from its own pixels the next time it is drawn.
      */
     void contextLost() {

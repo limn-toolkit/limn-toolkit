@@ -1278,7 +1278,7 @@ final class Gl3DContext {
 
     /**
      * Forgets every program, buffer, texture and vertex array without a GL call, the context they
-     * lived in being gone (ADR 082), and resets the guards that set context state once (the uniform
+     * lived in being gone, and resets the guards that set context state once (the uniform
      * buffers' bindings, the attribute defaults) and the shadow map's reuse test, so that each is
      * made again by the {@code ensure} that made it first. The application's targets, meshes and
      * textures stay registered and remake themselves before their next use.

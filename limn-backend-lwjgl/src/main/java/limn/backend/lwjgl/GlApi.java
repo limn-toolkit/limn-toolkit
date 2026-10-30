@@ -52,13 +52,13 @@ interface GlApi {
 
     /**
      * Destroys LWJGL's binding of this profile and lets its library go, for a context lost with
-     * the device (ADR 082): LWJGL frees its tables only then, and the library's own count reaches
+     * the device: LWJGL frees its tables only then, and the library's own count reaches
      * zero only once LWJGL's hold on it is gone. Every capability made before is dead after it.
      */
     void destroyBinding();
 
     /**
-     * The context's reset status, once a frame (ADR 082 §1.3): non-zero once the device lost what
+     * The context's reset status, once a frame: non-zero once the device lost what
      * the context held. Zero where the context has no robustness to ask, which is as cheap as the
      * call and never stalls.
      */
