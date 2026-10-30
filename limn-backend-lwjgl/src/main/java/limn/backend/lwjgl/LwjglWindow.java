@@ -484,7 +484,9 @@ final class LwjglWindow implements WindowPeer {
                 macSoftwareGl = true;
             }
         }
-        context = softwareContext != NULL ? WindowContext.nsgl(softwareContext)
+        EglContext ownAngle = angle ? AngleFallback.takeOwnContext() : null;
+        context = ownAngle != null ? ownAngle
+                : softwareContext != NULL ? WindowContext.nsgl(softwareContext)
                 : ownNsgl != NULL ? WindowContext.nsgl(ownNsgl)
                 : ownWgl != null ? ownWgl
                 : ownEgl != null ? ownEgl : WindowContext.glfw(handle);
@@ -992,6 +994,34 @@ final class LwjglWindow implements WindowPeer {
         return true;
     }
 
+    /**
+     * With the process on ANGLE: a new ANGLE context on the window itself, whose pixel format, set by
+     * the system's OpenGL, is nothing to Direct3D (ADR 082 §1.4, steps 2 and 3).
+     */
+    private boolean remakeAngleContext() {
+        long top = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
+        limn.backend.lwjgl.a11y.windows.UiaBridge.stepBack(top);
+        EglContext remade = EglContext.onAngle(handle, top);
+        if (remade == null) {
+            return false;
+        }
+        context = remade;
+        contextGone = false;
+        makeContextCurrent();
+        glCapabilitiesKey = GraphicsProbe.currentContextKey(false);
+        glCapabilities = backend.glCapabilities().acquire(glCapabilitiesKey, Gl.api()::createCapabilities);
+        Gl.api().setCapabilities(glCapabilities);
+        bufferAgeQuery = BufferAgeQuery.forEgl(remade.display(), remade.surface());
+        setSwapInterval(1);
+        requestWholeFrame();
+        return true;
+    }
+
+    /** @return whether the context said by itself that it was lost, as ANGLE's does at a swap */
+    boolean contextReportedLost() {
+        return !contextGone && context instanceof EglContext egl && egl.reportedLost();
+    }
+
     /** @return whether this window draws with a context the backend can make again after a loss */
     boolean contextRemakeable() {
         return context instanceof WglContext || context instanceof EglContext;
@@ -1007,6 +1037,9 @@ final class LwjglWindow implements WindowPeer {
     boolean remakeContext() {
         if (LINUX) {
             return remakeEglContext();
+        }
+        if (AngleFallback.taken()) {
+            return remakeAngleContext();
         }
         long top = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
         if (WglContext.restoreClassProcedure(top)) {

@@ -80,24 +80,32 @@ class OwnContextTest {
                 NativeWindow window = backend.createWindow(WindowConfig.of("own context", 160, 90).focusOnShow(false));
                 window.setOpacity(0f); // shown, as tested, and not seen
                 window.show();
-                Ui.postDelayed(() -> check(backend, (LwjglWindow) window), 200);
+                Ui.postDelayed(() -> check(backend, (LwjglWindow) window, args), 200);
                 backend.runEventLoop();
             }
             System.out.println("loop ended");
         }
 
-        private static void check(LwjglBackend backend, LwjglWindow window) {
+        private static void check(LwjglBackend backend, LwjglWindow window, String[] args) {
             boolean own = Platform.current().isMacOs()
                     ? GLFW.glfwGetWindowAttrib(window.handle(), GLFW.GLFW_CLIENT_API) == GLFW.GLFW_NO_API
                     : window.contextRemakeable();
-            if (!own || AngleFallback.taken()) {
+            if (!own || (AngleFallback.taken() && !Boolean.getBoolean("limn.test.ownAngle"))) {
                 System.out.println("not the backend's own context");
                 System.exit(NOT_OWN);
             }
             System.out.println(window.contextDraws() ? "own context draws" : "own context does NOT draw");
             if (!Platform.current().isMacOs()) {
-                backend.lossWatch().rebuildNow(List.of(window));
+                backend.lossWatch().rebuildNow(List.of(window), false);
                 System.out.println(window.contextDraws() ? "made again, draws" : "made again, does NOT draw");
+                if (Platform.current().os() == Platform.Os.WINDOWS && args.length > 0 && args[0].equals("angle")) {
+                    // The second step of the ladder: as if the system's OpenGL had failed every attempt.
+                    backend.lossWatch().rebuildNow(List.of(window), true);
+                    System.out.println(AngleFallback.taken() && window.contextDraws()
+                            ? "on ANGLE, draws" : "on ANGLE, does NOT draw");
+                    backend.lossWatch().rebuildNow(List.of(window), false); // the third: ANGLE lost and made again
+                    System.out.println(window.contextDraws() ? "ANGLE made again, draws" : "ANGLE made again, does NOT draw");
+                }
             }
             window.requestClose();
         }

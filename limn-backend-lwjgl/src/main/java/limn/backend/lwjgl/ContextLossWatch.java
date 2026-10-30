@@ -29,6 +29,8 @@ final class ContextLossWatch {
     private static final long JUMP_MILLIS = 2_000;
     /** How long a rebuild that does not verify is tried, a tenth of a second apart. */
     private static final int MAX_ATTEMPTS = 100;
+    /** How many attempts the system's OpenGL is given before the process moves onto ANGLE. */
+    private static final int NATIVE_ATTEMPTS = 10;
     /** The wait between two attempts. */
     static final long RETRY_NANOS = 100_000_000L;
 
@@ -53,16 +55,22 @@ final class ContextLossWatch {
         wall = wallNow;
         monotonic = monotonicNow;
         if (!rebuilding) {
-            if (Math.abs(jump) <= JUMP_MILLIS || windows.isEmpty()) {
+            boolean reported = false;
+            for (LwjglWindow window : windows) {
+                reported |= window.contextReportedLost();
+            }
+            if (!reported && (Math.abs(jump) <= JUMP_MILLIS || windows.isEmpty())) {
                 return;
             }
-            LOG.log(System.Logger.Level.INFO, "the wall clock moved {0} ms more than the monotonic one, as "
-                    + "after a suspension: asking each window''s context whether it still draws", jump);
-            boolean lost = false;
-            for (LwjglWindow window : windows) {
-                if (!window.contextDraws()) {
-                    lost = true;
-                    break;
+            boolean lost = reported;
+            if (!reported) {
+                LOG.log(System.Logger.Level.INFO, "the wall clock moved {0} ms more than the monotonic one, "
+                        + "as after a suspension: asking each window''s context whether it still draws", jump);
+                for (LwjglWindow window : windows) {
+                    if (!window.contextDraws()) {
+                        lost = true;
+                        break;
+                    }
                 }
             }
             if (!lost) {
@@ -82,10 +90,14 @@ final class ContextLossWatch {
         attempt(windows);
     }
 
-    /** Makes every window's context again now, as a loss would; for tests. */
-    void rebuildNow(List<LwjglWindow> windows) {
+    /**
+     * Makes every window's context again now, as a loss would; for tests.
+     *
+     * @param onAngle whether to go straight to ANGLE, as after the system's OpenGL failed every attempt
+     */
+    void rebuildNow(List<LwjglWindow> windows, boolean onAngle) {
         rebuilding = true;
-        attempts = 0;
+        attempts = onAngle ? NATIVE_ATTEMPTS : 0;
         lostAt = System.nanoTime();
         attempt(windows);
     }
@@ -96,11 +108,19 @@ final class ContextLossWatch {
             window.forgetContext();
         }
         String unloaded = "nothing";
-        if (WINDOWS) {
+        String route = "";
+        if (WINDOWS && !AngleFallback.taken()) {
             // A context of the system's OpenGL does not come back while the driver's library stays
             // loaded (§0.2); on Linux nothing is unloaded, and a new context is enough.
             Gl.api().destroyBinding();
             unloaded = WglContext.unloadDriver();
+            if (attempts > NATIVE_ATTEMPTS && AngleFallback.takeAfterLoss()) {
+                route = ", on ANGLE since the system's OpenGL did not come back";
+            }
+        } else if (WINDOWS) {
+            // ANGLE's contexts went with its Direct3D device: a new display makes a new one.
+            EglContext.resetAngleDisplay();
+            route = ", on ANGLE";
         }
         boolean drawing = true;
         for (LwjglWindow window : windows) {
@@ -110,7 +130,7 @@ final class ContextLossWatch {
             rebuilding = false;
             LOG.log(System.Logger.Level.WARNING, "every window''s OpenGL context was made again, {0} ms "
                     + "after the loss and on attempt {1}{2}", (System.nanoTime() - lostAt) / 1_000_000L, attempts,
-                    WINDOWS ? ", on a surface of its own, having unloaded " + unloaded : "");
+                    route.isEmpty() && WINDOWS ? ", on a surface of its own, having unloaded " + unloaded : route);
         } else if (attempts >= MAX_ATTEMPTS) {
             rebuilding = false;
             LOG.log(System.Logger.Level.ERROR, "the windows'' OpenGL contexts could not be made again in "
