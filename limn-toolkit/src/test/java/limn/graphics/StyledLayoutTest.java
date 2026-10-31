@@ -40,6 +40,7 @@ class StyledLayoutTest {
         final List<Drawn> drawn = new ArrayList<>();
         final List<Filled> filled = new ArrayList<>();
         final List<float[]> lines = new ArrayList<>();
+        final List<float[]> circles = new ArrayList<>();
 
         Recorder() {
             super(1000, 1000);
@@ -63,6 +64,11 @@ class StyledLayoutTest {
         @Override
         public void drawLine(float x1, float y1, float x2, float y2, float strokeWidth, Paint paint) {
             lines.add(new float[] {x1, y1, x2, y2});
+        }
+
+        @Override
+        public void drawCircle(float cx, float cy, float radius, float strokeWidth, Paint paint) {
+            circles.add(new float[] {cx, cy, radius, strokeWidth});
         }
     }
 
@@ -283,6 +289,29 @@ class StyledLayoutTest {
         assertEquals(24, body.x(), 1e-3);
         assertEquals(0, marker.x(), 1e-3);
         assertTrue(marker.x() + 20 <= body.x(), "the marker ends before the text starts");
+    }
+
+    @Test
+    void theDeeperBulletsAreDrawnBecauseNoBundledFaceHasThem() {
+        StyledText text = StyledText.builder()
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET, 0)).append("a")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET, 1)).append("b")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET, 2)).append("c")
+                .build();
+        assertEquals("\u2022 a\n\u25E6 b\n\u25AA c", text.readerText(), "a reader still hears the three");
+        Recorder canvas = paint(layout(text, 200), 200);
+        assertEquals(List.of("\u2022", "a", "b", "c"), canvas.drawn.stream().map(Drawn::chars).toList(),
+                "the first level's bullet is the face's glyph; the two deeper are not glyphs");
+        // Ten-point text: level 1's text starts at 35, the gap is 4, the drawn bullet's advance 3.37.
+        assertEquals(1, canvas.circles.size(), "a ring for the second level");
+        float[] ring = canvas.circles.get(0);
+        assertEquals(35 - 4 - 3.37f / 2, ring[0], 1e-3);
+        assertEquals(20 - 3.68f, ring[1], 1e-3, "on the second line, at the bullet's height");
+        assertEquals((2 - 0.45f) / 2, ring[2], 1e-3);
+        Filled square = canvas.filled.get(0);
+        assertEquals(52.5f - 4 - 3.37f / 2 - 0.9f, square.x(), 1e-3, "a square for the third level");
+        assertEquals(1.8f, square.width(), 1e-3);
+        assertEquals(32 - 3.68f - 0.9f, square.y(), 1e-3);
     }
 
     @Test

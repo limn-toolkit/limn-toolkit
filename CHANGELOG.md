@@ -46,6 +46,12 @@ Maven Central say which number that was.
 
 ### Changed
 
+- A `Table` under an unbounded height (in a `ScrollView`, or a column that sets no height) prefers
+  `setVisibleRows` rows of a row of text, the control height or a line of the body text and its
+  padding, whichever is taller (32 points at the default size), where it counted the list's seed
+  (48). A table of that many one-line rows now fits with nothing under its last row, and every
+  table placed so is a third shorter; set `setVisibleRows` higher, or give the table a height, to
+  keep the old size. The preference still stands still as rows of other heights scroll in.
 - `Font`'s record components are `family`, `size`, `weight` and `isItalic`; `isBold()` is now a
   method answering `weight >= 600`, and `new Font(family, size, bold, italic)` still builds one
   (bold is 700, else 400). Code that takes a `Font` apart with a record pattern of four
@@ -54,6 +60,10 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A `Table`'s widget cell stands where its column's alignment puts the header and the text cells
+  (`Column.align`): at the column's end or centre as well as its start, mirrored right to left. It
+  always stood at the start, so the widgets of a column aligned to its end sat under a header at
+  the other side.
 - A `ScrollView` whose bar reserves its strip (`ScrollGutters.Layout.RESERVED`) and that takes a
   side from its content, scrolled sideways only in a column that lets it be as tall as its content,
   is that tall plus the strip. It was the content's height alone, and the strip came out of the

@@ -4,9 +4,10 @@
   owner's request, in the owner's scope (section 1); the owner took the recommendation of all three
   questions (section 8): Roboto Mono bundled in `limn-fonts` as an artifact of its own, no syntax
   colours in the theme, no heading level yet. Stage 1 is built (section 9), and stage 2, the
-  code-block project, with a defect it found in `ScrollView` fixed (section 10); owed: the owner's
-  publication of `limn-fonts-roboto-mono` 3.001.0 and the dependency line that takes it, then
-  stage 3; the owner took both recommendations of section 10.
+  code-block project, with a defect it found in `ScrollView` fixed (section 10), and stage 3, the
+  Markdown reader, with two defects it found fixed, in the list's deeper bullets and in a table's
+  widget cells (section 11), and a table's free-axis height changed at the owner's word; owed: the
+  owner's publication of `limn-fonts-roboto-mono` 3.001.0 and the dependency line that takes it.
 - **Date:** 2026-10-31
 - **Scope:** what the toolkit must offer so that a read-only code block with coloured syntax, and
   a Markdown reader that shows such blocks, can be written against its public API alone. The code
@@ -345,3 +346,87 @@ What it found, each with what was done:
    change.
 
 Owed: stage 3.
+
+## 11. Stage 3: the Markdown reader (2026-10-31)
+
+The second module of `limn-text-lab`, `markdown`, on the same terms as the first: the toolkit from
+`publishToMavenLocal`, its module requiring `limn.toolkit`, `lab.codeblock` and the parser's modules
+and nothing else. The parser is a CommonMark parser for Java (BSD-2-Clause, each jar a named module)
+with its extensions for the usual tables, strike-through and task lists, at 0.30.1 rather than the
+0.31.0 released nine days before.
+
+- **What it is:** `MarkdownView`, a column of the document's blocks. A paragraph is a `Label` of
+  styled text; emphasis, strong, strike-through, inline code (the monospace family on a faint
+  panel) and links (the accent tone, underlined, not followed) are pieces of it, a soft break a
+  space and a hard break a line separator (U+2028). A heading is a `Label` in the title role, its
+  level a scale and a weight over it (1.4 to 0.7). A list is one label for as many items as run on
+  uninterrupted, each item a list paragraph at its level; a block inside an item ends the label,
+  stands indented to the item's text, and the label after it gives its first item its number
+  (`listNumber`), so "3." follows "2." across a code block. A loose list spaces its items; an
+  item's second paragraph stands under its text with no marker. A fenced or indented block is a
+  `CodeBlock`; a quote is its blocks beside a vertical `Separator`; a break is a horizontal one; a
+  table is a `Table` of widget cells, its columns aligned as the document says, not sortable, with
+  no selection and as many visible rows as it has. An image standing alone is an `ImageView` of
+  what the application answers for its destination, named by its description; one inside a line,
+  or one the application has no picture for, is its description. HTML is shown as written, a block
+  of it as a code block named `html`. Fourteen tests, and renders of the test document (every
+  block), the lists, and a document in Arabic with a code block inside a numbered list, in light,
+  dark and high contrast and the Arabic in a right-to-left interface, sent to the owner.
+- **Nothing reaches outside the document.** No link is followed, no HTML interpreted, no image
+  fetched; quotes and lists deeper than sixteen are shown as their plain text, so ten thousand `>`
+  build without overflowing the stack (a test holds it).
+- **What section 3 added held.** The direction set on every line kept the code left to right inside
+  a right-to-left document; the line separator kept a hard break inside its paragraph; the list
+  number carried the count across a code block.
+
+What it found, each with what was done:
+
+1. **A defect, fixed in the toolkit: the second and third levels' bullets were the missing glyph.**
+   ADR 083's bullets are U+2022, U+25E6 and U+25AA, and no face the toolkit bundles has the last two
+   (read from every bundled file's character map, Roboto's twelve faces and Roboto Mono included).
+   `StyledLayout` now draws those two, a ring and a small square, to the measures of the bundled
+   face's own bullet (an advance of 0.337 em, ink 0.2 em across, centred 0.368 em above the
+   baseline); the first level stays the face's glyph and a reader still hears the three characters
+   (`StyledLayoutTest`). It never reached a release.
+2. **A defect, fixed in the toolkit: a table's widget cell ignored its column's alignment.** The
+   header and the text cells of a column aligned to its end stood at its end and its widget cells
+   at its start. `Table` now places a widget cell by the alignment, mirrored right to left
+   (`TableMirroringTest`), so the reader's cells need no workaround.
+3. **A table under an unbounded height leaves a third of itself empty.** The free-axis preference
+   is `setVisibleRows` rows of the list seed (48 points at the default size), and a row of text is
+   32 (the control height, which a line and its padding do not pass), so a document's table of
+   three rows has 48 points of nothing under it. The seed is a token on purpose (decision 44: a
+   preference that followed the measured rows moved as rows scrolled in and made a table in a
+   scroll pane jitter). *Taken (the owner, 2026-10-31):* the table's free-axis preference counts
+   rows of a row of text, worked out from the tokens as the rows are, which stands as still as the
+   seed and fits a table of one-line rows exactly; every table under an unbounded height is a third
+   shorter (`TableTest`, and an entry under "Changed" in the change log).
+4. **A widget beside a list cannot line up with the item's text.** A list level indents by 1.75 ems
+   of the paragraph's font, and the font is the label's, resolved from the control size at layout;
+   a code block inside an item, and an item's second paragraph (`ParagraphStyle.indent` takes
+   points), are indented by a guess of the body text at the default size (14 points). Right at the
+   default size; 3.5 points off at the small one. *Taken (the owner, 2026-10-31):* no new API now:
+   the guess holds where business apps run, and a fix (an indent in ems, or a "continuation"
+   paragraph of a list level) waits for a consumer that meets it.
+5. **No palette colour stands out from every surface for inline code.** In the light palette the
+   raised surface is the canvas's own colour (0.929 against 0.933), so a panel in it did not show.
+   The reader draws the text colour at 8 % opacity, which shows on the canvas, a card and a popover
+   alike, as an `Ink` of its own. No toolkit change.
+6. **A task is a check box, as code-hosting sites draw one.** A task's box (U+2610, U+2611) is in
+   no bundled face, and a label holds no icon among its words, so the first answer wrote `[x]` and
+   `[ ]`; the owner asked for check boxes, drawn as the sites that host code draw them. Their style
+   sheets give a task item no marker (`list-style-type: none`) and pull a disabled check box into
+   the marker's place (`margin: 0 .2em .25em -1.4em`, the other side right to left); the items
+   around it keep theirs. The reader does the same with the toolkit's own widgets: a task is a row
+   of a disabled `Checkbox`, at the end of a column as wide as the marker's room, then the item's
+   text a marker's gap after it, the text naming the box (`Label.setLabelFor`), so a reader hears
+   the task's text and its state; in a numbered list its number is counted and not shown. A list
+   is now a column of its own, four points between its widgets when it is tight, as those sites
+   put between two tasks. No toolkit change.
+7. **What was known:** a link is drawn and not followed, and nothing tells a reader it is a link
+   (section 7); a heading is announced without its level (section 8, question 3); a table header's
+   styles are lost, since a column's title is plain text; a numbered list written with `)` is drawn
+   with `.`, as a browser draws it; a bullet list inside a numbered one takes its level's bullet,
+   as a browser's does. None asks for a change now.
+
+Both answers taken on 2026-10-31 (findings 3 and 4); nothing of stage 3 is owed.

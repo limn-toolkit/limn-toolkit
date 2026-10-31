@@ -60,6 +60,19 @@ public final class StyledLayout {
     /** The gap between a list marker and its paragraph's text, in ems of the marker's font. */
     private static final float MARKER_GAP_EMS = 0.4f;
 
+    /**
+     * The second and third levels' bullets, U+25E6 and U+25AA, are drawn and not set in type: no
+     * face the toolkit bundles has either, so they came out as the missing glyph's box. Drawn to
+     * the measures of the bundled face's own bullet, U+2022, which every Roboto face has: an
+     * advance of 0.337 em, its ink 0.2 em across, centred 0.368 em above the baseline.
+     */
+    private static final float DRAWN_BULLET_ADVANCE_EMS = 0.337f;
+    private static final float DRAWN_BULLET_CENTRE_EMS = 0.368f;
+    private static final float DRAWN_BULLET_SIZE_EMS = 0.2f;
+    /** The ring's line, and the square's side against the disc's diameter (a square looks bigger). */
+    private static final float DRAWN_RING_STROKE_EMS = 0.045f;
+    private static final float DRAWN_SQUARE_SIDE_EMS = 0.18f;
+
     private final Base base;
     private final List<ParagraphLayout> paragraphs;
     private final float width;
@@ -148,12 +161,29 @@ public final class StyledLayout {
             if (p.marker() != null) {
                 ParagraphStyle style = p.style();
                 Font font = style.textStyle().fontOver(base.font());
-                float width = ruler.shape(p.marker(), font, ShapedText.Direction.LTR).metrics().width();
+                float width = isDrawnBullet(p.marker()) ? DRAWN_BULLET_ADVANCE_EMS * font.size()
+                        : ruler.shape(p.marker(), font, ShapedText.Direction.LTR).metrics().width();
                 float edge = style.startIndent() + (style.level() + 1) * ParagraphStyle.LIST_INDENT_EMS * font.size();
                 need = Math.max(need, width + MARKER_GAP_EMS * font.size() - edge);
             }
         }
         return room;
+    }
+
+    /** @return whether a list marker is one of the bullets drawn rather than set in type */
+    private static boolean isDrawnBullet(@Nullable String marker) {
+        return marker != null && marker.length() == 1 && (marker.charAt(0) == '\u25E6' || marker.charAt(0) == '\u25AA');
+    }
+
+    /** Draws a ring (U+25E6) or a small square (U+25AA) centred on {@code (cx, cy)}. */
+    private static void paintBullet(Canvas canvas, char bullet, float cx, float cy, float em, Paint paint) {
+        if (bullet == '\u25E6') {
+            float stroke = DRAWN_RING_STROKE_EMS * em;
+            canvas.drawCircle(cx, cy, (DRAWN_BULLET_SIZE_EMS * em - stroke) / 2, stroke, paint);
+        } else {
+            float side = DRAWN_SQUARE_SIDE_EMS * em;
+            canvas.fillRect(cx - side / 2, cy - side / 2, side, side, paint);
+        }
     }
 
     /** @return the widest line with its indents, in logical points */
@@ -343,6 +373,8 @@ public final class StyledLayout {
         final List<Shaping> shapings = new ArrayList<>();
         final List<Line> lines = new ArrayList<>();
         final @Nullable ShapedText marker;
+        /** U+25E6 or U+25AA, drawn in place of {@link #marker}; {@code 0} for none. */
+        final char drawnBullet;
         final float listIndent;
         boolean ellipsized;
 
@@ -358,7 +390,9 @@ public final class StyledLayout {
             this.alignment = style.alignmentOrNull() != null ? style.alignmentOrNull() : base.alignment();
             this.alignedByParagraph = style.alignmentOrNull() != null;
             this.baseRtl = base.whenNeutral() == ShapedText.Direction.RTL;
-            this.marker = source.marker() == null ? null : ruler.shape(source.marker(), font, direction);
+            String markerText = source.marker();
+            this.drawnBullet = isDrawnBullet(markerText) ? markerText.charAt(0) : 0;
+            this.marker = markerText == null || drawnBullet != 0 ? null : ruler.shape(markerText, font, direction);
             this.listIndent = style.listOrNull() == null ? 0
                     : (style.level() + 1) * ParagraphStyle.LIST_INDENT_EMS * font.size() + markerRoom;
             shape(base, ruler);
@@ -637,12 +671,18 @@ public final class StyledLayout {
             float left = x + (alignRtl ? style.endIndent() : line.startOffset) + fromLeft;
             float baseline = y + line.baseline;
 
-            if (firstLine && marker != null) {
+            if (firstLine && (marker != null || drawnBullet != 0)) {
                 float gap = MARKER_GAP_EMS * font.size();
                 float edge = style.startIndent() + listIndent;
-                float markerX = alignRtl ? x + boxWidth - edge + gap
-                        : x + edge - gap - marker.metrics().width();
-                canvas.drawText(marker, markerX, baseline, resolve.apply(ink));
+                float markerWidth = marker != null ? marker.metrics().width()
+                        : DRAWN_BULLET_ADVANCE_EMS * font.size();
+                float markerX = alignRtl ? x + boxWidth - edge + gap : x + edge - gap - markerWidth;
+                if (marker != null) {
+                    canvas.drawText(marker, markerX, baseline, resolve.apply(ink));
+                } else {
+                    paintBullet(canvas, drawnBullet, markerX + markerWidth / 2,
+                            baseline - DRAWN_BULLET_CENTRE_EMS * font.size(), font.size(), resolve.apply(ink));
+                }
             }
             List<Chunk> chunks = visualChunks(line, extra);
             float[] xs = new float[chunks.size()];
