@@ -385,6 +385,21 @@ public final class RecordingCanvas implements Canvas {
     }
 
     @Override
+    public void drawText(ShapedText text, int charStart, int charEnd, float x, float y, Paint paint) {
+        Objects.requireNonNull(text, "text");
+        Objects.requireNonNull(paint, "paint");
+        if (text.glyphCount() == 0 || charStart >= charEnd) {
+            return;
+        }
+        TextMetrics metrics = text.metrics();
+        if (outside(x, y - metrics.ascent(), metrics.width(), metrics.ascent() + metrics.descent())) {
+            return; // as a whole line: a clipped range is not read from the page either
+        }
+        glyphs.collect(text);
+        out.add(c -> c.drawText(text, charStart, charEnd, x, y, paint));
+    }
+
+    @Override
     public TextMetrics measureText(String text, Font font) {
         Objects.requireNonNull(font, "font");
         return ruler().shape(text == null ? "" : text, font).metrics();

@@ -6,6 +6,63 @@ Each section is named after the release it follows. It is complete on the day th
 tagged, and no release has to edit this file to rename it; the release on GitHub and the version on
 Maven Central say which number that was.
 
+## After 1.1.0
+
+### Added
+
+- A `Label` shows styled text: `Label.setText(StyledText)`. A `StyledText` is built from pieces,
+  each with the `TextStyle` it differs by (family, size or scale, weight, italic, ink, background,
+  underline single, double, dotted or wavy, strike-through, superscript, subscript, tracking), in
+  paragraphs with a `ParagraphStyle` (alignment including justified, indents, first-line indent,
+  space before and after, line spacing, bulleted and numbered lists by level, the text style the
+  paragraph's pieces inherit). It is never styled by character offsets: a styled piece is an
+  argument of a translated pattern, `StyledText.of(pattern, StyledText.span(amount, style))`, and
+  lands wherever the translation puts its placeholder. A paragraph is shaped as one and split only
+  where the font changes, so a colour changed inside a word, in any script, leaves its glyphs as
+  they are. Wrap, the line limit, the ellipsis, alignment and the page cuts of a printed document
+  work as they do on plain text; a reader hears the plain text with the list markers. It is for
+  showing only: there is no editable styled text. `StyledLayout` lays one out for an application's
+  own canvas (ADR 083).
+- `Font` carries a weight from 1 to 1000 (`withWeight`, `Font.REGULAR`, `Font.BOLD`), drawn by the
+  family's face nearest it in the order a style sheet searches. A variable face is drawn at the
+  weight itself, anywhere in its range: shaped and rasterized by HarfBuzz at that instance, and
+  outlined at it on a printed page.
+- `Ink`, what styled text is drawn in, asked for on every paint: a `Color` is its own ink and a
+  `Tone` is one, so text styled in a tone follows a change of palette.
+- `Label.setIconPosition`: the icon before the text (the default), after it, above it or below it.
+- `Font.MONOSPACE_FAMILY`, the monospace family: Roboto Mono, upright and italic, drawn at any
+  weight from 100 to 700, from the new `limn-fonts-roboto-mono` artifact, which the backend takes as
+  it takes Roboto. Without that artifact the family is the default one (ADR 084).
+- `ParagraphStyle.direction` fixes a paragraph's direction instead of detecting it, for code and
+  anything else read left to right whatever its first letter; `ParagraphStyle.listNumber` gives a
+  numbered item its own number, and the items after it count on from it. A line separator
+  (U+2028) in styled text breaks the line inside its paragraph, with no paragraph spacing,
+  first-line indent or list marker after it (ADR 084).
+- `TextRuler.shapeRun` shapes one run of a paragraph with the rest of the paragraph as its context,
+  and `TextRuler.decorations` answers where a face puts its underline, strike-through, superscript
+  and subscript (`TextDecorations`), read from its own tables. `Canvas.drawText(ShapedText, start,
+  end, x, y, paint)` paints part of a shaped line; a printed page writes each glyph once whatever
+  number of ranges paint it.
+
+### Changed
+
+- `Font`'s record components are `family`, `size`, `weight` and `isItalic`; `isBold()` is now a
+  method answering `weight >= 600`, and `new Font(family, size, bold, italic)` still builds one
+  (bold is 700, else 400). Code that takes a `Font` apart with a record pattern of four
+  components, `Font(var f, var s, var b, var i)`, has to name the weight as an `int`; nothing else
+  changes. `bold()` no longer lightens a font that is heavier than bold.
+
+### Fixed
+
+- A system font family with many faces draws its Regular when regular is asked for, and its Bold
+  for bold. The face was chosen by the order the font file lists its faces, so a family listing its
+  Medium before its Regular drew the Medium, a family with a "Book" and a "Roman" drew the Book, and
+  a "Demi Bold" listed first stood in for the Bold. Each face's own declared weight and width now
+  decide, as a style sheet's font matching does.
+- Two faces of one system family that are neither bold nor italic, a Regular and a Medium, are two
+  resident faces; the second asked for came back as the first, both being cached under the family
+  and the bold and italic flags.
+
 ## After 1.0.0
 
 ### Added

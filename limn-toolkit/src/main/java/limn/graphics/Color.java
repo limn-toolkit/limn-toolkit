@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
  * @param b blue
  * @param a alpha (1 = opaque)
  */
-public record Color(float r, float g, float b, float a) implements Paint {
+public record Color(float r, float g, float b, float a) implements Paint, Ink {
 
     public static final Color TRANSPARENT = new Color(0f, 0f, 0f, 0f);
     public static final Color BLACK = new Color(0f, 0f, 0f, 1f);
@@ -343,5 +343,11 @@ public record Color(float r, float g, float b, float a) implements Paint {
      */
     public static int toByte(float channel) {
         return Math.round(Scalars.clamp01(channel) * 255f);
+    }
+
+    /** A colour is its own {@link Ink}: the same colour on every paint. */
+    @Override
+    public Paint paint() {
+        return this;
     }
 }

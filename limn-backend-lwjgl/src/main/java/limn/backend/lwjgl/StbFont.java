@@ -1,5 +1,6 @@
 package limn.backend.lwjgl;
 
+import limn.graphics.Font;
 import limn.graphics.TextMetrics;
 import limn.io.Resources;
 import org.lwjgl.stb.STBTTFontinfo;
@@ -93,6 +94,7 @@ final class StbFont implements AutoCloseable {
     private float lastScale;
     // The top of the capitals in font units, read once from the outlines on first need.
     private int capUnits = MISSING;
+    private int weightClass; // 0 until read; see weight()
     private boolean closed;
 
     // The shaper's view of this same face, built on the first run shaped WITH it and destroyed in
@@ -108,14 +110,25 @@ final class StbFont implements AutoCloseable {
     private final StbFont owner;
     private StbFont bolder;
 
+    // An instance is the other kind of view: the same bytes at one weight of a variable face,
+    // shaped through a HarfBuzz font of its own with the wght axis set, and drawn by HarfBuzz,
+    // since stb_truetype reads no variation table and would draw the default instance with
+    // another instance's advances. NaN for every face that is not an instance.
+    private final float instanceWeight;
+    private final boolean emboldened;
+    private final java.util.Map<Integer, StbFont> instanceViews = new java.util.HashMap<>();
+
     private StbFont(String name, ByteBuffer data, STBTTFontinfo info, int faceIndex,
                     int ascentUnits, int descentUnits, int lineGapUnits) {
-        this(name, data, info, faceIndex, ascentUnits, descentUnits, lineGapUnits, null);
+        this(name, data, info, faceIndex, ascentUnits, descentUnits, lineGapUnits, null, false, Float.NaN);
     }
 
     private StbFont(String name, ByteBuffer data, STBTTFontinfo info, int faceIndex,
-                    int ascentUnits, int descentUnits, int lineGapUnits, StbFont owner) {
+                    int ascentUnits, int descentUnits, int lineGapUnits, StbFont owner,
+                    boolean emboldened, float instanceWeight) {
         this.owner = owner;
+        this.emboldened = emboldened;
+        this.instanceWeight = instanceWeight;
         this.name = name;
         this.data = data;
         this.info = info;
@@ -210,6 +223,50 @@ final class StbFont implements AutoCloseable {
 
     String name() {
         return name;
+    }
+
+    /**
+     * The weight this face draws at, 1 to 1000: an instance's own, 700 for a synthetic bold, else
+     * the face's {@code OS/2 usWeightClass}, read once. A face without that table is taken by its
+     * name, bold or regular. A weight and not a name, because "Roboto Black" and an instance at
+     * 700 are as bold as "Roboto Bold" and neither says so in its name.
+     */
+    int weight() {
+        if (isInstance()) {
+            return Math.round(instanceWeight);
+        }
+        if (emboldened) {
+            return Font.BOLD;
+        }
+        if (owner != null) {
+            return owner.weight();
+        }
+        if (weightClass == 0) {
+            int read = closed ? 0 : readWeightClass(data, stbtt_GetFontOffsetForIndex(data, faceIndex));
+            weightClass = read >= 1 && read <= 1000 ? read
+                    : name.toLowerCase(java.util.Locale.ROOT).contains("bold") ? Font.BOLD : Font.REGULAR;
+        }
+        return weightClass;
+    }
+
+    /** {@code OS/2 usWeightClass} of the face whose table directory is at {@code offset}; 0 for none. */
+    static int readWeightClass(ByteBuffer data, int offset) {
+        ByteBuffer big = data.duplicate().order(java.nio.ByteOrder.BIG_ENDIAN);
+        if (offset < 0 || offset + 12 > big.limit()) {
+            return 0;
+        }
+        int tables = Short.toUnsignedInt(big.getShort(offset + 4));
+        for (int i = 0; i < tables; i++) {
+            int record = offset + 12 + 16 * i;
+            if (record + 16 > big.limit()) {
+                return 0;
+            }
+            if (big.getInt(record) == 0x4F532F32) { // 'OS/2'
+                int table = big.getInt(record + 8);
+                return table >= 0 && table + 6 <= big.limit() ? Short.toUnsignedInt(big.getShort(table + 4)) : 0;
+            }
+        }
+        return 0;
     }
 
     /** @return this face's units per em, the space its outlines and advances are written in */
@@ -401,6 +458,14 @@ final class StbFont implements AutoCloseable {
             return cached;
         }
         int units;
+        HarfBuzzShaper.Handle instance = isInstance() ? shaper() : null;
+        if (instance != null) {
+            // The instance's own advance: the one its runs were shaped with, which stb's hmtx
+            // (the default instance's) is not.
+            units = org.lwjgl.util.harfbuzz.HarfBuzz.hb_font_get_glyph_h_advance(instance.font(), glyph);
+            advanceCache.put(glyph + 1L, units);
+            return units;
+        }
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer advance = stack.mallocInt(1);
             IntBuffer leftBearing = stack.mallocInt(1);
@@ -569,8 +634,52 @@ final class StbFont implements AutoCloseable {
      * empty glyphs return a null bitmap with a valid advance.
      */
     RasterizedGlyph rasterizeGlyph(int glyph, float sizePx) {
+        if (isInstance()) {
+            HarfBuzzShaper.Handle instance = shaper();
+            RasterizedGlyph drawn = instance == null ? null
+                    : HarfBuzzGlyphs.rasterize(instance.font(), unitsPerEm(), glyph, sizePx,
+                            glyphAdvance(glyph, sizePx));
+            if (drawn != null) {
+                return drawn;
+            }
+        }
         RasterizedGlyph plain = rasterizePlain(glyph, sizePx);
-        return owner == null ? plain : embolden(plain, sizePx);
+        return emboldened ? embolden(plain, sizePx) : plain;
+    }
+
+    /**
+     * This face at {@code weight} of its {@code wght} axis: a view with the same bytes, shaped and
+     * drawn by HarfBuzz at that instance, made once per weight and owned by this face. This face
+     * itself where HarfBuzz cannot draw (its native or its rasterizer did not load), so that a
+     * variable face is then shaped and drawn at its default instance alike, never shaped at one
+     * weight and drawn at another.
+     *
+     * @param weight a weight inside this face's range, as {@code SystemFonts.Face} read it
+     */
+    StbFont instance(int weight) {
+        if (owner != null) {
+            return owner.instance(weight);
+        }
+        if (closed || !HarfBuzzShaper.isAvailable() || !HarfBuzzGlyphs.ready()) {
+            return this;
+        }
+        return instanceViews.computeIfAbsent(weight, w -> new StbFont(name + " " + w, data, info,
+                faceIndex, ascentUnits, descentUnits, lineGapUnits, this, false, w));
+    }
+
+    /** The instances {@link #instance} has made of this face, which close with it. */
+    java.util.Collection<StbFont> instances() {
+        return java.util.List.copyOf(instanceViews.values());
+    }
+
+    /** The face this view draws from; {@code null} for a face read from a file. */
+    StbFont owner() {
+        return owner;
+    }
+
+    /** Whether this face is an {@link #instance} of a variable face. */
+    boolean isInstance() {
+        return !Float.isNaN(instanceWeight);
     }
 
     /**
@@ -586,14 +695,14 @@ final class StbFont implements AutoCloseable {
         }
         if (bolder == null) {
             bolder = new StbFont(name + " Bold (synthetic)", data, info, faceIndex,
-                    ascentUnits, descentUnits, lineGapUnits, this);
+                    ascentUnits, descentUnits, lineGapUnits, this, true, Float.NaN);
         }
         return bolder;
     }
 
     /** Whether this face is a {@link #syntheticBold} view. */
     boolean isSyntheticBold() {
-        return owner != null;
+        return emboldened;
     }
 
     /** {@code plain} spread right and up by the emboldening's strength, in a new bitmap. */
@@ -672,13 +781,14 @@ final class StbFont implements AutoCloseable {
      * is a wrong one, and it looks like a font that loaded rather than like a bug.
      */
     HarfBuzzShaper.Handle shaper() {
-        if (owner != null) {
+        if (emboldened) {
             return owner.shaper(); // the same face: the glyphs are shaped once, drawn thicker
         }
         if (!shaperTried) {
             shaperTried = true; // set FIRST: a face HarfBuzz rejects must not be retried per string
             if (!closed) {
-                shaper = HarfBuzzShaper.createFont(data, faceIndex);
+                // An instance's own font, the axis set: one hb_font is one instance.
+                shaper = HarfBuzzShaper.createFont(data, faceIndex, instanceWeight);
             }
         }
         return shaper;
@@ -698,11 +808,21 @@ final class StbFont implements AutoCloseable {
         }
         closed = true;
         if (owner != null) {
-            return; // a view: the bytes, the stb state and the shaper are its owner's to free
+            // A view: the bytes and the stb state are its owner's to free. An instance's shaper
+            // is its own, and points into those bytes, so it goes now.
+            if (shaper != null) {
+                shaper.close();
+                shaper = null;
+            }
+            return;
         }
         if (bolder != null) {
             bolder.closed = true;
         }
+        for (StbFont view : instanceViews.values()) {
+            view.close(); // before the bytes, which each instance's shaper reads
+        }
+        instanceViews.clear();
         // Before memFree(data), and that order is the whole contract: the shaper's blob wraps this
         // buffer READONLY without owning it, so freeing the bytes first would leave HarfBuzz
         // reading whatever the allocator hands out next.

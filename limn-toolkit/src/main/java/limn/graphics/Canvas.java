@@ -651,8 +651,9 @@ public interface Canvas {
      * value draws the right characters by the slower route rather than the wrong glyphs from
      * whichever face inherited the id.
      *
-     * <p>The whole run draws in one {@link Paint}. Text that changes colour partway is two runs
-     * today, and two runs shape independently.
+     * <p>The whole run draws in one {@link Paint}; {@link #drawText(ShapedText, int, int, float,
+     * float, Paint)} draws part of it, which is how a colour changed partway through a word keeps
+     * the word's shaping.
      *
      * <p>Default, not abstract, for two reasons that point the same way. {@code Canvas} is a
      * published interface, and an abstract method added to one breaks every implementation that
@@ -662,6 +663,45 @@ public interface Canvas {
      */
     default void drawText(ShapedText text, float x, float y, Paint paint) {
         drawText(text.text(), x, y, text.font(), paint);
+    }
+
+    /**
+     * Draws the glyphs of {@code text} whose clusters start in {@code [charStart, charEnd)}, each
+     * where {@link #drawText(ShapedText, float, float, Paint)} would draw it: one shaping painted in
+     * several paints, so a colour changed in the middle of a word leaves the word's glyphs exactly
+     * as they are without the change. A glyph belongs to the char its cluster starts at, so a
+     * ligature spanning the boundary takes the paint of its first character.
+     *
+     * <p>Default, for a canvas outside this repository: the whole line drawn once per box of the
+     * range's {@linkplain ShapedText#selection selection}, clipped to the box. That cuts a glyph
+     * that leans over the boundary (an italic) where a canvas that draws by glyph keeps it whole,
+     * which this repository's canvases do.
+     *
+     * @param text      the shaped line
+     * @param charStart the first char of the range, inclusive
+     * @param charEnd   the end of the range, exclusive
+     * @param x         the line's left edge, as for the whole line
+     * @param y         the line's baseline
+     * @param paint     what the range is drawn in
+     */
+    default void drawText(ShapedText text, int charStart, int charEnd, float x, float y, Paint paint) {
+        int length = text.text().length();
+        int start = Math.max(0, charStart);
+        int end = Math.min(length, charEnd);
+        if (start >= end) {
+            return;
+        }
+        if (start == 0 && end == length) {
+            drawText(text, x, y, paint);
+            return;
+        }
+        float reach = Math.max(text.font().size(), text.metrics().lineHeight()) * 2;
+        for (ShapedText.Span span : text.selection(start, end)) {
+            save();
+            clipRect(x + span.x0(), y - reach, span.width(), reach * 2);
+            drawText(text, x, y, paint);
+            restore();
+        }
     }
 
     /**

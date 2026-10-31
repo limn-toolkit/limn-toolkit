@@ -279,6 +279,47 @@ public interface TextRuler {
     }
 
     /**
+     * Shapes the run {@code [start, end)} of {@code paragraph} in {@code font}, reading the rest of
+     * the paragraph as its context: what a paragraph set in more than one font is shaped from, one
+     * run per stretch of one font and one direction.
+     *
+     * <p><b>The context is the point.</b> A weight changed in the middle of an Arabic word cuts the
+     * word into two runs, and each half shaped alone takes the forms of a word that ends, or
+     * starts, at the cut. Shaped with the paragraph around it, each half keeps the joining forms the
+     * whole word has, as a shaper given the context does; the characters outside the run are read
+     * and never drawn.
+     *
+     * <p>The value answers for the run alone: its {@link ShapedText#text()} is
+     * {@code paragraph.substring(start, end)}, and every index it takes and gives is into that.
+     * {@code direction} is the run's own: a caller has split its paragraph where the bidi levels
+     * change, so a run reads one way.
+     *
+     * <p>The default shapes the run without its context, which is right for a ruler with no shaper:
+     * the per-cluster walk has no contextual forms to lose.
+     *
+     * @param paragraph the whole paragraph
+     * @param start     the run's first char, inclusive
+     * @param end       the run's end, exclusive
+     * @param font      the face and size to shape in
+     * @param direction the direction the run reads
+     */
+    default ShapedText shapeRun(String paragraph, int start, int end, Font font,
+                                ShapedText.Direction direction) {
+        return shape(paragraph.substring(start, end), font, direction);
+    }
+
+    /**
+     * Where the face {@code font} resolves to puts its underline, strike-through, superscript and
+     * subscript, at {@code font}'s size; see {@link TextDecorations}. The default is
+     * {@link TextDecorations#fallback}, for a ruler with no face to read.
+     *
+     * @param font the face and size
+     */
+    default TextDecorations decorations(Font font) {
+        return TextDecorations.fallback(font.size());
+    }
+
+    /**
      * Cuts a shaped line to {@code available} points and ends it with an ellipsis, re-shaping
      * the kept prefix beside it through this ruler.
      *

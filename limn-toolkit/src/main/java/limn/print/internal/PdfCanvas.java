@@ -419,11 +419,21 @@ final class PdfCanvas implements Canvas {
 
     @Override
     public void drawText(ShapedText text, float x, float y, Paint paint) {
-        if (text.glyphCount() == 0) {
+        drawText(text, 0, Integer.MAX_VALUE, x, y, paint);
+    }
+
+    /**
+     * Writes the glyphs whose clusters start in the range, and only the range's characters as the
+     * text a reader extracts: a line painted in three colours is read once, not three times.
+     */
+    @Override
+    public void drawText(ShapedText text, int charStart, int charEnd, float x, float y, Paint paint) {
+        if (text.glyphCount() == 0 || charStart >= charEnd) {
             return;
         }
         try {
-            new TextWriter(text, x, y, paint).write();
+            new TextWriter(text, Math.max(0, charStart), Math.min(text.text().length(), charEnd), x, y,
+                    paint).write();
         } catch (IOException failed) {
             throw new UncheckedIOException(failed);
         }
@@ -437,6 +447,8 @@ final class PdfCanvas implements Canvas {
     /** Writes one shaped line: its glyphs as Type 3 codes, its glyphless clusters as their pieces. */
     private final class TextWriter {
         private final ShapedText text;
+        private final int start;
+        private final int end;
         private final float x;
         private final float y;
         private final Paint paint;
@@ -449,8 +461,10 @@ final class PdfCanvas implements Canvas {
         private float pen; // where the last code put the pen, in user space along the line
         private float penY = Float.NaN;
 
-        TextWriter(ShapedText text, float x, float y, Paint paint) {
+        TextWriter(ShapedText text, int start, int end, float x, float y, Paint paint) {
             this.text = text;
+            this.start = start;
+            this.end = end;
             this.x = x;
             this.y = y;
             this.paint = paint;
@@ -463,7 +477,8 @@ final class PdfCanvas implements Canvas {
             ops.append("q\n");
             setPaint(paint, true);
             if (actual) {
-                ops.append("/Span<</ActualText").append(Pdf.text(value)).append(">>BDC\n");
+                ops.append("/Span<</ActualText").append(Pdf.text(value.substring(start, end)))
+                        .append(">>BDC\n");
             }
             int[] ends = clusterEnds();
             boolean[] first = new boolean[value.length() + 1];
@@ -472,6 +487,9 @@ final class PdfCanvas implements Canvas {
                 for (int g = run.glyphStart(); g < run.glyphEnd(); g++) {
                     int glyph = text.glyphId(g);
                     int from = text.glyphCluster(g);
+                    if (from < start || from >= end) {
+                        continue; // another range's glyph, written by that range's call
+                    }
                     float gx = text.glyphX(g);
                     float gy = text.glyphY(g);
                     if (glyph == ShapedText.NO_GLYPH || face == null) {
@@ -499,12 +517,15 @@ final class PdfCanvas implements Canvas {
         private boolean needsActualText() {
             int last = -1;
             for (ShapedText.Run run : text.runs()) {
-                if (run.rtl()) {
+                if (run.rtl() && run.charStart() < end && run.charEnd() > start) {
                     return true;
                 }
             }
             for (int g = 0; g < text.glyphCount(); g++) {
                 int cluster = text.glyphCluster(g);
+                if (cluster < start || cluster >= end) {
+                    continue;
+                }
                 if (cluster <= last || text.glyphId(g) == ShapedText.NO_GLYPH) {
                     return true;
                 }

@@ -19,12 +19,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 
 /**
- * Backend-wide font registry (CPU data, shared by all windows). The four Roboto faces
- * (Regular, Bold, Italic, Bold-Italic; Apache 2.0) back {@link Font#DEFAULT_FAMILY} and any
- * unknown family; they arrive from the required {@code limn-fonts-roboto} artifact, and the
- * optional Noto fallbacks from the {@code limn-fonts-*} artifacts an application opts in to.
+ * Backend-wide font registry (CPU data, shared by all windows). The Roboto faces (Apache 2.0)
+ * back {@link Font#DEFAULT_FAMILY} and any unknown family; they arrive from the required
+ * {@code limn-fonts-roboto} artifact. Roboto Mono's two variable faces (SIL OFL 1.1) back
+ * {@link Font#MONOSPACE_FAMILY}, from {@code limn-fonts-roboto-mono}, which the backend also
+ * takes; the optional Noto fallbacks come from the {@code limn-fonts-*} artifacts an application
+ * opts in to.
  * Loading is lazy throughout: only Roboto Regular parses at construction; the style variants
  * parse on first resolve, and the heavyweight Noto fallbacks arrive from a background parse
  * (see {@link #parseHeavyFallbacks}/{@link #installHeavyFallbacks}). A {@link Font}'s
@@ -79,7 +82,7 @@ final class FontStore implements AutoCloseable {
      * faces come from the limn-fonts jars and, on the module path, a class's own lookup does not
      * leave its module.
      */
-    private static boolean exists(String absolutePath) {
+    static boolean exists(String absolutePath) {
         if (FontStore.class.getResource(absolutePath) != null) {
             return true;
         }
@@ -133,6 +136,64 @@ final class FontStore implements AutoCloseable {
     // Bundled style variants parse lazily on first resolve (an app that never
     // shows bold italic never pays for it): family key -> pending face.
     private final Map<String, LazyFace> lazyBundled = new HashMap<>();
+
+    /**
+     * Each bundled family's faces, described as {@link #pickFace} reads them, so a weight between
+     * two of them is searched for as it is in a system family; and the key each face loads under.
+     */
+    private final Map<String, List<SystemFonts.Face>> bundledStyles = new HashMap<>();
+    private final Map<SystemFonts.Face, String> bundledStyleKeys = new HashMap<>();
+
+    /** One of Roboto's faces besides its Regular: its style name, file, weight and slant. */
+    private record RobotoStyle(String name, String file, int weight, boolean italic, boolean always) {
+    }
+
+    /** Roboto 2.138's faces besides the Regular, which is parsed eagerly. */
+    private static final List<RobotoStyle> ROBOTO_STYLES = List.of(
+            new RobotoStyle("Thin", "Roboto-Thin.ttf", 100, false, false),
+            new RobotoStyle("Thin Italic", "Roboto-ThinItalic.ttf", 100, true, false),
+            new RobotoStyle("Light", "Roboto-Light.ttf", 300, false, false),
+            new RobotoStyle("Light Italic", "Roboto-LightItalic.ttf", 300, true, false),
+            new RobotoStyle("Italic", "Roboto-Italic.ttf", Font.REGULAR, true, true),
+            new RobotoStyle("Medium", "Roboto-Medium.ttf", 500, false, false),
+            new RobotoStyle("Medium Italic", "Roboto-MediumItalic.ttf", 500, true, false),
+            new RobotoStyle("Bold", "Roboto-Bold.ttf", Font.BOLD, false, true),
+            new RobotoStyle("Bold Italic", "Roboto-BoldItalic.ttf", Font.BOLD, true, true),
+            new RobotoStyle("Black", "Roboto-Black.ttf", 900, false, false),
+            new RobotoStyle("Black Italic", "Roboto-BlackItalic.ttf", 900, true, false));
+
+    /** The key {@link Font#MONOSPACE_FAMILY} resolves to where Roboto Mono is bundled. */
+    private static final String MONO_FAMILY = "roboto mono";
+
+    /**
+     * The range of weights Roboto Mono's {@code wght} axis covers, and its default instance's:
+     * read from v3.001's {@code fvar} (100, 400, 700) and checked against the bundled files by
+     * {@code MonospaceFamilyTest}.
+     */
+    static final int MONO_MIN_WEIGHT = 100;
+    static final int MONO_DEFAULT_WEIGHT = Font.REGULAR;
+    static final int MONO_MAX_WEIGHT = 700;
+
+    /**
+     * Registers one bundled variable face of {@code family}, parsed on first use, described to the
+     * weight search with its range so a weight inside it draws that instance.
+     */
+    private void bundleVariable(String family, String key, String name, String style, String resource,
+                                boolean italic) {
+        lazyBundled.put(key, new LazyFace(name, resource));
+        SystemFonts.Face face = new SystemFonts.Face(family, style, null, 0, false, italic,
+                MONO_DEFAULT_WEIGHT, SystemFonts.NORMAL_WIDTH, MONO_MIN_WEIGHT, MONO_MAX_WEIGHT);
+        bundledStyles.computeIfAbsent(family, k -> new ArrayList<>()).add(face);
+        bundledStyleKeys.put(face, key);
+    }
+
+    /** Describes one bundled face of {@code family} to the weight search; see {@link #bundledStyles}. */
+    private void bundleStyle(String family, String key, String style, int weight, boolean italic) {
+        SystemFonts.Face face = new SystemFonts.Face(family, style, null, 0, weight >= 600, italic,
+                weight, SystemFonts.NORMAL_WIDTH);
+        bundledStyles.computeIfAbsent(family, k -> new ArrayList<>()).add(face);
+        bundledStyleKeys.put(face, key);
+    }
     private boolean closed; // a background fallback load may complete after close()
 
     /**
@@ -276,13 +337,34 @@ final class FontStore implements AutoCloseable {
                             + "remove the exclusion; there is no Roboto-less mode.");
         }
         StbFont roboto = register("Roboto", robotoRegular, "roboto", Font.DEFAULT_FAMILY);
-        lazyBundled.put("roboto bold",
-                new LazyFace("Roboto Bold", bundledPath("Roboto-Bold.ttf")));
-        lazyBundled.put("roboto italic",
-                new LazyFace("Roboto Italic", bundledPath("Roboto-Italic.ttf")));
-        lazyBundled.put("roboto bold italic",
-                new LazyFace("Roboto Bold Italic", bundledPath("Roboto-BoldItalic.ttf")));
+        bundleStyle("roboto", "roboto", "Regular", Font.REGULAR, false);
+        for (RobotoStyle style : ROBOTO_STYLES) {
+            String resource = bundledPath(style.file());
+            // The four faces every limn-fonts-roboto carries are registered whatever the jar
+            // holds, so a stripped one warns on first use as it always did; the eight lighter and
+            // heavier ones only where this jar has them, since an older one does not, and a
+            // weight they would have drawn then draws the nearest face that is here.
+            if (!style.always() && !exists(resource)) {
+                continue;
+            }
+            String key = "roboto " + style.name().toLowerCase(Locale.ROOT);
+            lazyBundled.put(key, new LazyFace("Roboto " + style.name(), resource));
+            bundleStyle("roboto", key, style.name(), style.weight(), style.italic());
+        }
         familyNames.add("Roboto");
+        // Roboto Mono backs Font.MONOSPACE_FAMILY: two variable faces, upright and italic, each
+        // drawn at any weight from 100 to 700. Registered only where the jar is on the class
+        // path; without it the alias resolves to the default family, never to nothing.
+        String monoUpright = bundledPath("RobotoMono-Variable.ttf");
+        if (exists(monoUpright)) {
+            bundleVariable(MONO_FAMILY, MONO_FAMILY, "Roboto Mono", "Regular", monoUpright, false);
+            String monoItalic = bundledPath("RobotoMono-VariableItalic.ttf");
+            if (exists(monoItalic)) {
+                bundleVariable(MONO_FAMILY, MONO_FAMILY + " italic", "Roboto Mono Italic", "Italic",
+                        monoItalic, true);
+            }
+            familyNames.add("Roboto Mono");
+        }
         // Roboto is also the last-resort fallback: when the primary is switched to a
         // system font that lacks a glyph Roboto has (e.g. accented Greek), fall back
         // to Roboto rather than a .notdef box. Skipped when Roboto IS the primary.
@@ -564,9 +646,12 @@ final class FontStore implements AutoCloseable {
             // this Bold where the primary is bold, so bold Arabic behind Roboto Bold is bold.
             for (LazyFace pending : SCRIPT_FALLBACKS) {
                 if (pending.name().equals(script.name())) {
-                    lazyBundled.put(script.name().toLowerCase(Locale.ROOT) + " bold",
+                    String scriptKey = script.name().toLowerCase(Locale.ROOT);
+                    lazyBundled.put(scriptKey + " bold",
                             new LazyFace(script.name() + " Bold",
                                     pending.resource().replace("-Regular.ttf", "-Bold.ttf")));
+                    bundleStyle(scriptKey, scriptKey, "Regular", Font.REGULAR, false);
+                    bundleStyle(scriptKey, scriptKey + " bold", "Bold", Font.BOLD, false);
                 }
             }
             changed = true;
@@ -880,7 +965,7 @@ final class FontStore implements AutoCloseable {
         List<SystemFonts.Face> picks = candidates == null ? List.of() : preloadPicks(candidates);
         List<SystemFonts.Face> missing = new ArrayList<>(picks.size());
         for (SystemFonts.Face pick : picks) {
-            StbFont resident = loadedSystem.get(key + suffix(pick.bold(), pick.italic())); // a touch
+            StbFont resident = loadedSystem.get(systemKey(key, pick)); // a touch
             if (resident == null) {
                 missing.add(pick);
             } else {
@@ -943,7 +1028,7 @@ final class FontStore implements AutoCloseable {
                 break;
             }
             try {
-                loaded.add(new LoadedFace(key + suffix(pick.bold(), pick.italic()),
+                loaded.add(new LoadedFace(systemKey(key, pick),
                         StbFont.loadFile(pick.path(), pick.index(), pick.family() + " " + pick.style())));
             } catch (RuntimeException error) {
                 LOG.log(Level.WARNING, "failed to preload system font " + pick.path(), error);
@@ -1084,7 +1169,8 @@ final class FontStore implements AutoCloseable {
      * order and eviction can close the face currently rendering the whole UI.
      */
     private void touchSystemLru(StbFont face) {
-        String key = loadedSystemKeys.get(face);
+        // An instance of a variable face is held in the memo, its owner in the LRU.
+        String key = loadedSystemKeys.get(face.isInstance() ? face.owner() : face);
         if (key != null) {
             loadedSystem.get(key); // access-order relink
         }
@@ -1092,16 +1178,29 @@ final class FontStore implements AutoCloseable {
 
     private StbFont resolveUncached(Font font) {
         String family = font.family().toLowerCase(Locale.ROOT);
+        if (family.equals(Font.MONOSPACE_FAMILY)) {
+            family = bundledStyles.containsKey(MONO_FAMILY) ? MONO_FAMILY : Font.DEFAULT_FAMILY;
+        }
         if (family.equals(Font.DEFAULT_FAMILY)) {
             family = Fonts.defaultFamily().toLowerCase(Locale.ROOT);
             if (family.equals(Font.DEFAULT_FAMILY)) {
                 family = "roboto";
             }
         }
-        // Bundled: exact variant, else drop italic, else the family's regular.
-        StbFont face = bundled(family + suffix(font.isBold(), font.isItalic()));
-        if (face == null && font.isItalic()) {
-            face = bundled(family + suffix(font.isBold(), false));
+        // Bundled: the family's face nearest the weight (italic dropped before weight), else its
+        // regular, which is also all a family with one bundled face has.
+        StbFont face = null;
+        List<SystemFonts.Face> styles = bundledStyles.get(family);
+        // A face that fails to load leaves the search, which then lands on the next nearest: a
+        // jar without its Bold Italic draws Bold, never the family's Regular.
+        while (face == null && styles != null && !styles.isEmpty()) {
+            SystemFonts.Face picked = pickFace(styles, font.weight(), font.isItalic());
+            face = bundled(bundledStyleKeys.get(picked));
+            if (face == null) {
+                styles.remove(picked);
+            } else if (picked.variable()) {
+                face = atWeight(face, picked, font.weight()); // a bundled variable face at its weight
+            }
         }
         if (face == null) {
             face = bundled(family);
@@ -1114,7 +1213,7 @@ final class FontStore implements AutoCloseable {
         // scan lands this resolves to the fallback, and the fold-in
         // notification re-resolves it to the real face.
         requestSystemScan();
-        StbFont system = resolveSystem(family, font.isBold(), font.isItalic());
+        StbFont system = resolveSystem(family, font.weight(), font.isItalic());
         return system != null ? system : fallback;
     }
 
@@ -1156,17 +1255,17 @@ final class FontStore implements AutoCloseable {
      * The load is a whole font file read on this thread, the UI thread; see
      * {@link #preloadFamily} for the way to have it already done.
      */
-    private StbFont resolveSystem(String family, boolean bold, boolean italic) {
+    private StbFont resolveSystem(String family, int weight, boolean italic) {
         List<SystemFonts.Face> candidates = systemFaces.get(family);
         if (candidates == null || candidates.isEmpty()) {
             return null;
         }
-        SystemFonts.Face pick = pickFace(candidates, bold, italic);
-        String key = family + suffix(pick.bold(), pick.italic());
+        SystemFonts.Face pick = pickFace(candidates, weight, italic);
+        String key = systemKey(family, pick);
         StbFont cached = loadedSystem.get(key); // access-order touch
         if (cached != null) {
             readAhead.remove(cached); // asked for: in use from now on, like a face a resolve read
-            return cached;
+            return atWeight(cached, pick, weight);
         }
         if (preloading.containsKey(family)) {
             // A worker is already reading this family. Doing it again here would
@@ -1195,20 +1294,131 @@ final class FontStore implements AutoCloseable {
         assignId(face);
         putSystemFace(key, family, face);
         evictSystemBeyondCap(false, Set.of(face));
-        return face;
+        return atWeight(face, pick, weight);
     }
 
-    private static SystemFonts.Face pickFace(List<SystemFonts.Face> faces, boolean bold, boolean italic) {
-        SystemFonts.Face regular = null;
-        for (SystemFonts.Face face : faces) {
-            if (face.bold() == bold && face.italic() == italic) {
-                return face; // exact style match
-            }
-            if (!face.bold() && !face.italic()) {
-                regular = face;
+    /**
+     * The key a system face is resident under: the face itself, its file and its index in a
+     * collection. Never the family and a bold flag, which a family with a Regular and a Medium
+     * gives to both, so the second asked for would come back as the first.
+     */
+    private static String systemKey(String family, SystemFonts.Face face) {
+        return family + "#" + face.path() + "#" + face.index();
+    }
+
+    /**
+     * {@code face} drawn at the weight a request for {@code weight} lands on within its range:
+     * the face itself where it is static or the weight is its default instance's, else that
+     * instance, a view with an id of its own so its glyphs are cached apart.
+     */
+    private StbFont atWeight(StbFont face, SystemFonts.Face described, int weight) {
+        int instance = described.instanceWeight(weight);
+        if (!described.variable() || instance == described.weight()) {
+            return face;
+        }
+        StbFont view = face.instance(instance);
+        if (view == face) {
+            return face; // HarfBuzz cannot draw it: the default instance, shaped and drawn alike
+        }
+        if (!faceIds.containsKey(view)) {
+            assignId(view);
+        }
+        return view;
+    }
+
+    /** {@link #pickFace(List, int, boolean)} for a request that is regular or bold. */
+    static SystemFonts.Face pickFace(List<SystemFonts.Face> faces, boolean bold, boolean italic) {
+        return pickFace(faces, bold ? Font.BOLD : Font.REGULAR, italic);
+    }
+
+    /**
+     * The face of a family that draws a request for {@code weight}, upright or italic.
+     *
+     * <p>Chosen by the face's declared weight, never by the order a collection lists its faces in:
+     * a family of a dozen faces has several that are neither bold nor italic, and taking the first
+     * of those drew a twelve-face family's Medium where its Regular was asked for. The search keeps
+     * the request's side of the weight line (bold from 600, or not) before its slant, as the
+     * bundled resolver always did, so a bold italic a family lacks lands on its bold before its
+     * italic. Within that, the nearest weight wins in the order a style sheet's font matching uses
+     * (for 400: 400, then 500, then lighter, then heavier; above 500: heavier first, then lighter;
+     * below 400: lighter first), a variable face standing at the nearest point of its range, among
+     * the faces of the width nearest normal, as font matching takes the width before the weight: a
+     * family's "Condensed Black" never stands in for its "Bold"; then the plain style name.
+     */
+    static SystemFonts.Face pickFace(List<SystemFonts.Face> faces, int weight, boolean italic) {
+        boolean bold = weight >= 600;
+        List<SystemFonts.Face> tier = firstNonEmpty(faces,
+                f -> sideOf(f, bold) && f.italic() == italic,
+                f -> sideOf(f, bold),
+                f -> f.italic() == italic);
+        SystemFonts.Face best = null;
+        for (SystemFonts.Face face : tier) {
+            if (best == null || closer(face, best, weight)) {
+                best = face;
             }
         }
-        return regular != null ? regular : faces.get(0);
+        return best;
+    }
+
+    /** Whether some weight {@code face} draws is on the bold side of the line, or the other. */
+    private static boolean sideOf(SystemFonts.Face face, boolean bold) {
+        return bold ? face.maxWeight() >= 600 : face.minWeight() < 600;
+    }
+
+    @SafeVarargs
+    private static List<SystemFonts.Face> firstNonEmpty(List<SystemFonts.Face> faces,
+            Predicate<SystemFonts.Face>... tiers) {
+        for (Predicate<SystemFonts.Face> tier : tiers) {
+            List<SystemFonts.Face> kept = faces.stream().filter(tier).toList();
+            if (!kept.isEmpty()) {
+                return kept;
+            }
+        }
+        return faces;
+    }
+
+    /**
+     * Whether {@code a} matches {@code target} better than {@code b}; a full tie keeps {@code b}.
+     * Two faces can declare the same weight (a system family's "Book" and "Roman" are both 400),
+     * and then the one whose style name is the plain one for the request wins.
+     */
+    private static boolean closer(SystemFonts.Face a, SystemFonts.Face b, int target) {
+        int byWidth = Integer.compare(Math.abs(a.width() - SystemFonts.NORMAL_WIDTH),
+                Math.abs(b.width() - SystemFonts.NORMAL_WIDTH));
+        if (byWidth != 0) {
+            return byWidth < 0;
+        }
+        int byWeight = Long.compare(weightRank(a.instanceWeight(target), target),
+                weightRank(b.instanceWeight(target), target));
+        if (byWeight != 0) {
+            return byWeight < 0;
+        }
+        boolean bold = target >= 600;
+        return plainName(a, bold) && !plainName(b, bold);
+    }
+
+    /** Whether a face's style, without its slant, is the plain name for regular or for bold. */
+    private static boolean plainName(SystemFonts.Face face, boolean bold) {
+        String style = face.style().toLowerCase(Locale.ROOT)
+                .replace("italic", "").replace("oblique", "").trim();
+        return bold ? style.equals("bold")
+                : style.isEmpty() || style.equals("regular") || style.equals("roman") || style.equals("normal");
+    }
+
+    /**
+     * A weight's place in the search for {@code target}, lower first: the font-matching order of
+     * CSS Fonts level 4, section 5.2, as a band (which direction is searched first) and a distance.
+     */
+    static long weightRank(int weight, int target) {
+        int band;
+        if (target >= 400 && target <= 500) {
+            band = weight >= target && weight <= 500 ? 0 : weight < target ? 1 : 2;
+        } else if (target < 400) {
+            band = weight <= target ? 0 : 1;
+        } else {
+            band = weight >= target ? 0 : 1;
+        }
+        return (long) band << 32 | Math.abs(weight - target);
     }
 
     /**
@@ -1249,6 +1459,13 @@ final class FontStore implements AutoCloseable {
                 // Both directions, or a held ShapedText's run would still resolve its id to a face
                 // whose native memory is about to be freed, and paint from a closed atlas source.
                 facesById.remove(evictedId);
+            }
+            for (StbFont view : evicted.instances()) {
+                // Its instances read the same bytes and are closed with it, so their ids go too.
+                Integer viewId = faceIds.remove(view);
+                if (viewId != null) {
+                    facesById.remove(viewId);
+                }
             }
             if (!unasked) {
                 resolutionChanged(); // a cached resolution may point at the evicted face
@@ -1303,9 +1520,9 @@ final class FontStore implements AutoCloseable {
         return primary;
     }
 
-    /** Whether {@code face} is a bold one, by its name: "Roboto Bold", a system "Arial Bold". */
+    /** Whether {@code face} draws bold: by its weight, so "Roboto Black" and an instance at 700 are. */
     private static boolean isBold(StbFont face) {
-        return face.name().toLowerCase(Locale.ROOT).contains("bold");
+        return face.weight() >= 600;
     }
 
     /**
@@ -1391,19 +1608,6 @@ final class FontStore implements AutoCloseable {
         // unrelated, so the collision draws different CHARACTERS rather than the
         // right character in the wrong face. Harder to recognise, same cause.
         return id != null ? id : 0;
-    }
-
-    private static String suffix(boolean bold, boolean italic) {
-        if (bold && italic) {
-            return " bold italic";
-        }
-        if (bold) {
-            return " bold";
-        }
-        if (italic) {
-            return " italic";
-        }
-        return "";
     }
 
     @Override

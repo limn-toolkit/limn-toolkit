@@ -319,6 +319,86 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
         return builder.build();
     }
 
+    // ------------------------------------------------------------------ one run in its context
+
+    /**
+     * Where the text being built starts within the string the shaper reads: 0 for a whole line,
+     * and the run's start for {@link #shapeRun}, which hands HarfBuzz the whole paragraph as
+     * context and builds a value over the run alone. Every offset the fillers below compute is into
+     * the string they were given, and goes into the builder less this. UI thread, like all of this
+     * class, and never set across a call that could re-enter.
+     */
+    private int shift;
+
+    private void run(ShapedText.Builder builder, int faceId, int from, int to, int level) {
+        builder.run(faceId, from - shift, to - shift, level);
+    }
+
+    private void glyph(ShapedText.Builder builder, int glyphId, int cluster, float advance,
+                       float xOffset, float yOffset) {
+        builder.glyph(glyphId, cluster - shift, advance, xOffset, yOffset);
+    }
+
+    /**
+     * Shapes {@code [start, end)} of {@code paragraph} with the paragraph as the shaper's context:
+     * the run is itemized by script and face as a line is, and every piece is shaped by HarfBuzz
+     * reading the characters around it, so a weight changed inside an Arabic word leaves both
+     * halves in their joining forms. Not memoized: a styled paragraph holds what this returns, and
+     * shapes again only when its text, its fonts or this ruler's epoch move.
+     */
+    @Override
+    public ShapedText shapeRun(String paragraph, int start, int end, Font font,
+                               ShapedText.Direction direction) {
+        java.util.Objects.requireNonNull(paragraph, "paragraph");
+        java.util.Objects.requireNonNull(font, "font");
+        java.util.Objects.requireNonNull(direction, "direction");
+        if (start < 0 || end > paragraph.length() || start > end) {
+            throw new IndexOutOfBoundsException("run [" + start + ", " + end + ") of a paragraph of "
+                    + paragraph.length());
+        }
+        if (start == 0 && end == paragraph.length()) {
+            return shape(paragraph, font, direction);
+        }
+        limn.concurrent.Ui.checkUiThread();
+        StbFont primary = fonts.resolve(font); // before the epoch is read: see shape
+        long now = fonts.epoch();
+        String text = paragraph.substring(start, end);
+        TextMetrics vertical = primary.measure("", font.size());
+        ShapedText.Builder builder = ShapedText.builder(text, font, direction, text.length() + 8)
+                .lineMetrics(vertical.ascent(), vertical.descent(), vertical.lineHeight())
+                .epoch(now);
+        if (text.isEmpty()) {
+            return builder.build();
+        }
+        int level = direction == ShapedText.Direction.RTL ? 1 : 0;
+        shift = start;
+        try {
+            itemizeBidiRun(builder, paragraph, start, end, level, primary, font, font.size());
+        } finally {
+            shift = 0;
+        }
+        return builder.build();
+    }
+
+    /**
+     * The face's own decorations: the underline and strike-through from its {@code post} and
+     * {@code OS/2} tables, the superscript and subscript from {@code OS/2}, as HarfBuzz reads them,
+     * at {@code font}'s size; {@link TextDecorations#fallback} where the face has no shaper.
+     */
+    @Override
+    public limn.graphics.TextDecorations decorations(Font font) {
+        java.util.Objects.requireNonNull(font, "font");
+        limn.concurrent.Ui.checkUiThread();
+        StbFont face = fonts.resolve(font);
+        HarfBuzzShaper.Handle handle = shaperFor.apply(face);
+        limn.graphics.TextDecorations fallback = limn.graphics.TextDecorations.fallback(font.size());
+        if (handle == null) {
+            return fallback;
+        }
+        float scale = font.size() / face.unitsPerEm();
+        return HarfBuzzShaper.decorations(handle, scale, fallback);
+    }
+
     // ------------------------------------------------------------------ itemization
 
     /**
@@ -346,7 +426,7 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
                     }
                     end += Character.charCount(c);
                 }
-                builder.run(fonts.faceId(primary), at, end, level);
+                run(builder, fonts.faceId(primary), at, end, level);
                 emitGlyphlessRun(builder, text, at, end, primary, size, rtl);
                 at = end;
                 continue;
@@ -378,7 +458,7 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
                 }
                 end += Character.charCount(c);
             }
-            builder.run(fonts.faceId(face), at, end, level);
+            run(builder, fonts.faceId(face), at, end, level);
             shapeOrDegrade(builder, text, at, end, face, script, rtl, size);
             at = end;
         }
@@ -457,7 +537,7 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
                     // went in as context: nothing is added back here, and nothing may be. The
                     // builder rejects an offset outside the open run, so a regression that
                     // reintroduced the shift would fail at this call rather than move every caret.
-                    builder.glyph(shaped.glyphIds[g], shaped.clusters[g], shaped.advances[g],
+                    glyph(builder, shaped.glyphIds[g], shaped.clusters[g], shaped.advances[g],
                             shaped.xOffsets[g], shaped.yOffsets[g]);
                 }
                 return;
@@ -519,7 +599,7 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
             // backwards. That is the order the builder's pen expects and the order a shaper would
             // have handed over, so the degraded path and the shaped one place a run identically.
             int cell = rtl ? cells - 1 - step : step;
-            builder.glyph(ShapedText.NO_GLYPH, bounds[cell], advances[cell], 0, 0);
+            glyph(builder, ShapedText.NO_GLYPH, bounds[cell], advances[cell], 0, 0);
         }
     }
 
@@ -544,7 +624,7 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
         }
         for (int step = 0; step < count; step++) {
             int cell = rtl ? count - 1 - step : step;
-            builder.glyph(ShapedText.NO_GLYPH, starts[cell], advances[cell], 0, 0);
+            glyph(builder, ShapedText.NO_GLYPH, starts[cell], advances[cell], 0, 0);
         }
     }
 

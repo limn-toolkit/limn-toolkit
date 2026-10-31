@@ -19,7 +19,7 @@ import limn.graphics.Color;
  * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
  * {@code default} branch.
  */
-public enum Tone {
+public enum Tone implements limn.graphics.Ink {
     /** Nothing to call attention to: the palette's {@link Theme#textMuted() muted text}. */
     NEUTRAL,
     /**
@@ -51,5 +51,14 @@ public enum Tone {
             case WARNING -> theme.warning();
             case DANGER -> theme.danger();
         };
+    }
+
+    /**
+     * This tone as styled text's ink: its colour in the {@linkplain Theme#current() current}
+     * palette, asked on every paint, so text styled in a tone follows a change of palette.
+     */
+    @Override
+    public limn.graphics.Paint paint() {
+        return colorIn(Theme.current());
     }
 }

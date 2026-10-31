@@ -56,7 +56,10 @@ import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_face_destroy;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_face_get_upem;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_font_create;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_font_destroy;
+import org.lwjgl.util.harfbuzz.OpenType;
+import static org.lwjgl.util.harfbuzz.HarfBuzz.HB_TAG;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_font_set_scale;
+import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_font_set_variations;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.hb_shape;
 import static org.lwjgl.util.harfbuzz.HarfBuzz.nhb_buffer_add_utf16;
 
@@ -190,6 +193,15 @@ final class HarfBuzzShaper {
      *                  plain {@code .ttf}/{@code .otf}
      */
     static Handle createFont(ByteBuffer data, int faceIndex) {
+        return createFont(data, faceIndex, Float.NaN);
+    }
+
+    /**
+     * {@link #createFont(ByteBuffer, int)} at one instance of a variable face: its {@code wght}
+     * axis set to {@code weight}, so the advances it shapes with and the outlines it draws are
+     * that instance's. {@code NaN} sets no axis, the default instance.
+     */
+    static Handle createFont(ByteBuffer data, int faceIndex, float weight) {
         if (!isAvailable()) {
             return null;
         }
@@ -224,6 +236,14 @@ final class HarfBuzzShaper {
             // caches already use, so one multiply converts a run and nothing is quantized.
             int upem = hb_face_get_upem(face);
             hb_font_set_scale(font, upem, upem);
+            if (!Float.isNaN(weight)) {
+                try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+                    org.lwjgl.util.harfbuzz.hb_variation_t.Buffer axis =
+                            org.lwjgl.util.harfbuzz.hb_variation_t.malloc(1, stack);
+                    axis.get(0).tag(HB_TAG('w', 'g', 'h', 't')).value(weight);
+                    hb_font_set_variations(font, axis);
+                }
+            }
             Handle handle = new Handle(blob, face, font);
             blob = 0;
             face = 0;
@@ -246,6 +266,53 @@ final class HarfBuzzShaper {
                 hb_blob_destroy(blob);
             }
         }
+    }
+
+    // ------------------------------------------------------------------ decorations
+
+    /**
+     * The decorations {@code handle}'s face declares, in logical points at {@code scale} (points
+     * per font unit); each value the face does not declare is {@code fallback}'s. HarfBuzz reads
+     * the underline from {@code post} and the strike-through and the raised and lowered text from
+     * {@code OS/2}, with its own fallbacks for a face that lacks a table; a thickness of zero, which
+     * a broken face can declare, is taken as not declared.
+     */
+    static limn.graphics.TextDecorations decorations(Handle handle, float scale,
+                                                     limn.graphics.TextDecorations fallback) {
+        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            java.nio.IntBuffer out = stack.mallocInt(1);
+            long font = handle.font();
+            float underlineOffset = read(font, OpenType.HB_OT_METRICS_TAG_UNDERLINE_OFFSET, out, scale,
+                    -fallback.underlineOffset(), false);
+            float underlineSize = read(font, OpenType.HB_OT_METRICS_TAG_UNDERLINE_SIZE, out, scale,
+                    fallback.underlineThickness(), true);
+            float strikeOffset = read(font, OpenType.HB_OT_METRICS_TAG_STRIKEOUT_OFFSET, out, scale,
+                    fallback.strikeoutOffset(), false);
+            float strikeSize = read(font, OpenType.HB_OT_METRICS_TAG_STRIKEOUT_SIZE, out, scale,
+                    fallback.strikeoutThickness(), true);
+            float superOffset = read(font, OpenType.HB_OT_METRICS_TAG_SUPERSCRIPT_EM_Y_OFFSET, out, scale,
+                    fallback.superscriptOffset(), false);
+            float superSize = read(font, OpenType.HB_OT_METRICS_TAG_SUPERSCRIPT_EM_Y_SIZE, out, scale,
+                    fallback.superscriptSize(), true);
+            float subOffset = read(font, OpenType.HB_OT_METRICS_TAG_SUBSCRIPT_EM_Y_OFFSET, out, scale,
+                    fallback.subscriptOffset(), false);
+            float subSize = read(font, OpenType.HB_OT_METRICS_TAG_SUBSCRIPT_EM_Y_SIZE, out, scale,
+                    fallback.subscriptSize(), true);
+            // post's underline position is negative below the baseline; the record's is positive.
+            return new limn.graphics.TextDecorations(-underlineOffset, Math.max(underlineSize, 0.5f),
+                    strikeOffset, Math.max(strikeSize, 0.5f), superOffset, superSize, subOffset, subSize);
+        } catch (Throwable failure) {
+            return fallback;
+        }
+    }
+
+    private static float read(long font, int tag, java.nio.IntBuffer out, float scale, float otherwise,
+                              boolean positive) {
+        if (!OpenType.hb_ot_metrics_get_position(font, tag, out)) {
+            return otherwise;
+        }
+        float value = out.get(0) * scale;
+        return positive && value <= 0 ? otherwise : value;
     }
 
     // ------------------------------------------------------------------ shaping

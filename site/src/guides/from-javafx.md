@@ -29,6 +29,7 @@ page of this guide that says the rest.
 | `Label`, `Button`, `CheckBox`, `RadioButton`, `ToggleButton` | `Label`, `Button`, `Checkbox`, `RadioButton`, `Checkbox.Variant.SWITCH` |
 | `TextField`, `PasswordField`, `TextArea` | `TextField`, `PasswordField`, `TextArea` |
 | `TextFormatter` | `TextField.setMask(…)`, `Spinner` |
+| `TextFlow` of styled `Text` nodes, a read-only `RichTextArea` | `Label.setText(StyledText)` |
 | `ComboBox`, `ChoiceBox` | `ComboBox`, editable or not |
 | `ListView`, `TableView`, `TreeView`, `TreeTableView` | `ListView`, `Table`, `Tree` |
 | `ScrollPane`, `SplitPane`, `TabPane` | `ScrollView`, `SplitPane`, `TabbedPane` |

@@ -303,6 +303,74 @@ count or the name changes, make a new text and set it again, as the second line 
 the files change. Use `format(…)` when you need the text of the moment as a `String`: for a log
 line, a file name, or a message to another program.
 
+## Text in more than one style
+
+A `Label` shows styled text: pieces in their own weight, colour, size or lines, and paragraphs
+with their own alignment, indents, spacing and list markers. It is built from pieces, never from
+character offsets, so a translation can move the styled part:
+
+```java
+// "Total: {0}, due {1}" in English; each translation puts the two where its sentence needs them.
+StyledText due = StyledText.of(Strings.TOTAL_DUE,
+        StyledText.span(amount, TextStyle.of().weight(600)),
+        StyledText.span(date, TextStyle.of().ink(Tone.WARNING)));
+label.setText(due);
+
+StyledText steps = StyledText.builder()
+        .paragraph(ParagraphStyle.of().text(TextStyle.of().bold()))
+        .append("Before you sign")
+        .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER))
+        .append("Read the ").append("whole", TextStyle.of().italic()).append(" contract.")
+        .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER))
+        .append("Check the ").append("tax number",
+                TextStyle.of().underline(TextStyle.Underline.WAVY, Tone.DANGER)).append(".")
+        .build();
+label.setText(steps).setWrap(true);
+```
+
+A style says only what it changes. Everything it leaves out is the paragraph's, and the
+paragraph's is the label's: its font, role, tone and colour. So a piece styled bold is bold in
+whatever the label is, and a piece in a `Tone` takes that tone's colour from the label's palette
+on every paint, so it follows the system turning dark. What a piece can say: family, size or a
+scale of the text around it, weight (1 to 1000), italic, ink, background, underline (single,
+double, dotted, wavy) and strike-through with their own ink, superscript and subscript, and
+tracking. The lines and the raised text sit where the face's own tables put them.
+
+A paragraph can set its alignment (start, centre, end, justified), indents, a first-line indent,
+the space before and after it, its line spacing, the text style its pieces inherit, and a list.
+Lists are bullets or numbers, fixed by level (`•` `◦` `▪`, `1.` `a.` `i.`), numbered across
+consecutive items, and the digits are the language's; `listNumber(3)` gives an item its own number
+and the items after it count on from it, so a list interrupted by something else goes on at "3.".
+A paragraph's direction is detected from its first letter unless it sets one with `direction`, as
+code does: a line of code reads left to right whatever its comments say. A line separator
+(U+2028) breaks the line and keeps the paragraph, as a hard line break in a document does, with no
+spacing, first-line indent or marker after it; `\n` starts a new paragraph. The label's `setWrap`, `setMaxLines` and
+ellipsis work on styled text as they do on plain text, and a printed page cuts it between lines.
+
+**Why a colour change does not break a word.** The paragraph is shaped as one and split only
+where the font changes; a colour, a background or a line is painted over the same shaping. A
+word in Arabic with one letter in red keeps every joining form it has without the red, and a
+weight changed inside a word is shaped with the rest of the paragraph as its context, so its
+halves stay joined too.
+
+A reader hears the plain text, each list item led by its marker; the styles are not read out.
+Styled text takes no input: it is for showing. To draw styled text on your own canvas, lay it out
+with `StyledLayout.of(text, base, width, maxLines, ellipsis, textRuler())` and call its `paint`.
+
+### Font weights
+
+`Font` carries a weight from 1 to 1000, as a style sheet writes it: `withWeight(500)`,
+`withWeight(600)`. The face drawn is the family's face nearest the weight, searched as a style
+sheet searches (for 400: 400, then 500, then lighter, then heavier; above 500: heavier first), so
+a family without a 600 draws its 700. The bundled Roboto has twelve faces, from Thin (100) to Black
+(900) with their italics. A system family is chosen by each face's declared weight, and a variable
+face is drawn at the weight itself, anywhere in its range.
+
+`Font.MONOSPACE_FAMILY` is the monospace face, every character one width: inline code, a reference
+number, figures that must line up. It is the bundled Roboto Mono, upright and italic, at any weight
+from 100 to 700: `TextStyle.of().family(Font.MONOSPACE_FAMILY)`. Its italic is a little narrower
+than its upright, so text that must keep its columns stays upright.
+
 ## If you draw text yourself
 
 A custom widget that calls `canvas.drawText(text, x, y, font, ink)` gets shaped text: the
@@ -341,5 +409,5 @@ and below its deepest is never the same, so a line box centred exactly still rea
 
 - **Vertical writing.** Mongolian and the vertical form of CJK need a second axis through
   the whole layout system, not a direction flag.
-- **Justification and hyphenation.** Lines are broken, not fitted: a wrapped paragraph is
-  ragged at the end of its lines.
+- **Hyphenation.** Lines break between words, never inside one with a hyphen. A plain label is
+  ragged at the end of its lines; styled text can be justified, at its spaces.

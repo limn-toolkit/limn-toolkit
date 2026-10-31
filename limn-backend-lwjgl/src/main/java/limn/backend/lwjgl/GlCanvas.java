@@ -2153,6 +2153,23 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      */
     @Override
     public void drawText(limn.graphics.ShapedText text, float x, float y, Paint paint) {
+        drawShaped(text, 0, Integer.MAX_VALUE, x, y, paint);
+    }
+
+    /**
+     * Draws the glyphs whose clusters start in the range, from the same positions the whole line
+     * would put them at: one shaping, painted in as many paints as the line has ranges.
+     */
+    @Override
+    public void drawText(limn.graphics.ShapedText text, int charStart, int charEnd, float x, float y,
+                         Paint paint) {
+        if (charStart < charEnd) {
+            drawShaped(text, charStart, charEnd, x, y, paint);
+        }
+    }
+
+    private void drawShaped(limn.graphics.ShapedText text, int charStart, int charEnd, float x,
+                            float y, Paint paint) {
         ensureInFrame();
         Objects.requireNonNull(text, "text");
         Objects.requireNonNull(paint, "paint");
@@ -2192,6 +2209,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         for (limn.graphics.ShapedText.Run run : text.runs()) {
             StbFont face = fontStore.faceById(run.faceId());
             for (int g = run.glyphStart(); g < run.glyphEnd(); g++) {
+                int cluster = text.glyphCluster(g);
+                if (cluster < charStart || cluster >= charEnd) {
+                    continue; // another range's glyph: drawn by that range's call, in its paint
+                }
                 float glyphUserX = text.glyphX(g);
                 float glyphUserY = text.glyphY(g);
                 int glyphIndex = text.glyphId(g);
