@@ -54,6 +54,10 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A `ScrollView` whose bar reserves its strip (`ScrollGutters.Layout.RESERVED`) and that takes a
+  side from its content, scrolled sideways only in a column that lets it be as tall as its content,
+  is that tall plus the strip. It was the content's height alone, and the strip came out of the
+  content: a single line in it was cut in half by its own scroll bar's gutter.
 - A system font family with many faces draws its Regular when regular is asked for, and its Bold
   for bold. The face was chosen by the order the font file lists its faces, so a family listing its
   Medium before its Regular drew the Medium, a family with a "Book" and a "Roman" drew the Book, and

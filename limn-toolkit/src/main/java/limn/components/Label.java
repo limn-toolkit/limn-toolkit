@@ -569,6 +569,12 @@ public final class Label extends Widget<Label> {
      * paragraph that sets no alignment of its own; a printed page is cut between its lines. A
      * disabled label draws every piece in the disabled colour.
      *
+     * <p>Without wrap or a line limit the label shows one line: its first paragraph, cut as
+     * {@link #setOverflow} says, as plain text holding a line break shows its first line. Lines
+     * kept whole, as a block of code wants them, are wrap on in a parent that sets no width limit,
+     * such as a {@link ScrollView} scrolled sideways: the label then breaks only where a paragraph
+     * ends.
+     *
      * <p>A reader hears its plain text, each list item led by its marker; the styles are not read.
      * {@link #text()} answers the plain text without markers. A text built from translated strings
      * follows the language. An access letter is not read from styled text.
@@ -854,7 +860,8 @@ public final class Label extends Widget<Label> {
      * {@linkplain I18n#locale() UI language}, greedily; a run that offers no opportunity at all
      * — a word longer than the box, or a script this locale has no rule for — is cut at the last
      * cluster that fits. The measured height then depends on the width constraint. As many lines
-     * as the text needs, unless {@link #setMaxLines} sets a limit above one. UI thread only.
+     * as the text needs, unless {@link #setMaxLines} sets a limit above one. Without wrap the label
+     * shows one line, even when the text holds line breaks. UI thread only.
      */
     public Label setWrap(boolean newWrap) {
         Ui.checkUiThread();

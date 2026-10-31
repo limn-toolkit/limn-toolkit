@@ -155,6 +155,22 @@ class LabelStyledTextTest extends ComponentTestBase {
     }
 
     @Test
+    void withoutWrapALabelShowsItsFirstLineAndWithWrapAndNoWidthLimitEveryParagraphWhole() {
+        StyledText code = StyledText.builder().append("int a = 1;").paragraph().append("int b = 2;").build();
+        Label one = new Label("").setText(code);
+        Scene scene = scene(one, 300, 24);
+        List<String> shown = frame(scene, 300, 24).drawn.stream().map(Drawn::chars).toList();
+        assertEquals(List.of("int a = 1;", "…"), shown, "the first paragraph, and the ellipsis for the rest");
+
+        // The recipe for lines kept whole: wrap on, in a parent that sets no width limit.
+        Label whole = new Label("").setText(code).setWrap(true);
+        new Scene(whole).setTextRuler(RULER);
+        Size size = whole.measure(Constraints.loose(Constraints.UNBOUNDED_LIMIT, 500));
+        assertEquals(24, size.height(), "a line per paragraph");
+        assertEquals(100, size.width(), 0.01, "ten characters of ten, unbroken");
+    }
+
+    @Test
     void aPageCutsAStyledLabelBetweenItsLines() {
         Label label = new Label("").setText(StyledText.builder().append("one").paragraph().append("two")
                 .paragraph().append("three").build()).setWrap(true).setAlign(Label.HAlign.START, Label.VAlign.TOP);

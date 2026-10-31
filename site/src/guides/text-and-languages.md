@@ -347,6 +347,18 @@ code does: a line of code reads left to right whatever its comments say. A line 
 spacing, first-line indent or marker after it; `\n` starts a new paragraph. The label's `setWrap`, `setMaxLines` and
 ellipsis work on styled text as they do on plain text, and a printed page cuts it between lines.
 
+Without `setWrap` or `setMaxLines` a label shows one line: the first paragraph, ended with the
+ellipsis when more follows. Text whose lines must stay whole, such as a block of code, wants wrap
+on inside a parent that sets no width limit, so the label breaks only where a paragraph ends and
+the parent scrolls what is wider than the window:
+
+```java
+Label code = new Label("").setText(lines).setWrap(true); // one paragraph per line of code
+ScrollView scroller = new ScrollView(code, true, false);  // sideways only
+scroller.setBarLayout(ScrollGutters.Layout.RESERVED);     // the bar does not cover the last line
+scroller.setLayoutDirection(LayoutDirection.LTR);         // starts at the start of the line in RTL
+```
+
 **Why a colour change does not break a word.** The paragraph is shaped as one and split only
 where the font changes; a colour, a background or a line is painted over the same shaping. A
 word in Arabic with one letter in red keeps every joining form it has without the red, and a

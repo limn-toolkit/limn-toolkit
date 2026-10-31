@@ -454,6 +454,41 @@ class ScrollViewTest extends ComponentTestBase {
     }
 
     @Test
+    void aViewSizedByItsContentHoldsTheReservedStripToo() {
+        // Scrolled sideways only, in a column that lets it be as tall as its content: the view
+        // is the content's height plus the strip, and the content keeps its whole height. It was
+        // the content's height alone, and the strip came out of the content, cutting a line of
+        // code in half.
+        Box content = new Box(900, 20);
+        ScrollView view = new ScrollView(content, true, false)
+                .setBarLayout(ScrollGutters.Layout.RESERVED);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(view);
+        Scene host = new Scene(column);
+        host.setTextRuler(RULER);
+        host.layoutPass(200, 400);
+
+        float bar = ScrollBar.thickness();
+        assertEquals(20 + bar, view.height(), EPS, "the strip is added to the view");
+        assertEquals(20, view.viewportHeight(), EPS, "not taken from the content");
+        assertEquals(20, content.height(), EPS);
+    }
+
+    @Test
+    void aViewSizedByItsContentAddsNoStripWhereNothingOverflows() {
+        Box content = new Box(100, 20);
+        ScrollView view = new ScrollView(content, true, false)
+                .setBarLayout(ScrollGutters.Layout.RESERVED);
+        limn.scene.layout.Column column = new limn.scene.layout.Column();
+        column.add(view);
+        Scene host = new Scene(column);
+        host.setTextRuler(RULER);
+        host.layoutPass(200, 400);
+
+        assertEquals(20, view.height(), EPS);
+    }
+
+    @Test
     void aHiddenBarReservesNothing() {
         // Nothing will ever be drawn there, so holding the strip open is pure loss.
         Box content = new Box(100, 900);

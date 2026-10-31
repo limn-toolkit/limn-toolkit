@@ -3,9 +3,10 @@
 - **Status:** **Accepted, and the toolkit's part built**, 2026-10-31. Proposed the same day at the
   owner's request, in the owner's scope (section 1); the owner took the recommendation of all three
   questions (section 8): Roboto Mono bundled in `limn-fonts` as an artifact of its own, no syntax
-  colours in the theme, no heading level yet. Stage 1 is built (section 9); owed: the owner's
-  publication of `limn-fonts-roboto-mono` 3.001.0 and the dependency line that takes it, then the
-  two projects of stages 2 and 3.
+  colours in the theme, no heading level yet. Stage 1 is built (section 9), and stage 2, the
+  code-block project, with a defect it found in `ScrollView` fixed (section 10); owed: the owner's
+  publication of `limn-fonts-roboto-mono` 3.001.0 and the dependency line that takes it, then
+  stage 3; the owner took both recommendations of section 10.
 - **Date:** 2026-10-31
 - **Scope:** what the toolkit must offer so that a read-only code block with coloured syntax, and
   a Markdown reader that shows such blocks, can be written against its public API alone. The code
@@ -283,3 +284,64 @@ Stage 1, the toolkit's part, and the font artifact.
   `limn-backend-lwjgl` and its catalog line; until then every application draws the alias in the
   default family. Then stages 2 and 3, outside the toolkit.
 
+
+---
+
+## 10. Stage 2: the code-block project (2026-10-31)
+
+Built in the private repository `limn-text-lab` beside the toolkit's checkout (the owner chose one
+repository with two modules: `codeblock` now, the reader in stage 3), with no remote. It takes the
+toolkit as an application would, from `publishToMavenLocal` of this branch (`1.1.0-SNAPSHOT`), and
+Roboto Mono from the local `limn-fonts` build; its module requires `limn.toolkit` and nothing
+else, so an internal package does not compile there.
+
+- **What it is:** `CodeBlock`, a `Card` whose title is the fence's language and whose header holds
+  a "Copy" button, around a horizontal `ScrollView` of a `Label` of styled text. Hand-written
+  lexers for JSON, XML, SQL, Java and shell, each cutting once with no state per line; an unknown
+  language is shown uncoloured in the monospace family. Tabs become spaces to the next stop of
+  four; the bidirectional controls, U+2028, U+2029 and the other control characters are drawn as a
+  named mark (`<RLO>`, `<U+0007>`) in the danger tone with a wavy underline; the button copies the
+  code as given. Thirteen token kinds drawn in five tones, nothing italic or bold. Forty tests,
+  and renders of three pages in light, dark and high contrast and one in a right-to-left interface,
+  sent to the owner.
+- **Everything it needed was public.** The four additions of stage 1 carried it: the monospace
+  family, `ParagraphStyle.direction(LTR)` on every line, and the alignment rule; U+2028 and
+  `listNumber` wait for the reader.
+
+What it found, each with what was done:
+
+1. **A defect, fixed in the toolkit: a `ScrollView` sized by its content took its reserved bar's
+   strip out of the content.** Scrolled sideways only, with `ScrollGutters.Layout.RESERVED`, in a
+   column that lets it be as tall as its content, the view measured the content's height alone,
+   and the layout then reserved the strip inside it: a one-line block came out cut in half by its
+   own gutter. `onMeasure` now adds the strip an overflowing axis reserves to a side the view takes
+   from its content (`ScrollViewTest`: two cases).
+2. **"A label that does not wrap" shows one line.** Section 2.1 said the block is a label that does
+   not wrap; with wrap off a `Label` shows its first line, by `setMaxLines`'s contract. The block
+   turns wrap on inside a scroller that gives the label unbounded width, where the label breaks only
+   at paragraph ends, which are the lines of the code. It works and the project's test holds it.
+   *Taken (the owner, 2026-10-31):* no new API. `Label.setText(StyledText)` and `setWrap` say a
+   label without wrap or a line limit shows one line, the guide "Text and languages" gives the
+   scroller recipe for lines kept whole, and `LabelStyledTextTest` holds both.
+3. **Two right-to-left tokens on one line change places.** In `s = "مرحبا"; // تحية`, the neutrals
+   between the string and the comment (`; //`) sit between two right-to-left runs, the bidirectional
+   algorithm makes them right-to-left too, and the string and the comment swap sides, which is the
+   reordering section 0.1 says a code block must not allow. The project isolates each string or
+   comment that holds right-to-left text, left to right (LRI … PDI): the toolkit's paragraph
+   honours isolates and draws nothing for the two characters. A first-strong isolate is not enough:
+   it takes the comment's direction from its Arabic, and `//` moves to its right. No toolkit change;
+   the two characters do reach the label's reader text, where readers ignore them.
+4. **In a right-to-left interface a horizontal scroller starts at its right end,** showing the end
+   of a long line of code first. The block sets the scroller's layout direction to left to right,
+   which is what `Widget.setLayoutDirection` is for. No toolkit change.
+5. **The default overlay bar covers the last line.** The block reserves the strip and shows the bar
+   while the code overflows (`RESERVED`, `ALWAYS`), which met finding 1. No toolkit change.
+6. **Five tones do not keep thirteen kinds apart in every palette (question 2).** In the light
+   palette the accent and info tones are both blue, so a keyword and a type read alike; in high
+   contrast the accent (yellow) and the warning tone (amber) are close, so a keyword and a number
+   read alike. Every kind stays legible as text, and the code stays readable. *Taken (the owner,
+   2026-10-31):* still no syntax palette: stage 3's reader shows whether a document's code blocks
+   suffer from it, and a palette in `Theme`, the theme format and the theme editor is the larger
+   change.
+
+Owed: stage 3.
