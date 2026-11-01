@@ -251,19 +251,22 @@ final class StbFont implements AutoCloseable {
 
     /** {@code OS/2 usWeightClass} of the face whose table directory is at {@code offset}; 0 for none. */
     static int readWeightClass(ByteBuffer data, int offset) {
+        // Every bound in long arithmetic: a table offset near the int's top made "table + 6" wrap
+        // negative, pass the check and throw from the read, on every shaping that asked.
         ByteBuffer big = data.duplicate().order(java.nio.ByteOrder.BIG_ENDIAN);
-        if (offset < 0 || offset + 12 > big.limit()) {
+        long limit = big.limit();
+        if (offset < 0 || (long) offset + 12 > limit) {
             return 0;
         }
         int tables = Short.toUnsignedInt(big.getShort(offset + 4));
         for (int i = 0; i < tables; i++) {
-            int record = offset + 12 + 16 * i;
-            if (record + 16 > big.limit()) {
+            long record = (long) offset + 12 + 16L * i;
+            if (record + 16 > limit) {
                 return 0;
             }
-            if (big.getInt(record) == 0x4F532F32) { // 'OS/2'
-                int table = big.getInt(record + 8);
-                return table >= 0 && table + 6 <= big.limit() ? Short.toUnsignedInt(big.getShort(table + 4)) : 0;
+            if (big.getInt((int) record) == 0x4F532F32) { // 'OS/2'
+                long table = Integer.toUnsignedLong(big.getInt((int) record + 8));
+                return table + 6 <= limit ? Short.toUnsignedInt(big.getShort((int) table + 4)) : 0;
             }
         }
         return 0;

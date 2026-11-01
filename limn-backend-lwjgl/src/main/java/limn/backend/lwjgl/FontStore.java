@@ -117,6 +117,12 @@ final class FontStore implements AutoCloseable {
 
     private final Map<String, StbFont> byFamily = new HashMap<>();
     private final Map<StbFont, Integer> faceIds = new IdentityHashMap<>();
+    /** The step a variable face's instances are made at: a weight is drawn at the nearest. */
+    static final int INSTANCE_STEP = 10;
+
+    /** The weight from which a request is bold, as {@code Font.isBold()} reads one. */
+    private static final int BOLD_FROM = 600;
+
     /** A fallback face's Bold, or the face itself when it has none; see {@link #boldTwin}. */
     private final Map<StbFont, StbFont> boldTwins = new IdentityHashMap<>();
     // The reverse, for a painter holding a ShapedText: a run names its face by id, and the id has
@@ -1312,13 +1318,24 @@ final class FontStore implements AutoCloseable {
      * instance, a view with an id of its own so its glyphs are cached apart.
      */
     private StbFont atWeight(StbFont face, SystemFonts.Face described, int weight) {
-        int instance = described.instanceWeight(weight);
+        // To the nearest ten: each instance is a shaper and a set of cached glyphs of its own,
+        // held for the face's life, and a weight animated through the range made one per step.
+        int instance = described.instanceWeight(Math.round(weight / (float) INSTANCE_STEP) * INSTANCE_STEP);
         if (!described.variable() || instance == described.weight()) {
             return face;
         }
         StbFont view = face.instance(instance);
         if (view == face) {
-            return face; // HarfBuzz cannot draw it: the default instance, shaped and drawn alike
+            // HarfBuzz cannot draw it: the default instance, shaped and drawn alike, and bold
+            // drawn bold the way a family with no Bold is, where the default is lighter than it.
+            if (weight >= BOLD_FROM && described.weight() < BOLD_FROM) {
+                StbFont bold = face.syntheticBold();
+                if (!faceIds.containsKey(bold)) {
+                    assignId(bold);
+                }
+                return bold;
+            }
+            return face;
         }
         if (!faceIds.containsKey(view)) {
             assignId(view);

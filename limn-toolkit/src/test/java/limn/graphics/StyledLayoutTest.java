@@ -41,6 +41,7 @@ class StyledLayoutTest {
         final List<Filled> filled = new ArrayList<>();
         final List<float[]> lines = new ArrayList<>();
         final List<float[]> circles = new ArrayList<>();
+        Rect clip;
 
         Recorder() {
             super(1000, 1000);
@@ -69,6 +70,11 @@ class StyledLayoutTest {
         @Override
         public void drawCircle(float cx, float cy, float radius, float strokeWidth, Paint paint) {
             circles.add(new float[] {cx, cy, radius, strokeWidth});
+        }
+
+        @Override
+        public Rect clipBounds() {
+            return clip;
         }
     }
 
@@ -535,5 +541,229 @@ class StyledLayoutTest {
                 .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET).listNumber(9)).append("e")
                 .build();
         assertEquals("1. a\n5. b\n6. c\nc. d\n• e", text.readerText());
+    }
+
+    // ------------------------------------------------------------------ found by the review
+
+    /** The fixed ruler, counting the characters it is asked to shape and keeping what it was given. */
+    private static final class CountingRuler implements TextRuler {
+        int shaped;
+        final List<String> texts = new ArrayList<>();
+        TextDecorations decorations;
+
+        @Override
+        public TextMetrics measure(String text, Font font) {
+            return RULER.measure(text, font);
+        }
+
+        @Override
+        public ShapedText shape(String text, Font font, ShapedText.Direction base) {
+            return RULER.shape(text, font, base);
+        }
+
+        @Override
+        public ShapedText shapeRun(String paragraph, int start, int end, Font font,
+                                   ShapedText.Direction direction) {
+            shaped += end - start;
+            texts.add(paragraph.substring(start, end));
+            return RULER.shapeRun(paragraph, start, end, font, direction);
+        }
+
+        @Override
+        public TextDecorations decorations(Font font) {
+            return decorations != null ? decorations : RULER.decorations(font);
+        }
+    }
+
+    @Test
+    void aLineThatFittedWhereItWasMeasuredFitsWhenLaidOutThere() {
+        // A text whose width uses every bit (tracking of an odd fraction of an em after each of
+        // five letters) and an indent whose sum with it loses the last one: (s + w) - s < w.
+        float indent = 0;
+        float tracking = 0;
+        search:
+        for (int t = 1; t < 400; t++) {
+            float ems = t * 0.000731f;
+            float w = 50 + 5 * (ems * 10);
+            for (float s = 0.5f; s < 40; s += 0.5f) {
+                if ((s + w) - s < w) {
+                    indent = s;
+                    tracking = ems;
+                    break search;
+                }
+            }
+        }
+        assertTrue(indent > 0, "the fixture: a text and an indent the float arithmetic rounds");
+        StyledText text = StyledText.builder().paragraph(ParagraphStyle.of().indent(indent, 0))
+                .append("abcde", TextStyle.of().tracking(tracking)).build();
+        float natural = StyledLayout.of(text, BASE, StyledLayout.UNBOUNDED, 1, true, RULER).width();
+        StyledLayout atIt = StyledLayout.of(text, BASE, natural, 1, true, RULER);
+        assertFalse(atIt.isTruncated(), "laid out at its own measure, nothing is cut");
+        assertEquals(1, StyledLayout.of(text, BASE, natural, Integer.MAX_VALUE, true, RULER).lineCount());
+    }
+
+    @Test
+    void aParagraphOfManyColoursInOneFontIsShapedOnce() {
+        StyledText.Builder builder = StyledText.builder();
+        Color[] inks = {INK, RED, new Color(0, 0, 1, 1)};
+        for (int i = 0; i < 300; i++) {
+            builder.append("tok" + i + " ", TextStyle.of().ink(inks[i % 3]));
+        }
+        StyledText text = builder.build();
+        CountingRuler ruler = new CountingRuler();
+        StyledLayout.of(text, BASE, StyledLayout.UNBOUNDED, 1, false, ruler);
+        assertEquals(text.text().length(), ruler.shaped, "each character once, not once per colour after it");
+    }
+
+    @Test
+    void aLineSeparatorIsNeverAskedOfTheShaper() {
+        CountingRuler ruler = new CountingRuler();
+        StyledLayout laid = StyledLayout.of(StyledText.of("one\u2028two\u2028\u2028three"), BASE,
+                StyledLayout.UNBOUNDED, Integer.MAX_VALUE, false, ruler);
+        assertEquals(4, laid.lineCount(), "the breaks still break, the empty line included");
+        for (String shaped : ruler.texts) {
+            assertEquals(-1, shaped.indexOf('\u2028'), "no face has the character: " + ruler.texts);
+        }
+    }
+
+    @Test
+    void aJustifiedUnderlineRunsUnbrokenAcrossTheWidenedSpaces() {
+        StyledText text = StyledText.builder()
+                .paragraph(ParagraphStyle.of().alignment(ParagraphStyle.Alignment.JUSTIFY))
+                .append("aa bb cc dd ee ff", TextStyle.of().underline()).build();
+        StyledLayout laid = StyledLayout.of(text, BASE, 100, Integer.MAX_VALUE, false, RULER);
+        assertTrue(laid.lineCount() > 1, "the fixture: a justified first line");
+        Recorder canvas = paint(laid, 100);
+        float lineTop = RULER.decorations(Font.of(10)).underlineOffset() + laid.firstBaseline();
+        List<Filled> first = canvas.filled.stream().filter(f -> Math.abs(f.y() - lineTop) < 1e-3).toList();
+        assertTrue(first.size() > 1, "pieces of the first line's underline: " + canvas.filled);
+        for (int i = 1; i < first.size(); i++) {
+            assertEquals(first.get(i - 1).x() + first.get(i - 1).width(), first.get(i).x(), 1e-3,
+                    "each piece starts where the one before ended");
+        }
+        assertEquals(100, first.get(first.size() - 1).x() + first.get(first.size() - 1).width(), 1e-3,
+                "and the line runs to the justified edge");
+    }
+
+    @Test
+    void aDottedOrWavyUnderlineFarAlongALineEnds() {
+        for (TextStyle.Underline kind : List.of(TextStyle.Underline.DOTTED, TextStyle.Underline.WAVY)) {
+            StyledText text = StyledText.builder().paragraph(ParagraphStyle.of().indent(4e7f, 0))
+                    .append("far", TextStyle.of().underline(kind)).build();
+            StyledLayout laid = StyledLayout.of(text, BASE, StyledLayout.UNBOUNDED, 1, false, RULER);
+            org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(5),
+                    () -> paint(laid, laid.width()), kind + ": a step a float cannot add must not hang");
+        }
+    }
+
+    @Test
+    void aFaceThatAnswersNoNumbersForItsRaisedTextStillLaysOut() {
+        CountingRuler ruler = new CountingRuler();
+        ruler.decorations = new TextDecorations(1, 1, 3, 1, Float.NaN, Float.POSITIVE_INFINITY,
+                Float.NaN, Float.NaN);
+        StyledText text = StyledText.builder().append("x").append("2", TextStyle.of().superscript())
+                .append("y", TextStyle.of().subscript()).build();
+        StyledLayout laid = StyledLayout.of(text, BASE, StyledLayout.UNBOUNDED, 1, false, ruler);
+        assertTrue(Float.isFinite(laid.height()) && laid.height() > 0);
+    }
+
+    @Test
+    void scalesThatMultiplyPastAnyFontStillLayOut() {
+        StyledText huge = StyledText.builder()
+                .paragraph(ParagraphStyle.of().text(TextStyle.of().scale(1e20f)).lineSpacing(1e30f))
+                .append("a", TextStyle.of().scale(1e20f)).build();
+        StyledLayout laid = StyledLayout.of(huge, BASE, StyledLayout.UNBOUNDED, 1, false, RULER);
+        assertTrue(Float.isFinite(laid.height()), "a line's height stays a number");
+        StyledText tiny = StyledText.builder().paragraph(ParagraphStyle.of().text(TextStyle.of().scale(1e-30f)))
+                .append("a", TextStyle.of().scale(1e-30f)).build();
+        StyledLayout.of(tiny, BASE, StyledLayout.UNBOUNDED, 1, false, RULER);
+    }
+
+    @Test
+    void onlyTheLinesTheClipShowsArePainted() {
+        StyledText text = StyledText.of("l0\nl1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9");
+        StyledLayout laid = StyledLayout.of(text, BASE, StyledLayout.UNBOUNDED, Integer.MAX_VALUE, false, RULER);
+        Recorder canvas = new Recorder();
+        canvas.clip = new Rect(0, 30, 100, 20); // lines of 12: the third, fourth and fifth show
+        laid.paint(canvas, 0, 0, 100);
+        assertEquals(List.of("l2", "l3", "l4"), canvas.drawn.stream().map(Drawn::chars).toList());
+    }
+
+    @Test
+    void aWidthBelowZeroIsRefusedAndZeroBreaksAfterEveryCluster() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> StyledLayout.of(StyledText.of("ab"), BASE, -1, 1, false, RULER));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> StyledLayout.of(StyledText.of("ab"), BASE, Float.NaN, 1, false, RULER));
+        assertEquals(3, StyledLayout.of(StyledText.of("abc"), BASE, 0, Integer.MAX_VALUE, false, RULER)
+                .lineCount(), "a box of no width: a cluster a line, as a label breaks one");
+    }
+
+    @Test
+    void anItemsOwnNumberIsItsAloneAndZeroCountsOn() {
+        ParagraphStyle three = ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER).listNumber(3);
+        assertEquals("3. a\n4. b", StyledText.builder().paragraph(three).append("a").paragraph().append("b")
+                .build().readerText(), "paragraph() repeats the style and counts on");
+        assertEquals("3. a\n4. b", StyledText.builder().paragraph(three).append("a\nb").build().readerText(),
+                "a line break in a piece counts on");
+        ParagraphStyle nested = three.list(ParagraphStyle.ListMarker.NUMBER, 1).listNumber(0);
+        assertEquals("3. a\na. x\nb. y", StyledText.builder().paragraph(three).append("a")
+                .paragraph(nested).append("x").paragraph(nested).append("y").build().readerText(),
+                "a style derived from a numbered one, its number taken off");
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> three.listNumber(-1));
+        ParagraphStyle top = ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER)
+                .listNumber(ParagraphStyle.MAX_LIST_NUMBER);
+        assertEquals(ParagraphStyle.MAX_LIST_NUMBER + ". a\n" + ParagraphStyle.MAX_LIST_NUMBER + ". b",
+                StyledText.builder().paragraph(top).append("a").paragraph().append("b").build().readerText(),
+                "the count stays at the largest number, never wraps negative");
+    }
+
+    @Test
+    void aListNumberIsNeverGrouped() {
+        ParagraphStyle item = ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER).listNumber(1000);
+        assertEquals("1000. a", StyledText.builder().paragraph(item).append("a").build().readerText());
+    }
+
+    @Test
+    void aPrivateUseCharacterInAPatternIsTextAndNotAnArgument() {
+        StyledText text = StyledText.of(I18nString.literal("\uE001 {0} of {1}"),
+                StyledText.span("2", TextStyle.of().bold()), StyledText.span("9", TextStyle.of()));
+        assertEquals("\uE001 2 of 9", text.text(), "an icon font's glyph stays where it was");
+    }
+
+    @Test
+    void aStyleThatSetsNoFontLeavesTheBaseFontAsItIsAndTheLineInksPrint() {
+        Font base = Font.of(10);
+        assertSame(base, TextStyle.of().ink(RED).underline().fontOver(base));
+        TextStyle style = TextStyle.of().bold();
+        assertSame(style.fontOver(base), style.fontOver(base), "one style over one base: one font");
+        assertTrue(TextStyle.of().underline(TextStyle.Underline.SINGLE, RED).toString().contains("underlineInk"));
+        assertTrue(TextStyle.of().strikethrough(RED).toString().contains("strikethroughInk"));
+    }
+
+    @Test
+    void boldIsAtLeastBoldSoABoldWordInABlackHeadingStaysBlack() {
+        Font regular = Font.of(10);
+        Font black = regular.withWeight(900);
+        assertEquals(700, TextStyle.of().bold().fontOver(regular).weight());
+        assertEquals(900, TextStyle.of().bold().fontOver(black).weight(), "never lighter than around it");
+        assertEquals(900, TextStyle.of().bold().over(TextStyle.of().weight(900)).fontOver(regular).weight());
+        assertEquals(700, TextStyle.of().bold().over(TextStyle.of().weight(300)).fontOver(black).weight());
+        assertEquals(500, TextStyle.of().weight(500).fontOver(black).weight(), "a weight is exact");
+        assertTrue(TextStyle.of().bold().isAtLeastBold());
+        assertEquals(700, TextStyle.of().bold().weightOrZero());
+        assertFalse(TextStyle.of().bold().equals(TextStyle.of().weight(700)), "two different requests");
+    }
+
+    @Test
+    void textsPutTogetherKeepTheFirstParagraphsStyle() {
+        ParagraphStyle item = ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET);
+        StyledText section = StyledText.builder().paragraph(item).append("one").paragraph().append("two").build();
+        StyledText joined = StyledText.builder().append(section).build();
+        assertEquals(section, joined, "into an empty builder, nothing of it is lost");
+        assertEquals("\u2022 one\n\u2022 two", joined.readerText());
+        StyledText after = StyledText.builder().append("Intro: ").append(section).build();
+        assertEquals("Intro: one\n\u2022 two", after.readerText(),
+                "after text, its first paragraph still continues the open one");
     }
 }

@@ -4,7 +4,9 @@ import java.text.Bidi;
 import java.text.BreakIterator;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import limn.i18n.I18n;
@@ -73,6 +75,20 @@ public final class StyledLayout {
     private static final float DRAWN_RING_STROKE_EMS = 0.045f;
     private static final float DRAWN_SQUARE_SIDE_EMS = 0.18f;
 
+    /**
+     * How much wider than the room a line may measure and still fit. A label measures a paragraph
+     * at its natural width, indent plus text, and lays it out at that width, where the room is the
+     * width less the indent: in floating point {@code (indent + text) - indent} can come out one
+     * unit in the last place short of the text, and the line that fitted at the measure was cut.
+     */
+    private static final float FIT_SLACK = 1e-3f;
+
+    /** The most dots or waves one line of an underline draws: a bound on a line of any width. */
+    private static final int MAX_UNDERLINE_STEPS = 100_000;
+
+    /** The tallest line: far past any text, short of the infinity a product of two scales can reach. */
+    private static final float MAX_LINE_HEIGHT = 1e6f;
+
     private final Base base;
     private final List<ParagraphLayout> paragraphs;
     private final float width;
@@ -97,12 +113,15 @@ public final class StyledLayout {
      *
      * @param text     the text, read in the language in effect now
      * @param base     the font, ink, alignment and direction it is laid out over
-     * @param maxWidth the width lines break at, in logical points; {@link #UNBOUNDED} breaks none
+     * @param maxWidth the width lines break at, in logical points; {@link #UNBOUNDED} breaks none,
+     *                 and 0 breaks after every cluster
      * @param maxLines the most lines, 1 or more; {@code Integer.MAX_VALUE} for no limit
      * @param ellipsis whether a cut last line, or a line wider than {@code maxWidth}, ends with an
      *                 ellipsis; otherwise it is left whole for a clip to cut
      * @param ruler    the ruler that shapes it
      * @return the layout
+     * @throws IllegalArgumentException when {@code maxLines} is below 1, or {@code maxWidth} is
+     *                                  negative or not a number
      */
     public static StyledLayout of(StyledText text, Base base, float maxWidth, int maxLines,
                                   boolean ellipsis, TextRuler ruler) {
@@ -112,16 +131,20 @@ public final class StyledLayout {
         if (maxLines < 1) {
             throw new IllegalArgumentException("maxLines must be 1 or more: " + maxLines);
         }
-        float limit = maxWidth > 0 && !Float.isNaN(maxWidth) ? maxWidth : UNBOUNDED;
+        if (Float.isNaN(maxWidth) || maxWidth < 0) {
+            throw new IllegalArgumentException("maxWidth must be 0 or more, or UNBOUNDED: " + maxWidth);
+        }
+        float limit = maxWidth;
         List<StyledText.Paragraph> source = text.paragraphs();
         float[] markerRoom = markerRoom(source, base, ruler);
+        Map<TextStyle, FontChoice> choices = new HashMap<>();
         List<ParagraphLayout> laid = new ArrayList<>(source.size());
         float y = 0;
         float widest = 0;
         int lines = 0;
         boolean cut = false;
         for (int i = 0; i < source.size() && lines < maxLines; i++) {
-            ParagraphLayout paragraph = new ParagraphLayout(source.get(i), base, ruler, markerRoom[i]);
+            ParagraphLayout paragraph = new ParagraphLayout(source.get(i), base, ruler, markerRoom[i], choices);
             if (i > 0) {
                 y += paragraph.style.spaceBefore();
             }
@@ -246,7 +269,9 @@ public final class StyledLayout {
     }
 
     /**
-     * Paints the text with every ink asked for its paint now.
+     * Paints the text with every ink asked for its paint now: a {@code Tone} in the application's
+     * palette, {@code Theme.current()}. A widget with a palette of its own answers its inks with
+     * the overload that takes a resolver, as a label does.
      *
      * @param canvas   where to paint
      * @param x        the box's left edge
@@ -288,10 +313,20 @@ public final class StyledLayout {
         Objects.requireNonNull(canvas, "canvas");
         Objects.requireNonNull(resolve, "resolve");
         Objects.requireNonNull(resolveBackground, "resolveBackground");
+        // Only the lines the clip shows: a long block in a scroll view paints its window of lines
+        // and not all of them. The clip is a promise of what will not show, so a line is skipped
+        // only when it lies wholly outside it.
+        Rect clip = canvas.clipBounds();
+        float clipTop = clip == null ? Float.NEGATIVE_INFINITY : clip.y() - y;
+        float clipBottom = clip == null ? Float.POSITIVE_INFINITY : clip.y() + clip.height() - y;
         for (ParagraphLayout paragraph : paragraphs) {
             for (int i = 0; i < paragraph.lines.size(); i++) {
-                paragraph.paintLine(canvas, paragraph.lines.get(i), i == 0, x, y, boxWidth, resolve,
-                        resolveBackground);
+                Line line = paragraph.lines.get(i);
+                float lineBottom = i + 1 < paragraph.lines.size() ? paragraph.lines.get(i + 1).top : line.bottom;
+                if (lineBottom < clipTop || line.top > clipBottom) {
+                    continue;
+                }
+                paragraph.paintLine(canvas, line, i == 0, x, y, boxWidth, resolve, resolveBackground);
             }
         }
     }
@@ -347,6 +382,7 @@ public final class StyledLayout {
         float ascent;
         float descent;
         float top;
+        float bottom;               // the line's box with its line spacing, not the paragraph's space after
         float baseline;
         float startOffset;          // the indent before the line, at its start edge
         boolean last;               // the paragraph's last line
@@ -354,6 +390,14 @@ public final class StyledLayout {
         @Nullable ShapedText ellipsis;
         @Nullable TextStyle ellipsisStyle;
         float ellipsisRaise;
+        // The line as painted at the room it was last painted in: computed once per room, since
+        // the order and the justification only change with it.
+        float paintedRoom = Float.NaN;
+        @Nullable List<Chunk> chunks;
+        float[] offsets = new float[0];     // each chunk's glyph origin, from the line's left
+        float[] boxStarts = new float[0];   // each chunk's box with the room beside it, from the left
+        float[] boxEnds = new float[0];
+        int[] reading = new int[0];         // the chunks in reading order
     }
 
     /** A piece of a line to place: a stretch of one shaping, and the room added on each side of it. */
@@ -378,7 +422,8 @@ public final class StyledLayout {
         final float listIndent;
         boolean ellipsized;
 
-        ParagraphLayout(StyledText.Paragraph source, Base base, TextRuler ruler, float markerRoom) {
+        ParagraphLayout(StyledText.Paragraph source, Base base, TextRuler ruler, float markerRoom,
+                        Map<TextStyle, FontChoice> choices) {
             this.source = source;
             this.style = source.style();
             this.text = source.text();
@@ -395,44 +440,65 @@ public final class StyledLayout {
             this.marker = markerText == null || drawnBullet != 0 ? null : ruler.shape(markerText, font, direction);
             this.listIndent = style.listOrNull() == null ? 0
                     : (style.level() + 1) * ParagraphStyle.LIST_INDENT_EMS * font.size() + markerRoom;
-            shape(base, ruler);
+            shape(base, ruler, choices);
         }
 
-        /** Splits the paragraph where the font or the bidi level changes, and shapes each stretch. */
-        private void shape(Base base, TextRuler ruler) {
+        /**
+         * Splits the paragraph where the font or the bidi level changes, and shapes each stretch
+         * once. The stretches are gathered first and shaped after, so a line of code whose tokens
+         * share a font and differ in colour shapes its text once, not once per token. A line
+         * separator belongs to no stretch: it is never drawn, no face has a glyph for it, and a
+         * face searched for one loads every fallback the application carries.
+         */
+        private void shape(Base base, TextRuler ruler, Map<TextStyle, FontChoice> choices) {
             if (text.isEmpty()) {
                 return;
             }
             Bidi bidi = new Bidi(text, direction == ShapedText.Direction.RTL
                     ? Bidi.DIRECTION_RIGHT_TO_LEFT : Bidi.DIRECTION_LEFT_TO_RIGHT);
+            List<int[]> spans = new ArrayList<>();          // start, end, level
+            List<FontChoice> spanChoices = new ArrayList<>();
+            List<Float> spanTracking = new ArrayList<>();
             for (StyledText.Run run : source.runs()) {
-                FontChoice choice = FontChoice.of(run.style(), base.font(), ruler);
+                FontChoice choice = choices.computeIfAbsent(run.style(),
+                        style -> FontChoice.of(style, base.font(), ruler));
                 int at = run.start();
                 while (at < run.end()) {
+                    if (text.charAt(at) == LINE_SEPARATOR) {
+                        at++;
+                        continue;
+                    }
                     byte level = (byte) bidi.getLevelAt(at);
                     int end = at + 1;
-                    while (end < run.end() && bidi.getLevelAt(end) == level) {
+                    while (end < run.end() && bidi.getLevelAt(end) == level
+                            && text.charAt(end) != LINE_SEPARATOR) {
                         end++;
                     }
-                    // Merge with the stretch before when the font and level are the same: a colour
-                    // change between two runs of one style splits nothing.
-                    ShapedText.Direction runDirection = (level & 1) != 0
-                            ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
-                    int from = at;
-                    if (!shapings.isEmpty()) {
-                        Shaping previous = shapings.get(shapings.size() - 1);
-                        if (previous.end == at && previous.level == level
-                                && previous.shaped.font().equals(choice.font) && previous.raise == choice.raise
-                                && previous.tracking == choice.tracking(text, at, end)) {
-                            from = previous.start;
-                            shapings.remove(shapings.size() - 1);
-                        }
+                    float tracking = choice.tracking(text, at, end);
+                    // Merge with the stretch before when the font, level, raise and tracking are
+                    // the same: a colour change between two runs of one style splits nothing.
+                    int last = spans.size() - 1;
+                    if (last >= 0 && spans.get(last)[1] == at && spans.get(last)[2] == level
+                            && spanChoices.get(last).font.equals(choice.font)
+                            && spanChoices.get(last).raise == choice.raise
+                            && spanTracking.get(last) == tracking) {
+                        spans.get(last)[1] = end;
+                    } else {
+                        spans.add(new int[] {at, end, level});
+                        spanChoices.add(choice);
+                        spanTracking.add(tracking);
                     }
-                    ShapedText shaped = ruler.shapeRun(text, from, end, choice.font, runDirection);
-                    shapings.add(new Shaping(from, end, level, shaped, choice.raise,
-                            choice.tracking(text, from, end), choice.decorations));
                     at = end;
                 }
+            }
+            for (int i = 0; i < spans.size(); i++) {
+                int[] span = spans.get(i);
+                FontChoice choice = spanChoices.get(i);
+                ShapedText.Direction runDirection = (span[2] & 1) != 0
+                        ? ShapedText.Direction.RTL : ShapedText.Direction.LTR;
+                ShapedText shaped = ruler.shapeRun(text, span[0], span[1], choice.font, runDirection);
+                shapings.add(new Shaping(span[0], span[1], (byte) span[2], shaped, choice.raise,
+                        spanTracking.get(i), choice.decorations));
             }
         }
 
@@ -460,10 +526,9 @@ public final class StyledLayout {
         float breakLines(float maxWidth, int room, boolean moreAfter, boolean ellipsis, float top,
                          TextRuler ruler) {
             int length = text.length();
-            BreakIterator breaks = limn.i18n.internal.LocaleServices.lineBreaks(I18n.locale());
-            breaks.setText(text);
-            BreakIterator clusters = BreakIterator.getCharacterInstance();
-            clusters.setText(text);
+            // Made only when a line has to be broken: a block laid out at no width limit, as a
+            // code block is, never asks for one.
+            BreakIterator breaks = null;
             float y = top;
             int start = 0;
             do {
@@ -485,20 +550,24 @@ public final class StyledLayout {
                     int end = trimEnd(start, stretch);
                     line.end = end;
                     next = length;
-                    boolean wider = available != UNBOUNDED && width(start, end) > available;
+                    boolean wider = available != UNBOUNDED && width(start, end) > available + FIT_SLACK;
                     boolean leftOut = afterStretch < length;
                     if (ellipsis && (moreAfter || wider || leftOut)) {
-                        ellipsize(line, available, clusters, ruler);
+                        ellipsize(line, available, ruler);
                     } else if (leftOut) {
                         ellipsized = true;
                     }
                 } else if (available == UNBOUNDED
-                        || width(start, trimEnd(start, stretch)) <= available) {
+                        || width(start, trimEnd(start, stretch)) <= available + FIT_SLACK) {
                     next = afterStretch;
                     line.end = trimEnd(start, stretch);
                     line.forced = separator >= 0;
                 } else {
-                    next = lineEnd(start, available, breaks, clusters);
+                    if (breaks == null) {
+                        breaks = limn.i18n.internal.LocaleServices.lineBreaks(I18n.locale());
+                        breaks.setText(text);
+                    }
+                    next = lineEnd(start, available, breaks);
                     line.end = trimEnd(start, next);
                     if (line.end == start && next > start && next < length) {
                         start = next; // a stretch of white space alone: no line for it
@@ -526,10 +595,10 @@ public final class StyledLayout {
         }
 
         /** The greedy break: the last opportunity whose line fits, else as many clusters as fit. */
-        private int lineEnd(int start, float available, BreakIterator breaks, BreakIterator clusters) {
+        private int lineEnd(int start, float available, BreakIterator breaks) {
             int best = -1;
             for (int b = breaks.following(start); b != BreakIterator.DONE; b = breaks.next()) {
-                if (width(start, trimEnd(start, b)) <= available) {
+                if (width(start, trimEnd(start, b)) <= available + FIT_SLACK) {
                     best = b;
                 } else {
                     break;
@@ -539,27 +608,43 @@ public final class StyledLayout {
                 return best;
             }
             // One word wider than the line: cut it between clusters, one at least.
-            int fit = clusters.following(start);
-            for (int c = fit; c != BreakIterator.DONE; c = clusters.next()) {
-                if (width(start, c) > available) {
+            int fit = nextClusterStop(start);
+            for (int c = fit; c < text.length(); ) {
+                c = nextClusterStop(c);
+                if (width(start, c) > available + FIT_SLACK) {
                     break;
                 }
                 fit = c;
             }
-            return fit == BreakIterator.DONE ? text.length() : fit;
+            return Math.min(fit, text.length());
+        }
+
+        /**
+         * The next place after {@code index} the text can be cut: the end of the cluster it is in,
+         * as the shaper made the clusters. A grapheme boundary of the platform's is not one: a
+         * conjunct the shaper draws as one glyph is two graphemes to it, and a cut between them
+         * drew the whole glyph past the line's end.
+         */
+        private int nextClusterStop(int index) {
+            for (Shaping s : shapings) {
+                if (index >= s.start && index < s.end) {
+                    return nextCluster(s, index);
+                }
+            }
+            return index + 1;
         }
 
         /** Cuts {@code line} so that it and an ellipsis fit {@code available}. */
-        private void ellipsize(Line line, float available, BreakIterator clusters, TextRuler ruler) {
+        private void ellipsize(Line line, float available, TextRuler ruler) {
             int at = Math.max(line.start, Math.min(line.end, text.length()) - 1);
             Shaping where = shapingAt(at);
             Font ellipsisFont = where != null ? where.shaped.font() : font;
             ShapedText mark = ruler.shape(TextRuler.ELLIPSIS, ellipsisFont, direction);
             float room = available == UNBOUNDED ? UNBOUNDED : available - mark.metrics().width();
             int cut = line.start;
-            for (int c = clusters.following(line.start); c != BreakIterator.DONE && c <= line.end;
-                    c = clusters.next()) {
-                if (room != UNBOUNDED && width(line.start, c) > room) {
+            for (int c = line.start; c < line.end; ) {
+                c = Math.min(nextClusterStop(c), line.end);
+                if (room != UNBOUNDED && width(line.start, c) > room + FIT_SLACK) {
                     break;
                 }
                 cut = c;
@@ -594,10 +679,13 @@ public final class StyledLayout {
                 gap = m.lineHeight() - m.ascent() - m.descent();
             }
             float natural = ascent + descent + gap;
-            float height = natural * style.lineSpacingFactor();
+            // Bounded, so that a spacing and a size each allowed alone never make a line, and
+            // every line after it, infinitely tall.
+            float height = Math.min(natural * style.lineSpacingFactor(), MAX_LINE_HEIGHT);
             line.ascent = ascent;
             line.descent = descent;
             line.top = top;
+            line.bottom = top + height;
             line.baseline = top + (height - natural) / 2 + ascent;
             return top + height;
         }
@@ -653,17 +741,8 @@ public final class StyledLayout {
             boolean rtl = direction == ShapedText.Direction.RTL;
             boolean alignRtl = alignedByParagraph ? rtl : baseRtl;
             float free = available - line.width;
-            float extra = 0;
-            if (align == ParagraphStyle.Alignment.JUSTIFY && free > 0) {
-                int spaces = 0;
-                for (int i = line.start; i < line.end; i++) {
-                    if (text.charAt(i) == ' ') {
-                        spaces++;
-                    }
-                }
-                extra = spaces == 0 ? 0 : free / spaces;
-            }
-            float fromLeft = extra > 0 ? 0 : switch (align) {
+            boolean justified = align == ParagraphStyle.Alignment.JUSTIFY && free > 0;
+            float fromLeft = justified ? 0 : switch (align) {
                 case START, JUSTIFY -> alignRtl ? free : 0;
                 case CENTER -> free / 2;
                 case END -> alignRtl ? 0 : free;
@@ -684,31 +763,20 @@ public final class StyledLayout {
                             baseline - DRAWN_BULLET_CENTRE_EMS * font.size(), font.size(), resolve.apply(ink));
                 }
             }
-            List<Chunk> chunks = visualChunks(line, extra);
-            float[] xs = new float[chunks.size()];
-            float cursor = left;
-            if (line.ellipsis != null && rtl) {
-                cursor += line.ellipsis.metrics().width(); // the ellipsis ends a right-to-left line at its left
+            if (!(line.paintedRoom == available) || line.chunks == null) {
+                arrange(line, available, justified ? free : 0, rtl);
             }
-            for (int i = 0; i < chunks.size(); i++) {
-                Chunk chunk = chunks.get(i);
-                cursor += chunk.extraBefore();
-                xs[i] = cursor - chunk.shaping().left(chunk.start(), chunk.end());
-                cursor += chunk.shaping().width(chunk.start(), chunk.end()) + chunk.extraAfter();
-            }
+            List<Chunk> chunks = line.chunks;
             // Backgrounds under every glyph of the line, then the glyphs and their lines, those in
             // reading order: a page written from this keeps a right-to-left line's words in the
             // order they are read, whatever order they stand in.
             for (int i = 0; i < chunks.size(); i++) {
-                paintChunk(canvas, chunks.get(i), xs[i], baseline, resolve, resolveBackground, true);
+                paintChunk(canvas, chunks.get(i), left + line.offsets[i], left + line.boxStarts[i],
+                        left + line.boxEnds[i], baseline, resolve, resolveBackground, true);
             }
-            Integer[] reading = new Integer[chunks.size()];
-            for (int i = 0; i < reading.length; i++) {
-                reading[i] = i;
-            }
-            Arrays.sort(reading, java.util.Comparator.comparingInt(i -> chunks.get(i).start()));
-            for (int i : reading) {
-                paintChunk(canvas, chunks.get(i), xs[i], baseline, resolve, resolveBackground, false);
+            for (int i : line.reading) {
+                paintChunk(canvas, chunks.get(i), left + line.offsets[i], left + line.boxStarts[i],
+                        left + line.boxEnds[i], baseline, resolve, resolveBackground, false);
             }
             if (line.ellipsis != null) {
                 float ex = rtl ? left : left + line.width - line.ellipsis.metrics().width();
@@ -716,6 +784,57 @@ public final class StyledLayout {
                 Ink ellipsisInk = s.inkOrNull() != null ? s.inkOrNull() : ink;
                 canvas.drawText(line.ellipsis, ex, baseline - line.ellipsisRaise, resolve.apply(ellipsisInk));
             }
+        }
+
+        /**
+         * Works out how the line stands in {@code room}: its chunks in screen order, where each
+         * one's glyphs start and its box with the justification's room beside it, from the line's
+         * left, and the order they are read in. Kept on the line until it is painted in another
+         * room, since nothing else changes it.
+         */
+        private void arrange(Line line, float room, float free, boolean rtl) {
+            float extra = 0;
+            if (free > 0) {
+                int spaces = 0;
+                for (int i = line.start; i < line.end; i++) {
+                    if (text.charAt(i) == ' ') {
+                        spaces++;
+                    }
+                }
+                extra = spaces == 0 ? 0 : free / spaces;
+            }
+            List<Chunk> chunks = visualChunks(line, extra);
+            int n = chunks.size();
+            float[] offsets = new float[n];
+            float[] boxStarts = new float[n];
+            float[] boxEnds = new float[n];
+            float cursor = 0;
+            if (line.ellipsis != null && rtl) {
+                cursor += line.ellipsis.metrics().width(); // the ellipsis ends a right-to-left line at its left
+            }
+            for (int i = 0; i < n; i++) {
+                Chunk chunk = chunks.get(i);
+                boxStarts[i] = cursor;
+                cursor += chunk.extraBefore();
+                offsets[i] = cursor - chunk.shaping().left(chunk.start(), chunk.end());
+                cursor += chunk.shaping().width(chunk.start(), chunk.end()) + chunk.extraAfter();
+                boxEnds[i] = cursor;
+            }
+            Integer[] order = new Integer[n];
+            for (int i = 0; i < n; i++) {
+                order[i] = i;
+            }
+            Arrays.sort(order, java.util.Comparator.comparingInt(i -> chunks.get(i).start()));
+            int[] reading = new int[n];
+            for (int i = 0; i < n; i++) {
+                reading[i] = order[i];
+            }
+            line.chunks = chunks;
+            line.offsets = offsets;
+            line.boxStarts = boxStarts;
+            line.boxEnds = boxEnds;
+            line.reading = reading;
+            line.paintedRoom = room;
         }
 
         /**
@@ -784,29 +903,61 @@ public final class StyledLayout {
             return next <= local ? index + 1 : s.start + next;
         }
 
-        /** Paints one chunk's backgrounds, or its glyphs and their lines, range by range of style. */
-        private void paintChunk(Canvas canvas, Chunk chunk, float x, float baseline,
-                                Function<Ink, Paint> resolve, Function<Ink, Paint> resolveBackground,
-                                boolean backgrounds) {
+        /** The first of the paragraph's runs that ends after {@code index}: runs are in order. */
+        private int firstRunAfter(int index) {
+            List<StyledText.Run> runs = source.runs();
+            int low = 0;
+            int high = runs.size();
+            while (low < high) {
+                int mid = (low + high) >>> 1;
+                if (runs.get(mid).end() <= index) {
+                    low = mid + 1;
+                } else {
+                    high = mid;
+                }
+            }
+            return low;
+        }
+
+        /**
+         * Paints one chunk's backgrounds, or its glyphs and their lines, range by range of style.
+         * A style that covers the whole chunk draws its background and its lines across the
+         * chunk's box, the room a justified space or a tracked letter took included, so they run
+         * on unbroken; one that covers part of it draws them under its glyphs.
+         */
+        private void paintChunk(Canvas canvas, Chunk chunk, float x, float boxStart, float boxEnd,
+                                float baseline, Function<Ink, Paint> resolve,
+                                Function<Ink, Paint> resolveBackground, boolean backgrounds) {
             Shaping s = chunk.shaping();
             float y = baseline - s.raise;
-            for (StyledText.Run run : source.runs()) {
+            List<StyledText.Run> runs = source.runs();
+            for (int r = firstRunAfter(chunk.start()); r < runs.size(); r++) {
+                StyledText.Run run = runs.get(r);
+                if (run.start() >= chunk.end()) {
+                    break;
+                }
                 int a = Math.max(chunk.start(), run.start());
                 int b = Math.min(chunk.end(), run.end());
                 if (a >= b) {
                     continue;
                 }
+                boolean whole = a == chunk.start() && b == chunk.end();
                 TextStyle look = run.style();
                 Ink textInk = look.inkOrNull() != null ? look.inkOrNull() : ink;
                 if (backgrounds) {
                     Ink behind = look.backgroundOrNull();
                     if (behind != null) {
                         TextMetrics m = s.shaped.metrics();
-                        int count = s.shaped.selection(a - s.start, b - s.start, s.boxes);
-                        for (int k = 0; k < count; k++) {
-                            canvas.fillRect(x + s.boxes[2 * k], y - m.ascent(),
-                                    s.boxes[2 * k + 1] - s.boxes[2 * k], m.ascent() + m.descent(),
-                                    resolveBackground.apply(behind));
+                        Paint paint = resolveBackground.apply(behind);
+                        if (whole) {
+                            canvas.fillRect(boxStart, y - m.ascent(), boxEnd - boxStart,
+                                    m.ascent() + m.descent(), paint);
+                        } else {
+                            int count = s.shaped.selection(a - s.start, b - s.start, s.boxes);
+                            for (int k = 0; k < count; k++) {
+                                canvas.fillRect(x + s.boxes[2 * k], y - m.ascent(),
+                                        s.boxes[2 * k + 1] - s.boxes[2 * k], m.ascent() + m.descent(), paint);
+                            }
                         }
                     }
                     continue;
@@ -818,7 +969,14 @@ public final class StyledLayout {
                 if (underline == TextStyle.Underline.NONE && !struck) {
                     continue;
                 }
-                int count = s.shaped.selection(a - s.start, b - s.start, s.boxes);
+                int count;
+                if (whole) {
+                    s.boxes[0] = boxStart - x;
+                    s.boxes[1] = boxEnd - x;
+                    count = 1;
+                } else {
+                    count = s.shaped.selection(a - s.start, b - s.start, s.boxes);
+                }
                 TextDecorations d = s.decorations;
                 for (int k = 0; k < count; k++) {
                     float x0 = x + s.boxes[2 * k];
@@ -837,6 +995,11 @@ public final class StyledLayout {
             }
         }
 
+        /**
+         * Draws a line under {@code [x0, x1)}. The dotted and wavy lines step by count, never by
+         * adding to a position: far along an unbroken line a float stops moving when a step is
+         * added to it, and a loop that waited for it to reach the end never ended.
+         */
         private static void drawUnderline(Canvas canvas, TextStyle.Underline kind, float x0, float x1,
                                           float top, float thickness, Paint paint) {
             float t = Math.max(thickness, 0.75f);
@@ -847,7 +1010,10 @@ public final class StyledLayout {
                     canvas.fillRect(x0, top + 2 * t, x1 - x0, t, paint);
                 }
                 case DOTTED -> {
-                    for (float at = x0; at < x1; at += 2 * t) {
+                    float step = 2 * t;
+                    int dots = steps(x1 - x0, step);
+                    for (int i = 0; i < dots; i++) {
+                        float at = x0 + i * step;
                         canvas.fillRect(at, top, Math.min(t, x1 - at), t, paint);
                     }
                 }
@@ -855,11 +1021,12 @@ public final class StyledLayout {
                     float amplitude = t * 1.25f;
                     float step = t * 2f;
                     float centre = top + amplitude;
+                    int waves = steps(x1 - x0, step);
                     float px = x0;
                     float py = centre;
                     boolean up = true;
-                    for (float at = x0 + step; px < x1; at += step) {
-                        float nx = Math.min(at, x1);
+                    for (int i = 1; i <= waves; i++) {
+                        float nx = Math.min(x0 + i * step, x1);
                         float ny = centre + (up ? -amplitude : amplitude) * ((nx - px) / step);
                         canvas.drawLine(px, py, nx, ny, t, paint);
                         px = nx;
@@ -869,6 +1036,14 @@ public final class StyledLayout {
                 }
                 default -> { }
             }
+        }
+
+        /** How many steps of {@code step} cover {@code length}, bounded. */
+        private static int steps(float length, float step) {
+            if (!(length > 0)) {
+                return 0;
+            }
+            return (int) Math.min(MAX_UNDERLINE_STEPS, Math.ceil(length / step));
         }
     }
 
@@ -881,17 +1056,30 @@ public final class StyledLayout {
             switch (style.baselineKind()) {
                 case SUPERSCRIPT -> {
                     TextDecorations face = ruler.decorations(font);
-                    raise = face.superscriptOffset();
-                    font = font.withSize(Math.max(1, face.superscriptSize()));
+                    raise = within(face.superscriptOffset(), -font.size(), font.size(), 0);
+                    font = font.withSize(within(face.superscriptSize(), 0.3f * font.size(), font.size(),
+                            font.size()));
                 }
                 case SUBSCRIPT -> {
                     TextDecorations face = ruler.decorations(font);
-                    raise = -face.subscriptOffset();
-                    font = font.withSize(Math.max(1, face.subscriptSize()));
+                    raise = -within(face.subscriptOffset(), -font.size(), font.size(), 0);
+                    font = font.withSize(within(face.subscriptSize(), 0.3f * font.size(), font.size(),
+                            font.size()));
                 }
                 default -> { }
             }
             return new FontChoice(font, raise, style.trackingEms(), ruler.decorations(font));
+        }
+
+        /**
+         * A face's figure kept between {@code low} and {@code high}, and {@code otherwise} when it
+         * is not a number: a malformed face's tables do not set text at a hundred ems, or throw.
+         */
+        private static float within(float value, float low, float high, float otherwise) {
+            if (!Float.isFinite(value)) {
+                return otherwise;
+            }
+            return Math.max(low, Math.min(high, value));
         }
 
         /** The tracking in points over {@code [from, to)}, or 0 where the text's letters join. */

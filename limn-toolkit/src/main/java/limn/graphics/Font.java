@@ -14,7 +14,8 @@ import limn.internal.lang.Checks;
  * {@value #REGULAR} regular, 500 medium, 600 semibold, {@value #BOLD} bold, 900 black. The face
  * drawn is the family's face nearest it, searched in the order a style sheet's font matching
  * searches (for 400: 400, then 500, then lighter, then heavier; above 500: heavier first, then
- * lighter); a variable face is drawn at the weight itself, within its range. {@link #isBold()}
+ * lighter); a variable face is drawn at the weight itself, to the nearest ten, within its range.
+ * {@link #isBold()}
  * is {@code weight >= 600}, the line a style sheet draws between a medium and a bold.
  *
  * @param family   typeface family, case-insensitive (ships "Roboto")

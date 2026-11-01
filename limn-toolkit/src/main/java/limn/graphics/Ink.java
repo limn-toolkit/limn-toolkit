@@ -11,6 +11,13 @@ import java.util.Objects;
  *
  * <p>An application can implement it for an ink of its own (a brand colour per tenant, say). It
  * is called on the UI thread, once per piece per paint, and should answer quickly.
+ *
+ * <p><b>It is given no palette.</b> An ink of the application's that follows the palette reads
+ * {@code Theme.current()}, the application's palette, and not the one a subtree or a printed page
+ * may set apart from it (a system's contrast palette, a document's own). A {@code Tone} in a label
+ * is drawn in the label's own palette, because the label answers it itself; a canvas of the
+ * application's that lays styled text out answers its tones the same way, through
+ * {@link StyledLayout#paint(Canvas, float, float, float, java.util.function.Function)}.
  */
 @FunctionalInterface
 public interface Ink {

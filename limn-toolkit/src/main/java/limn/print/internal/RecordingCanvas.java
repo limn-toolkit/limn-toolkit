@@ -42,6 +42,8 @@ public final class RecordingCanvas implements Canvas {
 
     private final Recording.Builder out;
     private final GlyphBank glyphs;
+    /** The shaping whose glyphs were collected last, so its ranges collect them once. */
+    private @Nullable ShapedText collected;
     private final float contentScale;
     private float frameWidth;
     private float frameHeight;
@@ -395,7 +397,11 @@ public final class RecordingCanvas implements Canvas {
         if (outside(x, y - metrics.ascent(), metrics.width(), metrics.ascent() + metrics.descent())) {
             return; // as a whole line: a clipped range is not read from the page either
         }
-        glyphs.collect(text);
+        if (collected != text) {
+            // One shaping drawn a range per colour is collected once, not once per range.
+            glyphs.collect(text);
+            collected = text;
+        }
         out.add(c -> c.drawText(text, charStart, charEnd, x, y, paint));
     }
 

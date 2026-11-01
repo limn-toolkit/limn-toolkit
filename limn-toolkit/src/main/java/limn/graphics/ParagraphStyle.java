@@ -9,9 +9,12 @@ import org.jspecify.annotations.Nullable;
  * line spacing, the list it belongs to, and the {@link TextStyle} its text inherits. Only what it
  * sets differs from the base the text is laid out with; immutable, built from {@link #of()}.
  *
- * <p><b>Start and end are the paragraph's own,</b> as everywhere in the toolkit: a paragraph that
- * reads right to left starts at the right, so its start indent is on the right, its list marker
- * hangs on the right, and {@link Alignment#START} puts it against the right edge.
+ * <p><b>Start and end follow the alignment's direction.</b> A paragraph that sets its own
+ * alignment is aligned, indented and given its marker in its own direction: one that reads right
+ * to left starts at the right, its start indent and its marker on the right. One that sets none
+ * takes the base's alignment, read in the base's direction, and its indent and marker stand at
+ * that edge, so a paragraph of Latin text in a right-to-left interface starts at the right, as a
+ * label's plain text does, and a marker never hangs at one edge with its item's text at the other.
  *
  * <p><b>A list is a marker and a level.</b> Consecutive list paragraphs number together: a
  * numbered paragraph counts on from the one before it at its level, a deeper level starts its own
@@ -21,7 +24,8 @@ import org.jspecify.annotations.Nullable;
  * {@link #LIST_INDENT_EMS} ems with its marker hanging in that room; a list whose widest marker
  * needs more room indents all its items by as much more. A numbered item can say its own number
  * ({@link #listNumber}), and the items after it count on from it: a list a code block interrupts
- * goes on at "3." after it.
+ * goes on at "3." after it. The number is that paragraph's alone: a paragraph that repeats its
+ * style, by {@code StyledText.Builder.paragraph()} or a line break in a piece, counts on.
  *
  * <p><b>A paragraph's direction is detected</b> from its first strong character, the base's
  * where it has none, unless it sets one ({@link #direction}): a line of code is read left to
@@ -64,6 +68,9 @@ public final class ParagraphStyle {
 
     /** The deepest list level, counting from 0. */
     public static final int MAX_LEVEL = 8;
+
+    /** The largest number a list item says, given or counted: a count past it stays at it. */
+    public static final int MAX_LIST_NUMBER = 999_999_999;
 
     private static final ParagraphStyle EMPTY = new ParagraphStyle(null, 0, 0, 0, 0, 0, Float.NaN,
             null, 0, 0, null, TextStyle.of());
@@ -187,12 +194,15 @@ public final class ParagraphStyle {
      * Gives a numbered item its own number; the items after it in the same list count on from it.
      * A bullet has no number and ignores it.
      *
-     * @param n 1 or more: "3." for 3 at the outermost level, "c." and "iii." below it
+     * @param n 1 to {@value #MAX_LIST_NUMBER}: "3." for 3 at the outermost level, "c." and "iii."
+     *          below it; or 0, for an item counted on from the one before, which takes off a
+     *          number this style was given
      * @return this style with that number
+     * @throws IllegalArgumentException when {@code n} is negative or above {@value #MAX_LIST_NUMBER}
      */
     public ParagraphStyle listNumber(int n) {
-        if (n < 1) {
-            throw new IllegalArgumentException("a list number must be 1 or more: " + n);
+        if (n < 0 || n > MAX_LIST_NUMBER) {
+            throw new IllegalArgumentException("a list number must be 0 to " + MAX_LIST_NUMBER + ": " + n);
         }
         return new ParagraphStyle(alignment, startIndent, endIndent, firstLineIndent, spaceBefore,
                 spaceAfter, lineSpacing, list, level, n, direction, text);

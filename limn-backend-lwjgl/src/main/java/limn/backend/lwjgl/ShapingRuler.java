@@ -339,6 +339,9 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
         builder.glyph(glyphId, cluster - shift, advance, xOffset, yOffset);
     }
 
+    /** The longest whole paragraph {@link #shapeRun} hands to the memo. */
+    private static final int MEMO_MAX_RUN = 256;
+
     /**
      * Shapes {@code [start, end)} of {@code paragraph} with the paragraph as the shaper's context:
      * the run is itemized by script and face as a line is, and every piece is shaped by HarfBuzz
@@ -356,7 +359,10 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
             throw new IndexOutOfBoundsException("run [" + start + ", " + end + ") of a paragraph of "
                     + paragraph.length());
         }
-        if (start == 0 && end == paragraph.length()) {
+        // A short whole paragraph goes through the memo, as a label's line does. A long one does
+        // not: a document's paragraphs walked through it would evict the screen's working set,
+        // and its layout is held by whoever laid it out.
+        if (start == 0 && end == paragraph.length() && paragraph.length() <= MEMO_MAX_RUN) {
             return shape(paragraph, font, direction);
         }
         limn.concurrent.Ui.checkUiThread();
@@ -395,8 +401,11 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
         if (handle == null) {
             return fallback;
         }
-        float scale = font.size() / face.unitsPerEm();
-        return HarfBuzzShaper.decorations(handle, scale, fallback);
+        int unitsPerEm = face.unitsPerEm();
+        if (unitsPerEm <= 0) {
+            return fallback; // a malformed head table: its figures cannot be scaled
+        }
+        return HarfBuzzShaper.decorations(handle, font.size() / unitsPerEm, fallback);
     }
 
     // ------------------------------------------------------------------ itemization

@@ -376,7 +376,7 @@ with `StyledLayout.of(text, base, width, maxLines, ellipsis, textRuler())` and c
 sheet searches (for 400: 400, then 500, then lighter, then heavier; above 500: heavier first), so
 a family without a 600 draws its 700. The bundled Roboto has twelve faces, from Thin (100) to Black
 (900) with their italics. A system family is chosen by each face's declared weight, and a variable
-face is drawn at the weight itself, anywhere in its range.
+face is drawn at the weight itself, to the nearest ten, anywhere in its range.
 
 `Font.MONOSPACE_FAMILY` is the monospace face, every character one width: inline code, a reference
 number, figures that must line up. It is the bundled Roboto Mono, upright and italic, at any weight

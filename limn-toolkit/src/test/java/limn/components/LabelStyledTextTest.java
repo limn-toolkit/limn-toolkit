@@ -171,6 +171,17 @@ class LabelStyledTextTest extends ComponentTestBase {
     }
 
     @Test
+    void aChangeOfStyleAloneRenamesNothingAndANewTextDoes() {
+        Label label = new Label("").setText(StyledText.of("Due today", TextStyle.of().ink(RED)));
+        List<limn.scene.Change.Aspect> seen = new java.util.ArrayList<>();
+        label.observeChanges((source, change) -> seen.add(change.aspect()));
+        label.setText(StyledText.of("Due today", TextStyle.of().bold()));
+        assertTrue(!seen.contains(limn.scene.Change.Aspect.NAME), "the same words: " + seen);
+        label.setText(StyledText.of("Paid", TextStyle.of().bold()));
+        assertTrue(seen.contains(limn.scene.Change.Aspect.NAME), "other words: " + seen);
+    }
+
+    @Test
     void aPageCutsAStyledLabelBetweenItsLines() {
         Label label = new Label("").setText(StyledText.builder().append("one").paragraph().append("two")
                 .paragraph().append("three").build()).setWrap(true).setAlign(Label.HAlign.START, Label.VAlign.TOP);

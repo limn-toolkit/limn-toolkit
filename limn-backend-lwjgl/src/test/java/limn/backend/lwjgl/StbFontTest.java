@@ -342,4 +342,20 @@ class StbFontTest {
             throw new AssertionError(failure);
         }
     }
+
+    @Test
+    void anOs2OffsetNearTheTopOfAnIntReadsAsNoWeightAndThrowsNothing() {
+        // A table directory of one record: 'OS/2' at an offset that made "table + 6" wrap negative.
+        java.nio.ByteBuffer font = java.nio.ByteBuffer.allocate(64).order(java.nio.ByteOrder.BIG_ENDIAN);
+        font.putShort(4, (short) 1);
+        font.putInt(12, 0x4F532F32);
+        for (int offset : new int[] {Integer.MAX_VALUE - 5, Integer.MAX_VALUE, -8, 60}) {
+            font.putInt(20, offset);
+            assertEquals(0, StbFont.readWeightClass(font, 0), "offset " + offset);
+        }
+        font.putInt(20, 40);
+        font.putShort(44, (short) 600);
+        assertEquals(600, StbFont.readWeightClass(font, 0), "a table inside the file is read");
+        assertEquals(0, StbFont.readWeightClass(font, Integer.MAX_VALUE - 4), "a directory past the end");
+    }
 }

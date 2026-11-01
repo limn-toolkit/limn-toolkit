@@ -3,7 +3,8 @@
 - **Status:** **Accepted and implemented**, 2026-10-30. Proposed and accepted the same day: the
   owner set the scope (section 1) and answered the seven questions of section 4 (section 6), and
   the build followed (section 7, with what departed from the text). Owed: the owner's publication
-  of `limn-fonts-roboto` 2.138.1 and the catalog line that takes it (section 7.4). This reopens,
+  of `limn-fonts-roboto` 2.138.1 and the catalog line that takes it (section 7.4), and the
+  owner took the three choices a review of the whole branch left (section 7.6). This reopens,
   for display only, the "rich text" that ADR 067 refused; an editor stays out (the owner: a distant
   future). [ADR 084](084-code-and-markdown-are-shown-by-projects-outside-the-toolkit-and-the-toolkit-carries-only-what-they-need.md)
   (2026-10-31) makes a line separator (U+2028) a line break inside its paragraph, and adds a
@@ -416,3 +417,68 @@ thirteen defects, each confirmed in the code, fixed with a test where one could 
   the search, which lands on the next nearest (no test: the jar always has the faces it lists).
 - **Bold text rescued by a fallback face** was recognized by "bold" in its face's name, which
   "Roboto Black" and an instance at 700 lack; a face's weight now decides, read from its `OS/2`.
+
+### 7.6 What a review of the whole branch found (2026-10-31)
+
+After ADR 084 was built, four reviewers read the branch whole, one each for correctness, hostile
+input, cost and the public API, and a fifth agent per dimension tried to refute each finding in
+the code. Forty-one findings were confirmed and none refuted, none grave; once duplicates are
+merged, twenty-seven defects, all fixed, and three choices for the owner.
+
+- **The measure and the layout disagreed by one unit in the last place.** A paragraph with an
+  indent measured at indent plus text, and at that width the room was the width less the indent,
+  which floating point can make a unit short of the text: a list item that fitted was cut with an
+  ellipsis. A line now fits within a thousandth of a point (`StyledLayoutTest`, which fails
+  without it).
+- **A paragraph of many colours in one font was shaped once per colour,** each run merged into
+  the shaping before it and the whole prefix shaped again: quadratic in the tokens of a code line.
+  Stretches are gathered first and each shaped once.
+- **A cut between clusters used the platform's graphemes,** which split what the shaper draws as
+  one glyph (a Devanagari conjunct): the glyph was drawn whole past the line's end and the ellipsis
+  over it. Cuts now fall on the shaper's own cluster stops.
+- **A line separator went to the shaper,** where no face has it, which made the font store load
+  every fallback the application carries and lay everything out again. It belongs to no shaping.
+- **Underlines, strike-throughs and backgrounds broke** at every widened space of a justified
+  line and after every tracked letter; a style that covers a whole piece now draws across its box.
+- **A list item's own number repeated** on every paragraph that repeated its style
+  (`paragraph()`, a line break in a piece), and a style given a number could not lose it. The
+  number is the first paragraph's; `listNumber(0)` counts on; numbers stop at
+  `ParagraphStyle.MAX_LIST_NUMBER` instead of wrapping negative; a number is never grouped
+  ("1000.", not "1,000.").
+- **A private-use character in a translated pattern** (an icon font's glyph) was read as an
+  argument's mark. The mark is now a noncharacter followed by the private-use index.
+- **A styled label read its text anew on every paint,** formatting every pattern; it is read
+  once per language (`I18n.epoch()`). A layout at a width the unbroken one fits reuses it rather
+  than shaping again; a change of style alone no longer tells readers of a new name.
+- **Each style made a new font on every layout,** which missed the font store's memo, keyed by
+  identity; a style that sets no font answers its base, and one that does keeps its last answer.
+- **Every line was painted, wherever the clip was;** lines outside it are skipped. A line's
+  order on screen and its justification are worked out once per width, and a range drawn on the
+  screen, on a page or into a recording visits only its own glyphs (the screen's by bisection over
+  a run's clusters, monotone at HarfBuzz's default level).
+- **Hostile values:** a dotted or wavy underline far along a line looped forever (a float stopped
+  moving); it steps by count. A size and a scale each allowed alone multiplied to infinity or to
+  nothing; a font stays between 0.1 and 100,000 points and a line under a million. A face with no
+  units per em, or raised-text figures that are not numbers, no longer throws; raised text stays
+  between a third and a whole em. An `OS/2` offset near the top of an int wrapped a bounds check
+  and threw on every shaping. A variable face made an instance per integer weight and kept it;
+  instances are made at the nearest ten. A long paragraph no longer passes through the shaper's
+  memo for short lines.
+- **Smaller:** a monospace bold drawn where HarfBuzz did not load is drawn synthetic bold rather
+  than regular; `StyledLayout.of` refuses a negative or NaN width and breaks after every cluster
+  at 0; `TextStyle.toString` shows the line inks; two Javadocs said "in the text's ink" where an
+  inherited line ink wins, and `ParagraphStyle`'s said start and end were always the paragraph's
+  own, where a paragraph that sets no alignment follows the base (7.2).
+
+Three choices were the owner's, and the owner took all three recommendations the same day:
+
+1. **`Builder.append(StyledText)` into an empty builder keeps the first paragraph's style,** as a
+   first `paragraph` call styles the first paragraph, so texts put together lose none of their
+   styles; after text, the first paragraph still continues the open one.
+2. **`TextStyle.bold()` is at least bold,** as `Font.bold()` is: 700, or the inherited weight
+   where that is heavier, so a word made bold inside a heading set in Black stays Black.
+   `weight(int)` sets a weight exactly; `isAtLeastBold()` tells the two apart.
+3. **An `Ink` keeps its signature, with no palette.** An application's own ink reads
+   `Theme.current()`; a label answers its tones in its own palette, and a canvas of the
+   application's does the same through `StyledLayout.paint`'s resolver. `Ink`'s Javadoc says so.
+   Putting the palette in the signature would change a public interface for a rare need.

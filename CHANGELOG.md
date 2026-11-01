@@ -20,13 +20,14 @@ Maven Central say which number that was.
   lands wherever the translation puts its placeholder. A paragraph is shaped as one and split only
   where the font changes, so a colour changed inside a word, in any script, leaves its glyphs as
   they are. Wrap, the line limit, the ellipsis, alignment and the page cuts of a printed document
-  work as they do on plain text; a reader hears the plain text with the list markers. It is for
+  work as they do on plain text; a reader hears the plain text with the list markers.
+  `TextStyle.bold()` is at least bold over the text around it, as `Font.bold()` is. It is for
   showing only: there is no editable styled text. `StyledLayout` lays one out for an application's
   own canvas (ADR 083).
 - `Font` carries a weight from 1 to 1000 (`withWeight`, `Font.REGULAR`, `Font.BOLD`), drawn by the
   family's face nearest it in the order a style sheet searches. A variable face is drawn at the
-  weight itself, anywhere in its range: shaped and rasterized by HarfBuzz at that instance, and
-  outlined at it on a printed page.
+  weight itself, to the nearest ten, anywhere in its range: shaped and rasterized by HarfBuzz at
+  that instance, and outlined at it on a printed page.
 - `Ink`, what styled text is drawn in, asked for on every paint: a `Color` is its own ink and a
   `Tone` is one, so text styled in a tone follows a change of palette.
 - `Label.setIconPosition`: the icon before the text (the default), after it, above it or below it.

@@ -193,13 +193,17 @@ public final class Label extends Widget<Label> {
     private int styledLimit;
     private boolean styledEllipsis;
     private StyledLayout.@Nullable Base styledBase;
-    private String styledRead = "";
+    private long styledEpoch = -1;
     // The unbroken layout a one-line label is measured with, held apart from the one it is laid
     // out and painted with: in one slot the two would replace each other on every pass, and the
     // text would be shaped twice per pass for nothing.
     private @Nullable StyledLayout styledNatural;
     private StyledLayout.@Nullable Base styledNaturalBase;
-    private String styledNaturalRead = "";
+    private long styledNaturalEpoch = -1;
+    // The styled text's plain text as a reader hears it, read once per language: reading it formats
+    // every translated pattern and counts the markers, which no paint should do.
+    private String styledReader = "";
+    private long styledReaderEpoch = -1;
     private int styledNaturalLimit;
     private boolean styledNaturalEllipsis;
 
@@ -588,13 +592,31 @@ public final class Label extends Widget<Label> {
         if (newText.equals(styled)) {
             return this;
         }
+        boolean wasStyled = styled != null;
         styled = newText;
         styledLayout = null;
         styledNatural = null;
-        this.text = I18nString.literal(newText.readerText());
+        styledReaderEpoch = -1;
+        String read = styledReaderText(newText);
+        boolean renamed = !wasStyled || !read.equals(text.get());
+        this.text = I18nString.literal(read);
         markNeedsLayoutInPlace();
-        notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
+        // A change of style alone renames nothing: a reader is told of a new name only when what
+        // it hears moved. An ink has no value equality, so a status rebuilt alike is never equal.
+        if (renamed) {
+            notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
+        }
         return this;
+    }
+
+    /** The styled text's reader text in the language now, read again only when the language moved. */
+    private String styledReaderText(StyledText value) {
+        long epoch = I18n.epoch();
+        if (styledReaderEpoch != epoch) {
+            styledReader = value.readerText();
+            styledReaderEpoch = epoch;
+        }
+        return styledReader;
     }
 
     /** @return the styled text this label shows, or {@code null} when it shows plain text */
@@ -609,25 +631,40 @@ public final class Label extends Widget<Label> {
      */
     private StyledLayout styledLayout(StyledText value, Font f, float width, int limit, boolean ellipsis) {
         StyledLayout.Base base = new StyledLayout.Base(f, LABEL_INK, styledAlignment(), neutralBase());
-        String read = value.readerText();
+        // The language's epoch stands for the text as it reads: a text built from translated
+        // strings reads anew only when it moves, and a new text drops both layouts.
+        long epoch = I18n.epoch();
         TextRuler ruler = textRuler();
+        StyledLayout natural = styledNatural;
+        boolean naturalHolds = natural != null && limit == styledNaturalLimit
+                && ellipsis == styledNaturalEllipsis && base.equals(styledNaturalBase)
+                && epoch == styledNaturalEpoch && natural.isCurrent(ruler);
         if (width == StyledLayout.UNBOUNDED) {
-            StyledLayout natural = styledNatural;
-            if (natural == null || limit != styledNaturalLimit || ellipsis != styledNaturalEllipsis
-                    || !base.equals(styledNaturalBase) || !read.equals(styledNaturalRead)
-                    || !natural.isCurrent(ruler)) {
+            if (!naturalHolds) {
                 natural = StyledLayout.of(value, base, width, limit, ellipsis, ruler);
                 styledNatural = natural;
                 styledNaturalLimit = limit;
                 styledNaturalEllipsis = ellipsis;
                 styledNaturalBase = base;
-                styledNaturalRead = read;
+                styledNaturalEpoch = epoch;
             }
+            return natural;
+        }
+        // Laid out at least as wide as it measured unbroken, nothing would break or be cut that
+        // was not: the measure's layout serves, and the text is not shaped a second time.
+        if (naturalHolds && !natural.isTruncated() && natural.width() <= width) {
+            // Held as the laid-out layout too: the baseline, the page cuts and the paint read it.
+            styledLayout = natural;
+            styledWidth = width;
+            styledLimit = limit;
+            styledEllipsis = ellipsis;
+            styledBase = base;
+            styledEpoch = epoch;
             return natural;
         }
         StyledLayout held = styledLayout;
         if (held == null || Float.compare(width, styledWidth) != 0 || limit != styledLimit
-                || ellipsis != styledEllipsis || !base.equals(styledBase) || !read.equals(styledRead)
+                || ellipsis != styledEllipsis || !base.equals(styledBase) || epoch != styledEpoch
                 || !held.isCurrent(ruler)) {
             held = StyledLayout.of(value, base, width, limit, ellipsis, ruler);
             styledLayout = held;
@@ -635,7 +672,7 @@ public final class Label extends Widget<Label> {
             styledLimit = limit;
             styledEllipsis = ellipsis;
             styledBase = base;
-            styledRead = read;
+            styledEpoch = epoch;
         }
         return held;
     }
@@ -1120,7 +1157,7 @@ public final class Label extends Widget<Label> {
         if (styled != null) {
             lines.clear();
             styledLayout(styled, f, Math.max(1, textWidth), limit, overflow == Overflow.ELLIPSIS);
-            String read = styled.readerText();
+            String read = styledReaderText(styled);
             if (!read.equals(text.get())) {
                 // The language moved under a text built from translated strings: what a reader
                 // hears follows it.

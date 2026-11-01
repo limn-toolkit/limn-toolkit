@@ -445,6 +445,11 @@ final class PdfCanvas implements Canvas {
     }
 
     /** Writes one shaped line: its glyphs as Type 3 codes, its glyphless clusters as their pieces. */
+    // Where each cluster of the last shaping written ends: a paragraph of many colours is one
+    // shaping written a range per colour, and every range asks the same question of it.
+    private @Nullable ShapedText endsFor;
+    private int[] ends = new int[0];
+
     private final class TextWriter {
         private final ShapedText text;
         private final int start;
@@ -481,8 +486,11 @@ final class PdfCanvas implements Canvas {
                         .append(">>BDC\n");
             }
             int[] ends = clusterEnds();
-            boolean[] first = new boolean[value.length() + 1];
+            boolean[] first = new boolean[end - start + 1]; // by offset from start
             for (ShapedText.Run run : text.runs()) {
+                if (run.charEnd() <= start || run.charStart() >= end) {
+                    continue;
+                }
                 GlyphBank.Face face = glyphs.keptFace(run.faceId());
                 for (int g = run.glyphStart(); g < run.glyphEnd(); g++) {
                     int glyph = text.glyphId(g);
@@ -497,8 +505,8 @@ final class PdfCanvas implements Canvas {
                         continue;
                     }
                     String chars = "";
-                    if (from >= 0 && from < first.length && !first[from]) {
-                        first[from] = true;
+                    if (!first[from - start]) {
+                        first[from - start] = true;
                         int to = Math.min(value.length(), Math.max(from, ends[from]));
                         chars = value.substring(from, to);
                     }
@@ -521,21 +529,29 @@ final class PdfCanvas implements Canvas {
                     return true;
                 }
             }
-            for (int g = 0; g < text.glyphCount(); g++) {
-                int cluster = text.glyphCluster(g);
-                if (cluster < start || cluster >= end) {
+            for (ShapedText.Run run : text.runs()) {
+                if (run.charEnd() <= start || run.charStart() >= end) {
                     continue;
                 }
-                if (cluster <= last || text.glyphId(g) == ShapedText.NO_GLYPH) {
-                    return true;
+                for (int g = run.glyphStart(); g < run.glyphEnd(); g++) {
+                    int cluster = text.glyphCluster(g);
+                    if (cluster < start || cluster >= end) {
+                        continue;
+                    }
+                    if (cluster <= last || text.glyphId(g) == ShapedText.NO_GLYPH) {
+                        return true;
+                    }
+                    last = cluster;
                 }
-                last = cluster;
             }
             return false;
         }
 
-        /** For each char offset that starts a cluster, where the cluster ends. */
+        /** For each char offset that starts a cluster, where the cluster ends; once per shaping. */
         private int[] clusterEnds() {
+            if (endsFor == text) {
+                return ends;
+            }
             String value = text.text();
             int[] ends = new int[value.length() + 1];
             java.util.TreeSet<Integer> starts = new java.util.TreeSet<>();
@@ -555,6 +571,8 @@ final class PdfCanvas implements Canvas {
                     }
                 }
             }
+            endsFor = text;
+            PdfCanvas.this.ends = ends;
             return ends;
         }
 

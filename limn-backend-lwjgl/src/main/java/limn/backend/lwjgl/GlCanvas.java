@@ -2206,10 +2206,22 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         float baselineDevY = snap ? Math.round(t.y(x, y)) : 0;
         StbFont primary = fontStore.resolve(font);
 
+        boolean whole = charStart <= 0 && charEnd >= text.text().length();
         for (limn.graphics.ShapedText.Run run : text.runs()) {
+            if (run.charEnd() <= charStart || run.charStart() >= charEnd) {
+                continue; // a run wholly outside the range
+            }
             StbFont face = fontStore.faceById(run.faceId());
-            for (int g = run.glyphStart(); g < run.glyphEnd(); g++) {
+            // A range of a long shaping (a paragraph of many colours is one shaping, drawn a range
+            // per colour) visits its own glyphs only. HarfBuzz's default cluster level keeps a
+            // run's clusters monotone in the run's direction, so the range's glyphs are one span:
+            // found by bisection, ended at the first glyph past it.
+            int first = whole ? run.glyphStart() : firstGlyphIn(text, run, charStart, charEnd);
+            for (int g = first; g < run.glyphEnd(); g++) {
                 int cluster = text.glyphCluster(g);
+                if (!whole && (run.rtl() ? cluster < charStart : cluster >= charEnd)) {
+                    break;
+                }
                 if (cluster < charStart || cluster >= charEnd) {
                     continue; // another range's glyph: drawn by that range's call, in its paint
                 }
@@ -3307,5 +3319,26 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         boolean contourClosed(int contour) {
             return closed[contour];
         }
+    }
+
+    /**
+     * The first glyph of {@code run} whose cluster may lie in {@code [from, to)}: clusters climb
+     * through a left-to-right run and fall through a right-to-left one.
+     */
+    private static int firstGlyphIn(limn.graphics.ShapedText text, limn.graphics.ShapedText.Run run,
+                                    int from, int to) {
+        int low = run.glyphStart();
+        int high = run.glyphEnd();
+        while (low < high) {
+            int mid = (low + high) >>> 1;
+            int cluster = text.glyphCluster(mid);
+            boolean before = run.rtl() ? cluster >= to : cluster < from;
+            if (before) {
+                low = mid + 1;
+            } else {
+                high = mid;
+            }
+        }
+        return low;
     }
 }

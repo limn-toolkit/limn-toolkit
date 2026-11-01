@@ -65,7 +65,7 @@ public final class TextStyle {
     private final @Nullable String family;
     private final float size;       // NaN: inherited
     private final float scale;      // NaN: inherited (1)
-    private final int weight;       // 0: inherited
+    private final int weight;       // 0: inherited; AT_LEAST_BOLD: bold() over what is inherited
     private final @Nullable Boolean italic;
     private final @Nullable Ink ink;
     private final @Nullable Ink background;
@@ -75,6 +75,22 @@ public final class TextStyle {
     private final @Nullable Ink strikethroughInk;
     private final @Nullable Baseline baseline;
     private final float tracking;   // NaN: inherited (0)
+    /**
+     * The last {@link #fontOver} answer and the base it was for, compared by identity: a label's
+     * base font is one object across its paints, and the font store's memo is keyed by identity,
+     * so a new font per layout missed it on every run. Racy and harmless: a lost write recomputes.
+     */
+    private transient @Nullable FontMemo fontMemo;
+
+    private record FontMemo(Font base, Font font) {
+    }
+
+    /** {@link #bold()}'s weight: {@value Font#BOLD}, or the inherited weight where that is heavier. */
+    private static final int AT_LEAST_BOLD = -1;
+
+    /** The smallest and the largest em a style makes, whatever sizes and scales multiply to. */
+    private static final float MIN_POINTS = 0.1f;
+    private static final float MAX_POINTS = 100_000f;
 
     private TextStyle(@Nullable String family, float size, float scale, int weight,
                       @Nullable Boolean italic, @Nullable Ink ink, @Nullable Ink background,
@@ -159,9 +175,16 @@ public final class TextStyle {
                 strikethrough, strikethroughInk, baseline, tracking);
     }
 
-    /** @return this style bold ({@value Font#BOLD}) */
+    /**
+     * Bold over the text around it: {@value Font#BOLD}, or the weight it inherits where that is
+     * heavier, as {@link Font#bold()} is, so a word made bold inside a heading set in Black stays
+     * Black. {@link #weight(int)} sets a weight exactly.
+     *
+     * @return this style bold
+     */
     public TextStyle bold() {
-        return weight(Font.BOLD);
+        return with(family, size, scale, AT_LEAST_BOLD, italic, ink, background, underline, underlineInk,
+                strikethrough, strikethroughInk, baseline, tracking);
     }
 
     /** @return this style italic */
@@ -206,14 +229,18 @@ public final class TextStyle {
 
     // ------------------------------------------------------------------ the lines
 
-    /** @return this style underlined with one line, in the text's ink */
+    /**
+     * @return this style underlined with one line, in the line's ink where one is set here or
+     *         inherited, else the text's
+     */
     public TextStyle underline() {
         return underline(Underline.SINGLE);
     }
 
     /**
      * @param kind how the text is underlined; {@link Underline#NONE} takes an inherited one off
-     * @return this style underlined so, in the text's ink
+     * @return this style underlined so, in the line's ink where one is set here or inherited, else
+     *         the text's
      */
     public TextStyle underline(Underline kind) {
         Objects.requireNonNull(kind, "kind");
@@ -233,7 +260,10 @@ public final class TextStyle {
                 strikethrough, strikethroughInk, baseline, tracking);
     }
 
-    /** @return this style struck through, in the text's ink */
+    /**
+     * @return this style struck through, in the line's ink where one is set here or inherited,
+     *         else the text's
+     */
     public TextStyle strikethrough() {
         return with(family, size, scale, weight, italic, ink, background, underline, underlineInk,
                 true, strikethroughInk, baseline, tracking);
@@ -316,7 +346,10 @@ public final class TextStyle {
         return with(family != null ? family : parent.family,
                 Float.isNaN(size) ? parent.size : size,
                 combinedScale,
-                weight != 0 ? weight : parent.weight,
+                weight == 0 ? parent.weight
+                        : weight != AT_LEAST_BOLD ? weight
+                        : parent.weight == 0 || parent.weight == AT_LEAST_BOLD ? AT_LEAST_BOLD
+                        : Math.max(parent.weight, Font.BOLD),
                 italic != null ? italic : parent.italic,
                 ink != null ? ink : parent.ink,
                 background != null ? background : parent.background,
@@ -338,10 +371,23 @@ public final class TextStyle {
      */
     public Font fontOver(Font base) {
         Objects.requireNonNull(base, "base");
+        if (family == null && Float.isNaN(size) && Float.isNaN(scale) && weight == 0 && italic == null) {
+            return base;
+        }
+        FontMemo memo = fontMemo;
+        if (memo != null && memo.base() == base) {
+            return memo.font();
+        }
+        // Kept between bounds: a size and a scale each allowed alone multiply to infinity or to
+        // nothing, which no font can be.
         float points = (Float.isNaN(size) ? base.size() : size) * (Float.isNaN(scale) ? 1 : scale);
-        return new Font(family != null ? family : base.family(), points,
-                weight != 0 ? weight : base.weight(),
+        points = Math.max(MIN_POINTS, Math.min(MAX_POINTS, points));
+        Font font = new Font(family != null ? family : base.family(), points,
+                weight == 0 ? base.weight()
+                        : weight == AT_LEAST_BOLD ? Math.max(base.weight(), Font.BOLD) : weight,
                 italic != null ? italic : base.isItalic());
+        fontMemo = new FontMemo(base, font);
+        return font;
     }
 
     /** @return the family set, or {@code null} for inherited */
@@ -349,9 +395,17 @@ public final class TextStyle {
         return family;
     }
 
-    /** @return the weight set, or {@code 0} for inherited */
+    /**
+     * @return the weight set exactly, {@value Font#BOLD} for {@link #bold()} (which is at least
+     *         that, see {@link #isAtLeastBold()}), or {@code 0} for inherited
+     */
     public int weightOrZero() {
-        return weight;
+        return weight == AT_LEAST_BOLD ? Font.BOLD : weight;
+    }
+
+    /** @return whether this style is {@link #bold()}: bold, or the inherited weight if heavier */
+    public boolean isAtLeastBold() {
+        return weight == AT_LEAST_BOLD;
     }
 
     /** @return the ink set, or {@code null} for inherited */
@@ -436,7 +490,7 @@ public final class TextStyle {
             out.append("scale=").append(scale).append(' ');
         }
         if (weight != 0) {
-            out.append("weight=").append(weight).append(' ');
+            out.append("weight=").append(weight == AT_LEAST_BOLD ? "bold" : String.valueOf(weight)).append(' ');
         }
         if (italic != null) {
             out.append("italic=").append(italic).append(' ');
@@ -450,8 +504,14 @@ public final class TextStyle {
         if (underline != null) {
             out.append("underline=").append(underline).append(' ');
         }
+        if (underlineInk != null) {
+            out.append("underlineInk=").append(underlineInk).append(' ');
+        }
         if (strikethrough != null) {
             out.append("strikethrough=").append(strikethrough).append(' ');
+        }
+        if (strikethroughInk != null) {
+            out.append("strikethroughInk=").append(strikethroughInk).append(' ');
         }
         if (baseline != null) {
             out.append("baseline=").append(baseline).append(' ');

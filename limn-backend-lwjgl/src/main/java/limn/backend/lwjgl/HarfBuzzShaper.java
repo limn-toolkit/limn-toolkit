@@ -312,6 +312,9 @@ final class HarfBuzzShaper {
             return otherwise;
         }
         float value = out.get(0) * scale;
+        if (!Float.isFinite(value)) {
+            return otherwise;
+        }
         return positive && value <= 0 ? otherwise : value;
     }
 

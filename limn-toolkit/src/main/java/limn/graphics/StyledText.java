@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import limn.i18n.I18nString;
-import limn.i18n.NumberFormats;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -90,9 +89,16 @@ public final class StyledText {
     private record Block(ParagraphStyle style, List<Piece> pieces) {
     }
 
-    /** The private-use characters that stand for a pattern's arguments while it is formatted. */
     private static final char LINE_SEPARATOR = '\u2028';
-    private static final char ARGUMENT_MARK = '';
+    /**
+     * What stands for a pattern's argument while it is formatted: a noncharacter, which Unicode
+     * keeps for a program's own use and no text carries, then a private-use character whose
+     * offset from {@link #ARGUMENT_MARK} is the argument's index. The private-use character alone
+     * was the mark once, and a translation holding an icon font's glyph in that range had the
+     * glyph read as an argument.
+     */
+    private static final char MARK_PREFIX = '\uFDD0';
+    private static final char ARGUMENT_MARK = '\uE000';
     private static final int MAX_ARGUMENTS = 256;
 
     private static final StyledText EMPTY = new StyledText(List.of(new Block(ParagraphStyle.of(), List.of())));
@@ -192,9 +198,13 @@ public final class StyledText {
             return this;
         }
 
-        /** @return this builder, a new paragraph started in the style the last one had */
+        /**
+         * @return this builder, a new paragraph started in the style the last one had; a list
+         *         item's own number ({@link ParagraphStyle#listNumber}) is not repeated, so the
+         *         new item counts on from it
+         */
         public Builder paragraph() {
-            return paragraph(style);
+            return paragraph(style.listNumber() > 0 ? style.listNumber(0) : style);
         }
 
         /**
@@ -268,7 +278,9 @@ public final class StyledText {
 
         /**
          * Appends another styled text: its first paragraph continues this one in this one's
-         * style, and its later paragraphs follow with their own.
+         * style, and its later paragraphs follow with their own. Into a builder with nothing in it
+         * yet, the first paragraph keeps its own style too, as a first {@link #paragraph} call
+         * styles the first paragraph, so texts put together lose none of their styles.
          *
          * @param other the text to append
          * @return this builder
@@ -277,7 +289,7 @@ public final class StyledText {
             Objects.requireNonNull(other, "other");
             for (int i = 0; i < other.blocks.size(); i++) {
                 Block block = other.blocks.get(i);
-                if (i > 0) {
+                if (i > 0 || (done.isEmpty() && pieces.isEmpty())) {
                     paragraph(block.style());
                 }
                 pieces.addAll(block.pieces());
@@ -361,10 +373,14 @@ public final class StyledText {
                 }
             }
             for (int i = 0; i < texts.size(); i++) {
+                // A line break in a piece opens a paragraph in the block's style, but an item's own
+                // number is the first paragraph's: the ones after it count on.
+                ParagraphStyle style = i > 0 && block.style().listNumber() > 0
+                        ? block.style().listNumber(0) : block.style();
                 // An empty line in a list, a trailing line break's, is no item: no marker, no count.
-                String marker = texts.get(i).isEmpty() && block.style().listOrNull() != null ? null
-                        : marker(block.style(), counts, kinds);
-                out.add(new Paragraph(block.style(), texts.get(i).toString(), List.copyOf(runs.get(i)), marker));
+                String marker = texts.get(i).isEmpty() && style.listOrNull() != null ? null
+                        : marker(style, counts, kinds);
+                out.add(new Paragraph(style, texts.get(i).toString(), List.copyOf(runs.get(i)), marker));
             }
         }
         return out;
@@ -417,7 +433,8 @@ public final class StyledText {
         StringBuilder plain = new StringBuilder();
         for (int i = 0; i < formatted.length(); i++) {
             char c = formatted.charAt(i);
-            int index = c - ARGUMENT_MARK;
+            int index = c == MARK_PREFIX && i + 1 < formatted.length()
+                    ? formatted.charAt(i + 1) - ARGUMENT_MARK : -1;
             if (index >= 0 && index < arguments.size()) {
                 if (!plain.isEmpty()) {
                     add(texts, runs, plain.toString(), words);
@@ -425,6 +442,7 @@ public final class StyledText {
                 }
                 Span argument = arguments.get(index);
                 add(texts, runs, shown[index], argument.style().over(words));
+                i++;
             } else {
                 plain.append(c);
             }
@@ -467,7 +485,7 @@ public final class StyledText {
             }
             Object[] marks = new Object[arguments.size()];
             for (int i = 0; i < marks.length; i++) {
-                marks[i] = String.valueOf((char) (ARGUMENT_MARK + i));
+                marks[i] = String.valueOf(new char[] {MARK_PREFIX, (char) (ARGUMENT_MARK + i)});
                 java.text.Format typed = i < own.length ? own[i] : null;
                 if (typed == null) {
                     shown[i] = arguments.get(i).text();
@@ -508,7 +526,9 @@ public final class StyledText {
             counts[level] = 0;
             kinds[level] = kind;
         }
-        counts[level] = style.listNumber() > 0 ? style.listNumber() : counts[level] + 1;
+        // Counted on without passing the largest number a list can say (listNumber's bound).
+        counts[level] = style.listNumber() > 0 ? style.listNumber()
+                : Math.min(ParagraphStyle.MAX_LIST_NUMBER, counts[level] + 1);
         return switch (kind) {
             case BULLET -> switch (level % 3) {
                 case 0 -> "•";
@@ -516,7 +536,8 @@ public final class StyledText {
                 default -> "▪";
             };
             case NUMBER -> switch (level % 3) {
-                case 0 -> NumberFormats.number(0).apply(counts[level]) + ".";
+                // The language's digits, never grouped: an item is "1000.", not "1,000.".
+                case 0 -> limn.i18n.I18n.localizeDigits(Integer.toString(counts[level])) + ".";
                 case 1 -> letters(counts[level]) + ".";
                 default -> roman(counts[level]) + ".";
             };
