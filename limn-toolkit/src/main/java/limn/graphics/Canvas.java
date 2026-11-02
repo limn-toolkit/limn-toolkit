@@ -652,11 +652,108 @@ public interface Canvas {
     void fillPath(Path2D path, Paint paint);
 
     /**
-     * Strokes a path with round caps and joins. V1 limitation: joins are
-     * overlapping round caps, so translucent paints double-blend slightly at
-     * each vertex.
+     * Strokes a path with round caps and joins, as {@link #drawPath(Path2D, Stroke, Paint)} does
+     * with a round {@link Stroke} of that width. The toolkit's canvases cover each pixel once, so a
+     * translucent stroke is no darker where its segments meet.
      */
     void drawPath(Path2D path, float strokeWidth, Paint paint);
+
+    /**
+     * Strokes a path with a {@link Stroke}: its width, ends, corners and dash pattern, in the
+     * current coordinates, so a scale widens the line as it widens everything else. Each pixel the
+     * line covers is painted once, so a translucent stroke is even where it crosses itself and
+     * where its dashes and corners overlap.
+     *
+     * <p>The default fills the stroke's {@linkplain Stroke#outline(Path2D, float) outline} under
+     * the non-zero rule, following curves to a quarter of a device pixel, which is exact on a
+     * canvas that fills by the rule.
+     *
+     * @param path   the path, in current coordinates
+     * @param stroke how the line is drawn
+     * @param paint  what it is painted with
+     */
+    default void drawPath(Path2D path, Stroke stroke, Paint paint) {
+        if (path.isEmpty() || stroke.width() <= 0) {
+            return;
+        }
+        fillPath(stroke.outline(path, strokeTolerance()), paint);
+    }
+
+    /**
+     * Strokes a line segment with a {@link Stroke}: its ends as the stroke says, butt by default,
+     * and dashed where it has a pattern.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawLine(float x1, float y1, float x2, float y2, Stroke stroke, Paint paint) {
+        drawPath(new Path2D().moveTo(x1, y1).lineTo(x2, y2), stroke, paint);
+    }
+
+    /**
+     * Strokes a rectangle's outline with a {@link Stroke}, centred on it, starting at its top-left
+     * corner and going clockwise, which is where a dash pattern starts. A size of zero or less draws
+     * nothing.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawRect(float x, float y, float width, float height, Stroke stroke, Paint paint) {
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        drawPath(new Path2D().addRect(x, y, width, height), stroke, paint);
+    }
+
+    /**
+     * Strokes a rounded rectangle's outline with a {@link Stroke}, centred on it, with the corners
+     * {@link #fillRoundRect(RoundRect, Paint)} draws.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawRoundRect(RoundRect roundRect, Stroke stroke, Paint paint) {
+        drawPath(new Path2D().addRoundRect(roundRect), stroke, paint);
+    }
+
+    /**
+     * Strokes a circle with a {@link Stroke}, centred on it, starting at its rightmost point and
+     * going clockwise.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawCircle(float cx, float cy, float radius, Stroke stroke, Paint paint) {
+        if (radius <= 0) {
+            return;
+        }
+        drawPath(new Path2D().addCircle(cx, cy, radius), stroke, paint);
+    }
+
+    /**
+     * Strokes an ellipse with a {@link Stroke}, centred on it, starting at its rightmost point and
+     * going clockwise.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawEllipse(float cx, float cy, float radiusX, float radiusY, Stroke stroke, Paint paint) {
+        if (radiusX <= 0 || radiusY <= 0) {
+            return;
+        }
+        drawPath(new Path2D().addEllipse(cx, cy, radiusX, radiusY), stroke, paint);
+    }
+
+    /**
+     * How closely a stroke's outline follows curves for this canvas: a quarter of a device pixel,
+     * from the content scale and the current transform's area scale where the canvas answers one.
+     */
+    private float strokeTolerance() {
+        double scale = contentScale();
+        Affine2D t = transform();
+        if (t != null) {
+            scale *= Math.sqrt(Math.abs(t.determinant()));
+        }
+        if (!(scale > 0) || Double.isInfinite(scale)) {
+            return Stroke.DEFAULT_TOLERANCE;
+        }
+        return (float) Math.max(1e-4, 0.25 / scale);
+    }
 
     // ------------------------------------------------------------------ text
 

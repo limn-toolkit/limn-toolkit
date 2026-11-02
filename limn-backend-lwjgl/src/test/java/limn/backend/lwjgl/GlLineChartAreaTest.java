@@ -35,6 +35,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The oracle is the area's own outline, read from what the chart asks the canvas to fill: a
  * point well inside it (under the non-zero rule, a pixel and a half from any edge) must be tinted,
  * a point well outside must show the page.
+ *
+ * <p>And a translucent series line, as a series is while it fades in or out after its legend entry
+ * is toggled, is as light at its points as along its segments, where it was darker at every point.
  */
 class GlLineChartAreaTest {
 
@@ -146,6 +149,35 @@ class GlLineChartAreaTest {
         int[] below = pixel(image, points[6], base + (low - base) * 0.8f);
         assertEquals(above[0], below[0], 2, "the lobe under zero fades as the one above it does");
         assertTrue(below[0] < 255 - 40, "the lobe under zero is drawn at the strong end near its line: " + below[0]);
+    }
+
+    @Test
+    void aTranslucentSeriesLineIsAsLightAtItsPointsAsAlongIt() {
+        LineChart chart = LineChart.of(List.of("a", "b", "c", "d", "e", "f"),
+                ChartSeries.of("margin", 3, -2, 4, -3, 2, -1)
+                        .setColor(Color.rgba(0x000000, 0.5f)).setLineWidth(6).setPointRadius(0));
+        chart.setAnimationDuration(0);
+        chart.setLegendPosition(Chart.LegendPosition.NONE);
+        chart.valueAxis().setGrid(false);
+        chart.categoryAxis().setGrid(false);
+        chart.measure(limn.scene.Constraints.tight(W_PT, H_PT));
+        chart.layoutBox(0, 0, W_PT, H_PT);
+        List<Path2D> lines = new ArrayList<>();
+        chart.paintWidget(new NoopCanvas(W_PT, H_PT) {
+            @Override
+            public void drawPath(Path2D path, float strokeWidth, Paint paint) {
+                lines.add(path.copy());
+            }
+        });
+        assertEquals(1, lines.size(), "one line for the series");
+        float[] points = linePoints(lines.get(0));
+        byte[] image = render(c -> chart.paintWidget(c));
+        int[] along = pixel(image, (points[2] + points[4]) / 2, (points[3] + points[5]) / 2);
+        assertTrue(along[0] < 200, "the line is drawn: " + along[0]);
+        for (int i = 1; i <= 4; i++) {
+            int[] at = pixel(image, points[i * 2], points[i * 2 + 1]);
+            assertEquals(along[0], at[0], 2, "the line at point " + i + " against along it");
+        }
     }
 
     /** Whether a point is inside the area by a margin, outside by one, or too near an edge to say. */

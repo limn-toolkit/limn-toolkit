@@ -11,6 +11,7 @@ import limn.graphics.Path2D;
 import limn.graphics.PolygonTriangulator;
 import limn.graphics.RadialGradient;
 import limn.graphics.RoundRect;
+import limn.graphics.Stroke;
 import limn.graphics.TextMetrics;
 
 import java.lang.System.Logger.Level;
@@ -2229,10 +2230,19 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         batch.stencilPhase(GlBatch.STENCIL_NONE, false);
     }
 
+    /**
+     * A round stroke of the width. Opaque, it is a capsule per segment in the frame's one draw,
+     * whose overlaps at the joints no one can see; translucent, or in another blend mode, the
+     * capsules would paint those overlaps twice, so it is the stroke's outline filled once.
+     */
     @Override
     public void drawPath(Path2D path, float strokeWidth, Paint paint) {
         ensureInFrame();
         if (path.isEmpty() || strokeWidth <= 0) {
+            return;
+        }
+        if (!overlapsUnseen(paint)) {
+            drawOutline(path, Stroke.of(strokeWidth).withCap(Stroke.Cap.ROUND).withJoin(Stroke.Join.ROUND), paint);
             return;
         }
         collectPath(path, state().transform);
@@ -2254,6 +2264,48 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
                         pathCollector.xs[start], pathCollector.ys[start], halfWidth, paint);
             }
         }
+    }
+
+    /**
+     * A {@link Stroke}: a solid, round one in a paint whose overlaps no one can see is drawn as
+     * {@link #drawPath(Path2D, float, Paint)} draws it, in the frame's one draw; any other is its
+     * outline filled once under the non-zero rule, following curves to a quarter of a device pixel,
+     * which takes the stencil wherever the outline overlaps itself.
+     */
+    @Override
+    public void drawPath(Path2D path, Stroke stroke, Paint paint) {
+        ensureInFrame();
+        if (path.isEmpty() || stroke.width() <= 0) {
+            return;
+        }
+        if (!stroke.isDashed() && stroke.cap() == Stroke.Cap.ROUND && stroke.join() == Stroke.Join.ROUND
+                && overlapsUnseen(paint)) {
+            drawPath(path, stroke.width(), paint);
+            return;
+        }
+        drawOutline(path, stroke, paint);
+    }
+
+    private void drawOutline(Path2D path, Stroke stroke, Paint paint) {
+        fillPath(stroke.outline(path, FLATTEN_TOLERANCE_DEVICE / state().transform.approxScale()), paint);
+    }
+
+    /**
+     * Whether a pixel painted twice with {@code paint} looks as it does painted once: an opaque
+     * paint in the normal blend mode at full opacity.
+     */
+    private boolean overlapsUnseen(Paint paint) {
+        State s = state();
+        if (s.blendMode != limn.graphics.BlendMode.NORMAL || s.opacity < 1f) {
+            return false;
+        }
+        if (paint instanceof Color c) {
+            return c.a() >= 1f;
+        }
+        if (paint instanceof LinearGradient g) {
+            return g.start().a() >= 1f && g.end().a() >= 1f;
+        }
+        return paint instanceof RadialGradient g && g.center().a() >= 1f && g.edge().a() >= 1f;
     }
 
     // ------------------------------------------------------------------ text

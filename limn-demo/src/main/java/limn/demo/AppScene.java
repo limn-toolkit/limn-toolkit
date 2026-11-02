@@ -275,7 +275,10 @@ final class AppScene {
                         .keywords("ImageView, image, picture, sprite, GIF, PNG, WebP, animated image, blend, pixel art"),
                 new Place(ShowcaseStrings.NAV_GLASS, "docs/theming/#glass",
                         () -> scrolling(GlassScene.content())).icon("blur")
-                        .keywords("BackdropPanel, backdrop, glass, blur, frosted, translucent, tint")).icon("movie");
+                        .keywords("BackdropPanel, backdrop, glass, blur, frosted, translucent, tint"),
+                new Place(ShowcaseStrings.NAV_DRAWING, "docs/custom-widgets/#measuring-and-painting",
+                        () -> scrolling(DrawingScene.content())).icon("vector-bezier")
+                        .keywords("Canvas, drawing, Graphics2D, Path2D, path, SVG path, fill rule, even-odd, non-zero, Stroke, stroke, dash, dashed, cap, join, miter, Affine2D, transform, shear, rotate, hit test")).icon("movie");
         return List.of(orders, components, media);
     }
 

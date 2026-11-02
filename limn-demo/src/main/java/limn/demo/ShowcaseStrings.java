@@ -84,6 +84,8 @@ final class ShowcaseStrings {
             new I18nString("showcase.nav.sprites", "Sprites");
     static final I18nString NAV_GLASS =
             new I18nString("showcase.nav.glass", "Backdrop panel");
+    static final I18nString NAV_DRAWING =
+            new I18nString("showcase.nav.drawing", "Drawing");
     static final I18nString NAV_PAGES =
             new I18nString("showcase.nav.pages", "Pages");
     static final I18nString BAND_LANGUAGE =

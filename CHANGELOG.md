@@ -59,6 +59,11 @@ Maven Central say which number that was.
   `ROUND`, `BEVEL`) and dash pattern with a phase, as a value. `stroke.outline(path)` is the region
   the line covers, as a path filled under non-zero, which is how a hit on a line is tested (ADR
   085).
+- The canvas draws a `Stroke`: `drawPath`, `drawLine`, `drawRect`, `drawRoundRect`, `drawCircle`
+  and `drawEllipse` take one in place of a width, with every end, corner, miter limit and dash
+  pattern, on screen and in a printed document, which writes PDF's own line operators. A canvas of
+  the application's own gets them as defaults that fill the stroke's outline. The Showcase has a
+  Drawing page with what a widget that paints for itself has on the canvas (ADR 085).
 
 ### Changed
 
@@ -70,6 +75,10 @@ Maven Central say which number that was.
   of one outline that does not cross itself, draw as before; the toolkit's own paths are of these.
   On screen such a path still fills in the frame's one draw, and any other takes three through the
   stencil, inside a layer too (ADR 085).
+- A translucent stroke, `drawPath` with a width or with a `Stroke`, is painted once where its
+  segments meet and where it crosses itself, as it is in a printed document. It was a capsule per
+  segment, darker at every joint. An opaque round stroke is drawn as before, in the frame's one
+  draw; a translucent one, or one in another blend mode, takes three (ADR 085).
 
 - A `Table` under an unbounded height (in a `ScrollView`, or a column that sets no height) prefers
   `setVisibleRows` rows of a row of text, the control height or a line of the body text and its
@@ -89,6 +98,9 @@ Maven Central say which number that was.
   baseline on both sides, and each side fades from its own farthest value to the baseline. It was
   drawn as stray triangles, a wedge from the baseline up to the highest value and the parts under
   zero partly missing, and what was drawn under zero was all at the faint end of the fade (ADR 085).
+- A `LineChart`'s translucent line, as a series is while it fades in or out after its legend entry
+  is toggled and whenever its colour has alpha, is even along its length; it was darker at every
+  point (ADR 085).
 - A `Table`'s widget cell stands where its column's alignment puts the header and the text cells
   (`Column.align`): at the column's end or centre as well as its start, mirrored right to left. It
   always stood at the start, so the widgets of a column aligned to its end sat under a header at

@@ -13,6 +13,7 @@ import limn.graphics.RoundRect;
 import limn.graphics.Sampling;
 import limn.graphics.Shadow;
 import limn.graphics.ShapedText;
+import limn.graphics.Stroke;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.graphics.TextRulers;
@@ -372,6 +373,14 @@ public final class RecordingCanvas implements Canvas {
         Objects.requireNonNull(paint, "paint");
         Path2D kept = path.copy();
         out.add(c -> c.drawPath(kept, strokeWidth, paint));
+    }
+
+    @Override
+    public void drawPath(Path2D path, Stroke stroke, Paint paint) {
+        Objects.requireNonNull(stroke, "stroke");
+        Objects.requireNonNull(paint, "paint");
+        Path2D kept = path.copy();
+        out.add(c -> c.drawPath(kept, stroke, paint));
     }
 
     // ------------------------------------------------------------------ text

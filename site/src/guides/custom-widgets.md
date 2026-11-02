@@ -32,8 +32,13 @@ outline may cross itself, as a star drawn in one stroke does. A path also takes 
 `ellipticalArcTo` as SVG draws one) and whole shapes (`addRect`, `addRoundRect`, `addEllipse`,
 `addPath` with an `Affine2D` to place a copy), and `Path2D.parse` reads the path data an icon or
 a drawing program writes, `"M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"`. It answers in Java, with no canvas:
-`bounds()`, and `contains(x, y)` for a hit test on what it fills. `Stroke.of(2).outline(path)` is
-the region a two-unit line along it covers, so `contains` on that tests a hit on the line.
+`bounds()`, and `contains(x, y)` for a hit test on what it fills. A line is a `Stroke`: its width,
+its ends (`BUTT`, `ROUND`, `SQUARE`), its corners (`MITER` with a limit, `ROUND`, `BEVEL`) and a
+dash pattern, passed with the call as a paint is, so
+`drawPath(path, Stroke.of(2).withCap(Stroke.Cap.ROUND).withDash(0, 6), paint)` is a dotted line,
+and `drawLine`, `drawRect`, `drawRoundRect`, `drawCircle` and `drawEllipse` take one too; a
+translucent line is painted once where it crosses itself. `Stroke.of(2).outline(path)` is the
+region a two-unit line along it covers, so `contains` on that tests a hit on the line.
 Whatever takes a colour takes a `Paint`, which is a `Color`, a `LinearGradient` or a
 `RadialGradient`. `drawShadow(shape, shadow)` casts a `Shadow` under a rounded rectangle;
 `save`, `translate`, `rotate`, `scale` and `restore` move the coordinates, `rotate(angle, cx, cy)`

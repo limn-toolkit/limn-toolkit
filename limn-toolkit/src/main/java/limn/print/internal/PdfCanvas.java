@@ -17,6 +17,7 @@ import limn.graphics.RoundRect;
 import limn.graphics.Sampling;
 import limn.graphics.Shadow;
 import limn.graphics.ShapedText;
+import limn.graphics.Stroke;
 import limn.graphics.TextMetrics;
 import limn.math.Affine2D;
 import org.jspecify.annotations.Nullable;
@@ -425,6 +426,81 @@ final class PdfCanvas implements Canvas {
             return;
         }
         paint(PdfPaths.whole(path), paint, Mode.STROKE, strokeWidth, 1, 1);
+    }
+
+    /**
+     * A {@link Stroke} as PDF's own line operators: width, cap, join, miter limit and dash, which
+     * read every value as the stroke does, so the page keeps its curves and a reader draws the line
+     * at any zoom. A pattern the stroke would not follow, past {@link Stroke#MAX_DASHES} dashes, is
+     * written solid, as every canvas draws it.
+     */
+    @Override
+    public void drawPath(Path2D path, Stroke stroke, Paint paint) {
+        if (stroke.width() <= 0 || path.isEmpty()) {
+            return;
+        }
+        try {
+            StringBuilder ops = ops();
+            ops.append("q\n").append(Pdf.num(stroke.width())).append(" w ")
+                    .append(switch (stroke.cap()) {
+                        case BUTT -> 0;
+                        case ROUND -> 1;
+                        case SQUARE -> 2;
+                    }).append(" J ")
+                    .append(switch (stroke.join()) {
+                        case MITER -> 0;
+                        case ROUND -> 1;
+                        case BEVEL -> 2;
+                    }).append(" j ").append(Pdf.num(stroke.miterLimit())).append(" M\n");
+            float[] dashes = stroke.dashes();
+            if (dashes.length > 0 && dashCount(path, dashes) <= Stroke.MAX_DASHES) {
+                ops.append('[');
+                for (int i = 0; i < dashes.length; i++) {
+                    ops.append(i == 0 ? "" : " ").append(Pdf.num(dashes[i]));
+                }
+                ops.append("] ").append(Pdf.num(stroke.dashPhase())).append(" d\n");
+            }
+            setPaint(paint, false);
+            ops.append(PdfPaths.whole(path)).append("S\nQ\n");
+        } catch (IOException failed) {
+            throw new UncheckedIOException(failed);
+        }
+    }
+
+    /** How many dashes the pattern cuts the path into, counted as the stroke counts them. */
+    private static double dashCount(Path2D path, float[] dashes) {
+        double[] length = {0};
+        path.flatten(Stroke.DEFAULT_TOLERANCE, new Path2D.Flattened() {
+            private float x;
+            private float y;
+            private float startX;
+            private float startY;
+
+            @Override
+            public void moveTo(float px, float py) {
+                x = px;
+                y = py;
+                startX = px;
+                startY = py;
+            }
+
+            @Override
+            public void lineTo(float px, float py) {
+                length[0] += Math.hypot(px - x, py - y);
+                x = px;
+                y = py;
+            }
+
+            @Override
+            public void closePath() {
+                lineTo(startX, startY);
+            }
+        });
+        double period = 0;
+        for (float d : dashes) {
+            period += d;
+        }
+        return length[0] / period * (dashes.length / 2.0);
     }
 
     @Override

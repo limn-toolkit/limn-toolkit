@@ -6,8 +6,9 @@
   against that API (section 1), proposes how to close it (sections 3 and 4) in six stages
   (section 7), names what stays out (section 5), and asked seven questions (section 6), which
   the owner answered the same day by taking every recommendation (section 9). Stage 1 built the
-  same day (section 10), stage 2 on 11-02 (section 11). Two defects in a shipped chart came out
-  of the measurement (section 0.3); stage 2 fixed the first, and a third its pixel test found.
+  same day (section 10), stage 2 on 11-02 (section 11), stage 3 the same day (section 12). Two
+  defects in a shipped chart came out of the measurement (section 0.3); stage 2 fixed the first,
+  and a third its pixel test found, and stage 3 the second.
 - **Date:** 2026-11-01
 - **Scope:** `limn.graphics.Canvas` and the values it takes (`Paint`, `Path2D`, `BlendMode`), its
   three implementations in the project (the OpenGL canvas, the PDF canvas, the recording canvas
@@ -537,4 +538,52 @@ Built 2026-11-02 on the same branch, after stage 1's commit.
   equally on the commit before this stage, and passes on ANGLE on the same guest and on this Mac:
   not this stage's, and recorded for a look of its own.
 - **Owed:** the demo page, with stage 3.
+
+## 12. Stage 3, as built
+
+Built 2026-11-02 on the same branch, after stage 2's commit.
+
+- **Six overloads on the canvas.** `drawPath`, `drawLine`, `drawRect`, `drawRoundRect`,
+  `drawCircle` and `drawEllipse` take a `Stroke` in place of a width, as section 4.1 said. Each is
+  a default method: the shapes build their path (clockwise from the corner or the rightmost point
+  `Path2D` names, which is where a dash pattern starts) and call `drawPath`, whose default fills
+  the stroke's outline under non-zero, following curves to a quarter of a device pixel, from the
+  content scale and the transform the canvas answers. A size of zero or less, a width of zero and
+  an empty path draw nothing, as the width overloads do.
+- **OpenGL.** A solid stroke with round ends and corners, in a paint whose overlaps no one can see
+  (an opaque colour or gradient, the normal blend mode, full opacity), is the capsules of today in
+  the frame's one draw. Any other is its outline filled once, which takes the stencil wherever the
+  outline overlaps itself. The width overload takes the same choice: opaque, its capsules as
+  before; translucent, or in another blend mode, the outline of a round stroke of that width, so it
+  is no darker where its segments meet. That is a change of the width overload's pixels only where
+  they were wrong; section 4.1 said "keeps its look", and the look kept is its round ends and
+  corners. It fixes case 3 and D2 for every widget that strokes a translucent path, not only the
+  chart.
+- **PDF.** `w`, `J`, `j`, `M` and `d` with the path and `S`, each value read as the stroke reads
+  it. A pattern the stroke would not follow, past 100,000 dashes, is written solid, counted as the
+  stroker counts it, so the page and the screen agree. The recording canvas keeps the call with its
+  stroke.
+- **The demo's page.** The Showcase's Media group has a Drawing page (`--scene drawing` alone): the
+  star and a ring of three circles under both rules; ends, corners, three dash patterns marching
+  along a rectangle, a circle and a line, and a translucent curve crossing itself; a shear that
+  leans and comes back, a needle turned about its pivot by `rotate(angle, cx, cy)`, and a star drawn
+  through `concat` that lights when the pointer is over it, found through the inverse of the matrix
+  and `Path2D.contains`. Its strings are in the Showcase's 21 languages.
+- **Tests:** `GlStrokeTest`, on a headless context, holds six strokes (every end, corner and a
+  mitre past its limit, dashes and dots) on a zigzag with a turn straight back and a curve against
+  the stroke's own outline, point by point; a translucent stroke as light at its joints as along it
+  through both overloads; each cap past a line's end; a mitre within its limit and bevelled past it;
+  the gaps of a dashed line; the width under a scale; and the draw counts (opaque and round: one;
+  translucent: three). `GlLineChartAreaTest` gains D2: a translucent series line is as light at
+  its points as along it. `PdfStrokeTest` holds the operators, a pattern written solid past the
+  limit, and the recording; `CanvasStrokeDefaultsTest` the defaults, each shape's outline, nothing
+  for nothing, and the tolerance following the scale. Mutation: treating every paint as opaque,
+  the capsules for everything, failed the translucent test, the draw counts and D2 (the line at a
+  point 64 against 128 along it).
+- **On the guests,** with the bundle of section 11: `GlStrokeTest`, `GlLineChartAreaTest` and
+  `GlFillRuleTest`, 19 tests, pass on Windows 11 ARM64 on the Parallels driver and on ANGLE over
+  Direct3D 11, and on Fedora on Mesa over virgl. The Showcase's transcript of its navigation tree
+  was rewritten for the new page's row (29 rows to 30; nothing else changed in it), and the
+  Showcase's draw-count budget did not move.
+- **Owed:** stage 4 (path clips, the exact rotated clip, blend modes), and the stages after it.
 

@@ -32,7 +32,7 @@ public final class Main {
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker", "tray", "menubar",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
             "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-months-cursor", "dates-years-cursor", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
-            "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
+            "sprites", "drawing", "audio", "controls", "control-sizes", "control-sizes-audit",
             "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
             "viewport3d", "viewport3d-light", "gltf", "shadows", "ibl", "debugdraw", "blend3d",
@@ -360,6 +360,8 @@ public final class Main {
                 widgetScene = CursorsScene.create();
             } else if (scene.equals("sprites")) {
                 widgetScene = SpritesScene.create();
+            } else if (scene.equals("drawing")) {
+                widgetScene = DrawingScene.create();
             } else if (scene.equals("audio")) {
                 widgetScene = AudioScene.create();
             } else if (scene.equals("controls")) {
