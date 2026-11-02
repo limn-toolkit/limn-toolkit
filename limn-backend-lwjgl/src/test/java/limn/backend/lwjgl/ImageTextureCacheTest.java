@@ -75,6 +75,7 @@ class ImageTextureCacheTest {
         cache.textureFor(kept);
         assertTrue(cache.beginFrameAndEvict(), "the one this frame did not draw goes");
         assertEquals(new RenderStats(1, EIGHT_BY_FOUR), cache.stats());
+        HeadlessGl.settleDeletions();
         assertFalse(Gl.glIsTexture(droppedTexture), "and its texture with it");
 
         int again = cache.textureFor(dropped);

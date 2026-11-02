@@ -448,6 +448,7 @@ class GlLayerTest {
         assertEquals(2, held.length, "one picture per level of nesting");
         canvas.dispose();
         canvas = null;
+        HeadlessGl.settleDeletions();
         for (int texture : held) {
             assertFalse(Gl.glIsTexture(texture), "texture " + texture + " freed with the window");
         }
