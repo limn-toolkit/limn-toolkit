@@ -46,6 +46,19 @@ Maven Central say which number that was.
   and subscript (`TextDecorations`), read from its own tables. `Canvas.drawText(ShapedText, start,
   end, x, y, paint)` paints part of a shaped line; a printed page writes each glyph once whatever
   number of ranges paint it.
+- `limn.math.Affine2D`, the plane's affine map in double precision: translation, scale, rotation
+  (also about a point), shear, composition, inverse. The canvas takes one, `Canvas.concat`, and
+  answers the one in force, `Canvas.transform()`, from the window's or the page's corner; it also
+  gains `shear` and `rotate(angle, cx, cy)`. A canvas of the application's own gets all four as
+  defaults, `transform()` answering null (ADR 085).
+- `Path2D` takes arcs (`arc`, `arcTo`, `ellipticalArcTo`) and shapes (`addRect`, `addRoundRect`,
+  `addEllipse`, `addCircle`, `addPath` under an `Affine2D`), is copied under a matrix
+  (`transformed`), reads SVG path data (`Path2D.parse`), and answers its `bounds()` and whether it
+  `contains` a point under its `FillRule`, `NON_ZERO` or `EVEN_ODD` (ADR 085).
+- `Stroke`: a line's width, ends (`BUTT`, `ROUND`, `SQUARE`), corners (`MITER` with a limit,
+  `ROUND`, `BEVEL`) and dash pattern with a phase, as a value. `stroke.outline(path)` is the region
+  the line covers, as a path filled under non-zero, which is how a hit on a line is tested (ADR
+  085).
 
 ### Changed
 

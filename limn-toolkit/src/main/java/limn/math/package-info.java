@@ -5,7 +5,9 @@
  * the composed {@link limn.math.Transform3D}, and the geometry a renderer asks about, namely
  * {@link limn.math.Aabb}, {@link limn.math.Frustum} culling and {@link limn.math.Ray}
  * picking. {@link limn.math.MutMat4} is the deliberate exception to immutability, for
- * per-frame arithmetic where the allocation itself is the cost being avoided.
+ * per-frame arithmetic where the allocation itself is the cost being avoided. For 2D,
+ * {@link limn.math.Affine2D}, the plane's affine map a canvas draws through, in double
+ * precision.
  */
 @NullMarked
 package limn.math;

@@ -6,6 +6,7 @@ import limn.graphics.Image;
 import limn.graphics.LinearGradient;
 import limn.graphics.Paint;
 import limn.graphics.RadialGradient;
+import limn.math.Affine2D;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
@@ -196,7 +197,7 @@ public final class PdfWriter {
     }
 
     /** @return a pattern painting the gradient, placed by {@code matrix} from the pattern space */
-    String pattern(Paint gradient, Affine matrix) throws IOException {
+    String pattern(Paint gradient, Affine2D matrix) throws IOException {
         String shading = shading(gradient);
         String name = "P" + (++counter);
         resources.put(name, file.object("<</PatternType 2/Shading " + resources.get(shading) + " 0 R/Matrix["

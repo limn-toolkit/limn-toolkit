@@ -1,5 +1,7 @@
 package limn.graphics;
 
+import limn.math.Affine2D;
+import limn.math.Mat4;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -128,6 +130,84 @@ public interface Canvas {
     void rotate(float angleRadians);
 
     /**
+     * Rotates by {@code angleRadians} about the point {@code (cx, cy)}, which stays where it is:
+     * what a dial's needle or a turned label needs, without the translations around it.
+     *
+     * @param angleRadians the angle, positive clockwise with y growing down
+     * @param cx           the x of the point the turn is about, in current coordinates
+     * @param cy           its y
+     */
+    default void rotate(float angleRadians, float cx, float cy) {
+        translate(cx, cy);
+        rotate(angleRadians);
+        translate(-cx, -cy);
+    }
+
+    /**
+     * Shears: what is drawn at {@code (x, y)} after it lands where {@code (x + sx y, sy x + y)}
+     * landed before, as {@link Affine2D#shearing} says. Pixel snapping stops under a shear, as it
+     * does under a rotation.
+     *
+     * @param sx how far x moves per unit of y
+     * @param sy how far y moves per unit of x
+     */
+    default void shear(float sx, float sy) {
+        concat(Affine2D.shearing(sx, sy));
+    }
+
+    /**
+     * Draws through {@code matrix} inside the current transform: a point {@code p} drawn after it
+     * lands where {@code matrix} times {@code p} landed before. A translate, a scale, a rotate and
+     * a shear are each a concatenation of their own matrix.
+     *
+     * <p>The default composes it from {@link #translate}, {@link #rotate} and {@link #scale}, which
+     * is exact: any linear map of the plane is a turn, a scale along the axes and a second turn.
+     *
+     * @param matrix the map applied before the current transform
+     */
+    default void concat(Affine2D matrix) {
+        // The linear part, a x + c y and b x + d y, by its singular value decomposition: two
+        // rotations about a scale on the axes, which the three calls every canvas has can express
+        // where a skew alone could not.
+        double a = matrix.a();
+        double b = matrix.b();
+        double c = matrix.c();
+        double d = matrix.d();
+        translate((float) matrix.e(), (float) matrix.f());
+        double sum = (a + d) / 2.0;
+        double diff = (a - d) / 2.0;
+        double cross = (b + c) / 2.0;
+        double turn = (b - c) / 2.0;
+        double q = Math.hypot(sum, turn);
+        double r = Math.hypot(diff, cross);
+        double before = Math.atan2(cross, diff);
+        double after = Math.atan2(turn, sum);
+        rotate((float) ((after + before) / 2));
+        scale((float) (q + r), (float) (q - r));
+        rotate((float) ((after - before) / 2));
+    }
+
+    /**
+     * The current transform: the matrix from current coordinates to this canvas's own, which are
+     * logical points from the top-left corner of what it draws into. That is the window, or the
+     * page being printed, or the picture of a layer opened through a matrix
+     * ({@link #saveLayer(float, float, float, float, float, Mat4)}), whose own coordinates start
+     * again at its origin. A widget's paint sees the translations of its ancestors in it.
+     *
+     * <p>What it is for: keeping the matrix a drawing used, and {@linkplain Affine2D#invert
+     * inverting} it, to find where a point given in the canvas's coordinates falls in the
+     * drawing's; or concatenating it back after a {@link #restore()}. There is no setter: a
+     * canvas a widget paints on already carries its parent's transform, which a set matrix would
+     * throw away. {@link #concat} composes, and {@link #save()} with {@link #restore()} undoes.
+     *
+     * @return the current matrix, or {@code null} when this canvas does not track its transform,
+     *         which is what the default answers; the toolkit's canvases answer
+     */
+    default @Nullable Affine2D transform() {
+        return null;
+    }
+
+    /**
      * <b>Multiplies</b> the current state's opacity by {@code opacity}, clamped to [0..1]; every
      * subsequent paint's alpha is multiplied by the result. Restored by {@link #restore()}.
      *
@@ -235,7 +315,7 @@ public interface Canvas {
      *
      * <p><b>A canvas that cannot make layers</b> applies the transform's flat part, its x, y and w
      * rows and columns without the w row's tilt, straight to its own transform, through
-     * {@link #translate}, {@link #rotate} and {@link #scale}, and the opacity per draw: the same
+     * {@link #concat}, and the opacity per draw: the same
      * commands in nearly the same places, which is what counting them needs.
      *
      * @param x         the left edge of what the layer keeps, in the layer's own coordinates
@@ -246,29 +326,12 @@ public interface Canvas {
      * @param transform where the layer's space is drawn, applied after the canvas's own transform
      */
     default void saveLayer(float x, float y, float width, float height, float opacity,
-                           limn.math.Mat4 transform) {
+                           Mat4 transform) {
         save();
-        // The flat part, a x + c y + e and b x + d y + f, as a translation, a rotation, a scale on
-        // the axes and a second rotation: any linear map of the plane is two rotations about a
-        // scale, by its singular value decomposition, which the three calls every canvas has can
-        // express where a skew alone could not.
-        float w = transform.get(3, 3) != 0 ? transform.get(3, 3) : 1;
-        float a = transform.get(0, 0) / w;
-        float b = transform.get(1, 0) / w;
-        float c = transform.get(0, 1) / w;
-        float d = transform.get(1, 1) / w;
-        translate(transform.get(0, 3) / w, transform.get(1, 3) / w);
-        double sum = (a + d) / 2.0;
-        double diff = (a - d) / 2.0;
-        double cross = (b + c) / 2.0;
-        double turn = (b - c) / 2.0;
-        double q = Math.hypot(sum, turn);
-        double r = Math.hypot(diff, cross);
-        double before = Math.atan2(cross, diff);
-        double after = Math.atan2(turn, sum);
-        rotate((float) ((after + before) / 2));
-        scale((float) (q + r), (float) (q - r));
-        rotate((float) ((after - before) / 2));
+        // The flat part, a x + c y + e and b x + d y + f.
+        double w = transform.get(3, 3) != 0 ? transform.get(3, 3) : 1;
+        concat(new Affine2D(transform.get(0, 0) / w, transform.get(1, 0) / w, transform.get(0, 1) / w,
+                transform.get(1, 1) / w, transform.get(0, 3) / w, transform.get(1, 3) / w));
         setOpacity(opacity);
     }
 

@@ -75,6 +75,20 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
 
     private static final class State {
         final Transform2D transform = new Transform2D();
+        /**
+         * Where this state's logical coordinates start in its device pixels, {@code device = baseScale
+         * * logical + base}: the content scale at the window's corner, and the picture's scale and
+         * corner in a re-based layer. What {@link #transform()} takes out of {@link #transform}.
+         */
+        float baseScale = 1;
+        float baseX;
+        float baseY;
+        /**
+         * Where this state's logical origin lies in the window's logical coordinates: the identity,
+         * but for a re-based layer the map of its space, which a perspective leaves as the identity
+         * since a picture turned in depth has no affine place in the window.
+         */
+        limn.math.Affine2D outer = limn.math.Affine2D.IDENTITY;
         float opacity = 1;
         final DeviceClip clip = new DeviceClip();
         limn.graphics.BlendMode blendMode = limn.graphics.BlendMode.NORMAL;
@@ -112,6 +126,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
 
         void copyFrom(State other) {
             transform.copyFrom(other.transform);
+            baseScale = other.baseScale;
+            baseX = other.baseX;
+            baseY = other.baseY;
+            outer = other.outer;
             opacity = other.opacity;
             clip.copyFrom(other.clip);
             blendMode = other.blendMode;
@@ -276,6 +294,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         depth = 0;
         State root = states.get(0);
         root.transform.setScale(contentScale);
+        root.baseScale = contentScale;
+        root.baseX = 0;
+        root.baseY = 0;
+        root.outer = limn.math.Affine2D.IDENTITY;
         root.opacity = 1;
         root.clip.reset(framebufferWidth, framebufferHeight);
         root.blendMode = limn.graphics.BlendMode.NORMAL;
@@ -881,6 +903,17 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         inside.m11 = (float) k;
         inside.tx = originX;
         inside.ty = originY;
+        if (h[6] == 0 && h[7] == 0) {
+            double pk = parent.baseScale;
+            s.outer = parent.outer.concat(new limn.math.Affine2D(h[0] / h[8] / pk, h[3] / h[8] / pk,
+                    h[1] / h[8] / pk, h[4] / h[8] / pk, (h[2] / h[8] - parent.baseX) / pk,
+                    (h[5] / h[8] - parent.baseY) / pk));
+        } else {
+            s.outer = limn.math.Affine2D.IDENTITY;
+        }
+        s.baseScale = (float) k;
+        s.baseX = originX;
+        s.baseY = originY;
         s.clip.resetTo(0, fbHeight - lh, lw, fbHeight);
         // From the picture's space back to the parent's: the homography after the scale's inverse.
         double[] up = s.toParent;
@@ -1318,6 +1351,25 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     @Override
     public void rotate(float angleRadians) {
         state().transform.rotate(angleRadians);
+    }
+
+    @Override
+    public void shear(float sx, float sy) {
+        state().transform.concat(1, sy, sx, 1, 0, 0);
+    }
+
+    @Override
+    public void concat(limn.math.Affine2D matrix) {
+        state().transform.concat(matrix.a(), matrix.b(), matrix.c(), matrix.d(), matrix.e(), matrix.f());
+    }
+
+    @Override
+    public limn.math.Affine2D transform() {
+        State s = state();
+        Transform2D t = s.transform;
+        double k = s.baseScale;
+        return s.outer.concat(new limn.math.Affine2D(t.m00 / k, t.m10 / k, t.m01 / k, t.m11 / k,
+                (t.tx - s.baseX) / k, (t.ty - s.baseY) / k));
     }
 
     /**

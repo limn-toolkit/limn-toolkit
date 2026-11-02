@@ -26,10 +26,18 @@ from `(0, 0)` to `width()` by `height()`.
 The `Canvas` draws more than circles. Rectangles, rounded or not, and ellipses are filled or
 stroked, lines are drawn, text and images are placed, and any other outline is a `Path2D`, built
 with `moveTo`, `lineTo`, `quadTo`, `cubicTo` and `close`, then filled with `fillPath` or stroked
-with `drawPath`.
+with `drawPath`. A path also takes arcs (`arc`, `arcTo` for a rounded corner between two lines,
+`ellipticalArcTo` as SVG draws one) and whole shapes (`addRect`, `addRoundRect`, `addEllipse`,
+`addPath` with an `Affine2D` to place a copy), and `Path2D.parse` reads the path data an icon or
+a drawing program writes, `"M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"`. It answers in Java, with no canvas:
+`bounds()`, and `contains(x, y)` for a hit test on what it fills. `Stroke.of(2).outline(path)` is
+the region a two-unit line along it covers, so `contains` on that tests a hit on the line.
 Whatever takes a colour takes a `Paint`, which is a `Color`, a `LinearGradient` or a
 `RadialGradient`. `drawShadow(shape, shadow)` casts a `Shadow` under a rounded rectangle;
-`save`, `translate`, `rotate`, `scale` and `restore` move the coordinates, and `clipRect` and
+`save`, `translate`, `rotate`, `scale` and `restore` move the coordinates, `rotate(angle, cx, cy)`
+turns about a point, `shear` leans, and `concat` draws through any `Affine2D`; `transform()`
+answers the matrix in force, which `invert()` turns into the way back from the canvas's
+coordinates to the drawing's. `clipRect` and
 `clipRoundRect` cut what follows; `setBlendMode` draws in `BlendMode.ADDITIVE`, for light, or
 `MULTIPLY`, for shade; and `saveLayer` paints a group into a picture of its own, composited at one
 opacity, so overlapping parts do not show through each other. A widget that paints outside its

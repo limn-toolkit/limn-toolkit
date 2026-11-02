@@ -17,6 +17,7 @@ import limn.graphics.Sampling;
 import limn.graphics.Shadow;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
+import limn.math.Affine2D;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
@@ -48,17 +49,17 @@ final class PdfCanvas implements Canvas {
         final StringBuilder ops = new StringBuilder(4096);
         final Set<String> used = new HashSet<>();
         /** What maps this stream's coordinates at its start onto its pattern space. */
-        final Affine base;
+        final Affine2D base;
 
-        Buffer(Affine base) {
+        Buffer(Affine2D base) {
             this.base = base;
         }
     }
 
     /** What a save keeps, and whether it opened a layer. */
-    private record State(Affine ctm, float opacity, BlendMode blend, Sampling sampling, boolean layer,
+    private record State(Affine2D ctm, float opacity, BlendMode blend, Sampling sampling, boolean layer,
                          float lx, float ly, float lw, float lh, float layerOpacity, BlendMode layerBlend) {
-        State with(Affine moved) {
+        State with(Affine2D moved) {
             return new State(moved, opacity, blend, sampling, layer, lx, ly, lw, lh, layerOpacity, layerBlend);
         }
     }
@@ -68,7 +69,7 @@ final class PdfCanvas implements Canvas {
     private final float height;
     private final Deque<Buffer> buffers = new ArrayDeque<>();
     private final Deque<State> saved = new ArrayDeque<>();
-    private State state = new State(Affine.IDENTITY, 1, BlendMode.NORMAL, Sampling.SMOOTH, false,
+    private State state = new State(Affine2D.IDENTITY, 1, BlendMode.NORMAL, Sampling.SMOOTH, false,
             0, 0, 0, 0, 1, BlendMode.NORMAL);
 
     PdfCanvas(PdfWriter writer, float width, float height, float widthPt, float heightPt) {
@@ -78,7 +79,7 @@ final class PdfCanvas implements Canvas {
         // Document units are 1/96 inch, y down; the page's default space is points, y up.
         double sx = widthPt / width;
         double sy = heightPt / height;
-        Affine base = new Affine(sx, 0, 0, -sy, 0, heightPt);
+        Affine2D base = new Affine2D(sx, 0, 0, -sy, 0, heightPt);
         Buffer page = new Buffer(base);
         page.ops.append(Pdf.num(sx)).append(" 0 0 ").append(Pdf.num(-sy)).append(" 0 ").append(Pdf.num(heightPt))
                 .append(" cm\n");
@@ -201,6 +202,34 @@ final class PdfCanvas implements Canvas {
     }
 
     @Override
+    public void shear(float sx, float sy) {
+        concat(Affine2D.shearing(sx, sy));
+    }
+
+    @Override
+    public void concat(Affine2D m) {
+        state = state.with(state.ctm.concat(m));
+        ops().append(Pdf.num(m.a())).append(' ').append(Pdf.num(m.b())).append(' ').append(Pdf.num(m.c()))
+                .append(' ').append(Pdf.num(m.d())).append(' ').append(Pdf.num(m.e())).append(' ')
+                .append(Pdf.num(m.f())).append(" cm\n");
+    }
+
+    @Override
+    public Affine2D transform() {
+        // A layer's form starts its coordinates again where the canvas stood when it was opened,
+        // which is the transform of the state saved beneath it.
+        Affine2D m = state.ctm;
+        State inside = state;
+        for (State beneath : saved) {
+            if (inside.layer) {
+                m = beneath.ctm.concat(m);
+            }
+            inside = beneath;
+        }
+        return m;
+    }
+
+    @Override
     public void setOpacity(float opacity) {
         float clamped = Math.max(0, Math.min(1, opacity));
         state = new State(state.ctm, state.opacity * clamped, state.blend, state.sampling, state.layer, state.lx,
@@ -218,9 +247,9 @@ final class PdfCanvas implements Canvas {
         float clamped = Math.max(0, Math.min(1, opacity));
         // The layer's content is a form drawn where the canvas stands now: its own coordinates start
         // from here, and its pattern space is this space.
-        state = new State(Affine.IDENTITY, 1, BlendMode.NORMAL, state.sampling, true, x, y, w, h, clamped,
+        state = new State(Affine2D.IDENTITY, 1, BlendMode.NORMAL, state.sampling, true, x, y, w, h, clamped,
                 state.blend);
-        buffers.push(new Buffer(Affine.IDENTITY));
+        buffers.push(new Buffer(Affine2D.IDENTITY));
     }
 
     @Override
@@ -304,7 +333,7 @@ final class PdfCanvas implements Canvas {
         } else if (a0 * state.opacity < 1 || state.blend != BlendMode.NORMAL) {
             ops.append('/').append(use(writer.state(a0 * state.opacity, state.blend))).append(" gs\n");
         }
-        String pattern = use(writer.pattern(paint, out().base.times(state.ctm)));
+        String pattern = use(writer.pattern(paint, out().base.concat(state.ctm)));
         ops.append(fill ? "/Pattern cs /" : "/Pattern CS /").append(pattern).append(fill ? " scn\n" : " SCN\n");
     }
 

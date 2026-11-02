@@ -16,6 +16,7 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.graphics.TextRulers;
+import limn.math.Affine2D;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayDeque;
@@ -49,7 +50,7 @@ public final class RecordingCanvas implements Canvas {
     private float frameHeight;
     private boolean surfaceLogged;
 
-    private State state = new State(Affine.IDENTITY, null, 1, BlendMode.NORMAL, Sampling.SMOOTH, true);
+    private State state = new State(Affine2D.IDENTITY, null, 1, BlendMode.NORMAL, Sampling.SMOOTH, true);
     private final Deque<State> saved = new ArrayDeque<>();
 
     /**
@@ -159,6 +160,24 @@ public final class RecordingCanvas implements Canvas {
     }
 
     @Override
+    public void shear(float sx, float sy) {
+        state = state.with(state.transform.shear(sx, sy));
+        out.add(c -> c.shear(sx, sy));
+    }
+
+    @Override
+    public void concat(Affine2D matrix) {
+        Objects.requireNonNull(matrix, "matrix");
+        state = state.with(state.transform.concat(matrix));
+        out.add(c -> c.concat(matrix));
+    }
+
+    @Override
+    public Affine2D transform() {
+        return state.transform;
+    }
+
+    @Override
     public void setOpacity(float opacity) {
         float clamped = Math.max(0, Math.min(1, opacity));
         state = new State(state.transform, state.clip, state.opacity * clamped, state.blend, state.sampling,
@@ -231,15 +250,15 @@ public final class RecordingCanvas implements Canvas {
 
     /** Intersects the tracked clip, kept as a box on the page, with a rectangle's box on the page. */
     private void narrow(float x, float y, float width, float height) {
-        Affine t = state.transform;
+        Affine2D t = state.transform;
         double x0 = Double.MAX_VALUE;
         double y0 = Double.MAX_VALUE;
         double x1 = -Double.MAX_VALUE;
         double y1 = -Double.MAX_VALUE;
         double[][] corners = {{x, y}, {x + width, y}, {x, y + height}, {x + width, y + height}};
         for (double[] p : corners) {
-            double px = t.x(p[0], p[1]);
-            double py = t.y(p[0], p[1]);
+            double px = t.a() * p[0] + t.c() * p[1] + t.e();
+            double py = t.b() * p[0] + t.d() * p[1] + t.f();
             x0 = Math.min(x0, px);
             y0 = Math.min(y0, py);
             x1 = Math.max(x1, px);
@@ -261,8 +280,8 @@ public final class RecordingCanvas implements Canvas {
     @Override
     public @Nullable Rect clipBounds() {
         Rect clip = state.clip;
-        Affine t = state.transform;
-        if (clip == null || !t.axisAligned() || Math.abs(t.a()) < 1e-9 || Math.abs(t.d()) < 1e-9) {
+        Affine2D t = state.transform;
+        if (clip == null || Math.abs(t.b()) >= 1e-9 || Math.abs(t.c()) >= 1e-9 || Math.abs(t.a()) < 1e-9 || Math.abs(t.d()) < 1e-9) {
             return null;
         }
         double xa = (clip.x() - t.e()) / t.a();
@@ -426,15 +445,15 @@ public final class RecordingCanvas implements Canvas {
         if (clip == null) {
             return false;
         }
-        Affine t = state.transform;
+        Affine2D t = state.transform;
         double x0 = Double.MAX_VALUE;
         double y0 = Double.MAX_VALUE;
         double x1 = -Double.MAX_VALUE;
         double y1 = -Double.MAX_VALUE;
         double[][] corners = {{x, y}, {x + width, y}, {x, y + height}, {x + width, y + height}};
         for (double[] p : corners) {
-            double px = t.x(p[0], p[1]);
-            double py = t.y(p[0], p[1]);
+            double px = t.a() * p[0] + t.c() * p[1] + t.e();
+            double py = t.b() * p[0] + t.d() * p[1] + t.f();
             x0 = Math.min(x0, px);
             y0 = Math.min(y0, py);
             x1 = Math.max(x1, px);
@@ -493,9 +512,9 @@ public final class RecordingCanvas implements Canvas {
     }
 
     /** What a save keeps. */
-    private record State(Affine transform, @Nullable Rect clip, float opacity, BlendMode blend,
+    private record State(Affine2D transform, @Nullable Rect clip, float opacity, BlendMode blend,
                          Sampling sampling, boolean snap) {
-        State with(Affine moved) {
+        State with(Affine2D moved) {
             return new State(moved, clip, opacity, blend, sampling, snap);
         }
     }
