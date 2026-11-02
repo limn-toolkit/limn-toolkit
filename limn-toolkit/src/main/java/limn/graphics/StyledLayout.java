@@ -15,7 +15,16 @@ import org.jspecify.annotations.Nullable;
 /**
  * {@link StyledText} laid out at a width: its paragraphs shaped, broken into lines and placed, ready
  * to paint on any {@link Canvas}. What a label holds for its styled text, and what an application
- * drawing on a canvas of its own lays out with.
+ * that draws for itself (a chart's annotations, a diagram's notes, a report's page) measures and
+ * draws styled text with: built once, asked its size, painted as often as it shows.
+ *
+ * <pre>{@code
+ * StyledLayout note = StyledLayout.builder(text, Font.of(13), Color.BLACK)
+ *         .maxWidth(240)
+ *         .build(textRuler());                    // a widget's ruler; build() takes the installed one
+ * canvas.drawText(note, x, y);                    // the box's top-left corner
+ * float below = y + note.height();
+ * }</pre>
  *
  * <p><b>A paragraph is shaped as one, split only where the font changes.</b> Bidi is resolved over
  * the whole paragraph; a shaping run is a stretch of one font (family, size, weight, slant, raised
@@ -27,8 +36,8 @@ import org.jspecify.annotations.Nullable;
  * line breaker reports; a line is as tall as its tallest run, and every run on it sits on its
  * baseline.
  *
- * <p>Immutable once made. Lay out again when the text, the base, the width or the language
- * changes, or when {@link #isCurrent} says the ruler would shape differently.
+ * <p>Immutable once made. Lay out again when the text, the font, the ink, the width or the
+ * language changes, or when {@link #isCurrent} says the ruler would shape differently.
  */
 public final class StyledLayout {
 
@@ -37,15 +46,9 @@ public final class StyledLayout {
      * alignment of a paragraph that sets none, and the direction of the interface around it, which
      * a paragraph with no strong character of its own reads in and the base alignment's start and
      * end are read in. A paragraph's own alignment is read in the paragraph's own direction.
-     *
-     * @param font        the base font
-     * @param ink         the base ink
-     * @param alignment   the base alignment
-     * @param whenNeutral the direction a paragraph with no strong character reads
      */
-    public record Base(Font font, Ink ink, ParagraphStyle.Alignment alignment,
-                       ShapedText.Direction whenNeutral) {
-        public Base {
+    record Base(Font font, Ink ink, ParagraphStyle.Alignment alignment, ShapedText.Direction whenNeutral) {
+        Base {
             Objects.requireNonNull(font, "font");
             Objects.requireNonNull(ink, "ink");
             Objects.requireNonNull(alignment, "alignment");
@@ -55,6 +58,121 @@ public final class StyledLayout {
 
     /** No limit on the width: each paragraph is one line. */
     public static final float UNBOUNDED = Float.POSITIVE_INFINITY;
+
+    /**
+     * Starts laying {@code text} out. Everything but the text, the font and the ink has a default:
+     * no width limit, no line limit, an ellipsis on a cut line, paragraphs aligned to their start
+     * in a left-to-right interface.
+     *
+     * @param text the text, read in the language in effect when it is built
+     * @param font the font a piece that sets none of its own is drawn in
+     * @param ink  the ink a piece that sets none of its own is drawn in
+     * @return the builder
+     */
+    public static Builder builder(StyledText text, Font font, Ink ink) {
+        return new Builder(Objects.requireNonNull(text, "text"), Objects.requireNonNull(font, "font"),
+                Objects.requireNonNull(ink, "ink"));
+    }
+
+    /** How a {@link StyledLayout} is made: the text, its base and its limits. Not thread-safe. */
+    public static final class Builder {
+        private final StyledText text;
+        private final Font font;
+        private final Ink ink;
+        private ParagraphStyle.Alignment alignment = ParagraphStyle.Alignment.START;
+        private ShapedText.Direction direction = ShapedText.Direction.LTR;
+        private float maxWidth = UNBOUNDED;
+        private int maxLines = Integer.MAX_VALUE;
+        private boolean ellipsis = true;
+
+        private Builder(StyledText text, Font font, Ink ink) {
+            this.text = text;
+            this.font = font;
+            this.ink = ink;
+        }
+
+        /**
+         * @param newAlignment the alignment of a paragraph that sets none of its own; {@code START}
+         *                     by default
+         * @return this builder
+         */
+        public Builder alignment(ParagraphStyle.Alignment newAlignment) {
+            alignment = Objects.requireNonNull(newAlignment, "newAlignment");
+            return this;
+        }
+
+        /**
+         * The direction of the interface around the text: what a paragraph with no strong character
+         * of its own reads in, and what the base alignment's start and end mean. Left to right by
+         * default; a right-to-left interface passes {@code RTL}. A paragraph with a strong
+         * character reads in its own direction whatever this says.
+         *
+         * @param newDirection the interface's direction
+         * @return this builder
+         */
+        public Builder direction(ShapedText.Direction newDirection) {
+            direction = Objects.requireNonNull(newDirection, "newDirection");
+            return this;
+        }
+
+        /**
+         * @param points the width lines break at, in logical points; {@link #UNBOUNDED}, the
+         *               default, breaks none, and 0 breaks after every cluster
+         * @return this builder
+         * @throws IllegalArgumentException when {@code points} is negative or not a number
+         */
+        public Builder maxWidth(float points) {
+            if (Float.isNaN(points) || points < 0) {
+                throw new IllegalArgumentException("maxWidth must be 0 or more, or UNBOUNDED: " + points);
+            }
+            maxWidth = points;
+            return this;
+        }
+
+        /**
+         * @param lines the most lines, 1 or more; {@code Integer.MAX_VALUE}, the default, for no limit
+         * @return this builder
+         * @throws IllegalArgumentException when {@code lines} is below 1
+         */
+        public Builder maxLines(int lines) {
+            if (lines < 1) {
+                throw new IllegalArgumentException("maxLines must be 1 or more: " + lines);
+            }
+            maxLines = lines;
+            return this;
+        }
+
+        /**
+         * @param cut whether a cut last line, or a line wider than the width, ends with an ellipsis
+         *            (the default); otherwise it is left whole for a clip to cut
+         * @return this builder
+         */
+        public Builder ellipsis(boolean cut) {
+            ellipsis = cut;
+            return this;
+        }
+
+        /**
+         * Lays the text out with {@code ruler}: a widget passes its own {@code textRuler()}, so the
+         * text is measured as the rest of its scene is.
+         *
+         * @param ruler the ruler that shapes it
+         * @return the layout
+         */
+        public StyledLayout build(TextRuler ruler) {
+            return of(text, new Base(font, ink, alignment, direction), maxWidth, maxLines, ellipsis, ruler);
+        }
+
+        /**
+         * Lays the text out with the installed ruler, {@link TextRulers#get()}: the one an application
+         * drawing outside any scene measures with.
+         *
+         * @return the layout
+         */
+        public StyledLayout build() {
+            return build(TextRulers.get());
+        }
+    }
 
     /** Unicode's line separator: a line break inside a paragraph. */
     private static final char LINE_SEPARATOR = '\u2028';
@@ -92,16 +210,18 @@ public final class StyledLayout {
     private final Base base;
     private final List<ParagraphLayout> paragraphs;
     private final float width;
+    private final float boxWidth;
     private final float height;
     private final int lineCount;
     private final boolean truncated;
     private final long epoch;
 
-    private StyledLayout(Base base, List<ParagraphLayout> paragraphs, float width, float height,
-                         int lineCount, boolean truncated, long epoch) {
+    private StyledLayout(Base base, List<ParagraphLayout> paragraphs, float width, float boxWidth,
+                         float height, int lineCount, boolean truncated, long epoch) {
         this.base = base;
         this.paragraphs = paragraphs;
         this.width = width;
+        this.boxWidth = boxWidth;
         this.height = height;
         this.lineCount = lineCount;
         this.truncated = truncated;
@@ -123,7 +243,7 @@ public final class StyledLayout {
      * @throws IllegalArgumentException when {@code maxLines} is below 1, or {@code maxWidth} is
      *                                  negative or not a number
      */
-    public static StyledLayout of(StyledText text, Base base, float maxWidth, int maxLines,
+    static StyledLayout of(StyledText text, Base base, float maxWidth, int maxLines,
                                   boolean ellipsis, TextRuler ruler) {
         Objects.requireNonNull(text, "text");
         Objects.requireNonNull(base, "base");
@@ -160,7 +280,8 @@ public final class StyledLayout {
                 cut = true;
             }
         }
-        return new StyledLayout(base, List.copyOf(laid), widest, y, lines, cut, ruler.epoch());
+        return new StyledLayout(base, List.copyOf(laid), widest, maxWidth == UNBOUNDED ? widest : maxWidth, y,
+                lines, cut, ruler.epoch());
     }
 
     /**
@@ -212,6 +333,11 @@ public final class StyledLayout {
     /** @return the widest line with its indents, in logical points */
     public float width() {
         return width;
+    }
+
+    /** @return the box {@link Canvas#drawText(StyledLayout, float, float)} aligns the lines in: the width limit, or the widest line without one */
+    float boxWidth() {
+        return boxWidth;
     }
 
     /** @return the height of every line and the space between paragraphs, in logical points */

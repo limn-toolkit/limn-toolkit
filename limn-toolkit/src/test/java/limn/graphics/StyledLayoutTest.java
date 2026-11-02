@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -765,5 +766,72 @@ class StyledLayoutTest {
         StyledText after = StyledText.builder().append("Intro: ").append(section).build();
         assertEquals("Intro: one\n\u2022 two", after.readerText(),
                 "after text, its first paragraph still continues the open one");
+    }
+
+    @Test
+    void theBuilderLaysOutAsItsDefaultsSayAndTakesEachLimit() {
+        StyledText text = StyledText.of("aaa bbb ccc");
+        StyledLayout whole = StyledLayout.builder(text, Font.of(10), INK).build(RULER);
+        assertEquals(1, whole.lineCount(), "no width limit by default");
+        assertEquals(110, whole.width(), 1e-3);
+        StyledLayout broken = StyledLayout.builder(text, Font.of(10), INK).maxWidth(75).build(RULER);
+        assertEquals(2, broken.lineCount());
+        StyledLayout cut = StyledLayout.builder(text, Font.of(10), INK).maxWidth(75).maxLines(1).build(RULER);
+        assertTrue(cut.isTruncated());
+        assertEquals("\u2026", paint(cut, 75).drawn.get(1).chars(), "an ellipsis by default");
+        StyledLayout clipped = StyledLayout.builder(text, Font.of(10), INK).maxWidth(75).maxLines(1)
+                .ellipsis(false).build(RULER);
+        assertEquals(1, paint(clipped, 75).drawn.size(), "left whole for a clip to cut");
+        assertThrows(IllegalArgumentException.class,
+                () -> StyledLayout.builder(text, Font.of(10), INK).maxWidth(-1));
+        assertThrows(IllegalArgumentException.class,
+                () -> StyledLayout.builder(text, Font.of(10), INK).maxLines(0));
+    }
+
+    @Test
+    void theBuildersDirectionIsWhatANeutralParagraphReadsAndWhereItsStartIs() {
+        StyledText digits = StyledText.of("123");
+        StyledLayout ltr = StyledLayout.builder(digits, Font.of(10), INK).maxWidth(100).build(RULER);
+        StyledLayout rtl = StyledLayout.builder(digits, Font.of(10), INK).maxWidth(100)
+                .direction(ShapedText.Direction.RTL).build(RULER);
+        assertEquals(0, paint(ltr, 100).drawn.get(0).x(), 1e-3, "start is the left");
+        assertEquals(70, paint(rtl, 100).drawn.get(0).x(), 1e-3, "start is the right");
+        StyledLayout centred = StyledLayout.builder(digits, Font.of(10), INK).maxWidth(100)
+                .alignment(ParagraphStyle.Alignment.CENTER).build(RULER);
+        assertEquals(35, paint(centred, 100).drawn.get(0).x(), 1e-3);
+    }
+
+    @Test
+    void aCanvasDrawsALayoutAtTheTopLeftOfItsBox() {
+        StyledText text = StyledText.of("abc");
+        Recorder canvas = new Recorder();
+        StyledLayout unbounded = StyledLayout.builder(text, Font.of(10), INK)
+                .alignment(ParagraphStyle.Alignment.END).build(RULER);
+        canvas.drawText(unbounded, 5, 7);
+        assertEquals(5, canvas.drawn.get(0).x(), 1e-3, "without a limit the box is the widest line");
+        assertEquals(7 + unbounded.firstBaseline(), canvas.drawn.get(0).y(), 1e-3);
+
+        Recorder boxed = new Recorder();
+        boxed.drawText(StyledLayout.builder(text, Font.of(10), INK).maxWidth(100)
+                .alignment(ParagraphStyle.Alignment.CENTER).build(RULER), 5, 7);
+        assertEquals(5 + 35, boxed.drawn.get(0).x(), 1e-3, "aligned in the width it was laid out at");
+    }
+
+    @Test
+    void aCanvasLaysStyledTextOutAndDrawsItInOneCallWithTheInstalledRuler() {
+        StyledText text = StyledText.builder().append("aaa ").append("bbb", TextStyle.of().ink(RED)).build();
+        Recorder canvas = new Recorder();
+        TextRulers.install(RULER);
+        try {
+            canvas.drawText(text, 10, 20, 35, Font.of(10), INK);
+        } finally {
+            TextRulers.uninstall(RULER);
+        }
+        assertEquals("aaa", canvas.drawn.get(0).chars(), "the space at the break is not drawn");
+        assertEquals(INK, canvas.drawn.get(0).paint());
+        assertEquals("bbb", canvas.drawn.get(1).chars(), "broken at the width");
+        assertEquals(RED, canvas.drawn.get(1).paint());
+        assertEquals(20 + 8, canvas.drawn.get(0).y(), 1e-3, "the first baseline below the top");
+        assertEquals(20 + 12 + 8, canvas.drawn.get(1).y(), 1e-3, "the second line under it");
     }
 }

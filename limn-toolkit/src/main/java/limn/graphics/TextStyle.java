@@ -369,7 +369,7 @@ public final class TextStyle {
      * @param base the font the text around it is drawn in
      * @return the font
      */
-    public Font fontOver(Font base) {
+    Font fontOver(Font base) {
         Objects.requireNonNull(base, "base");
         if (family == null && Float.isNaN(size) && Float.isNaN(scale) && weight == 0 && italic == null) {
             return base;
@@ -391,7 +391,7 @@ public final class TextStyle {
     }
 
     /** @return the family set, or {@code null} for inherited */
-    public @Nullable String familyOrNull() {
+    @Nullable String familyOrNull() {
         return family;
     }
 
@@ -399,52 +399,52 @@ public final class TextStyle {
      * @return the weight set exactly, {@value Font#BOLD} for {@link #bold()} (which is at least
      *         that, see {@link #isAtLeastBold()}), or {@code 0} for inherited
      */
-    public int weightOrZero() {
+    int weightOrZero() {
         return weight == AT_LEAST_BOLD ? Font.BOLD : weight;
     }
 
     /** @return whether this style is {@link #bold()}: bold, or the inherited weight if heavier */
-    public boolean isAtLeastBold() {
+    boolean isAtLeastBold() {
         return weight == AT_LEAST_BOLD;
     }
 
     /** @return the ink set, or {@code null} for inherited */
-    public @Nullable Ink inkOrNull() {
+    @Nullable Ink inkOrNull() {
         return ink;
     }
 
     /** @return the background set, or {@code null} for none */
-    public @Nullable Ink backgroundOrNull() {
+    @Nullable Ink backgroundOrNull() {
         return background;
     }
 
     /** @return the underline set, {@link Underline#NONE} when none is */
-    public Underline underlineKind() {
+    Underline underlineKind() {
         return underline != null ? underline : Underline.NONE;
     }
 
     /** @return the underline's own ink, or {@code null} for the text's */
-    public @Nullable Ink underlineInkOrNull() {
+    @Nullable Ink underlineInkOrNull() {
         return underlineInk;
     }
 
     /** @return whether struck through */
-    public boolean isStruckThrough() {
+    boolean isStruckThrough() {
         return strikethrough != null && strikethrough;
     }
 
     /** @return the strike-through's own ink, or {@code null} for the text's */
-    public @Nullable Ink strikethroughInkOrNull() {
+    @Nullable Ink strikethroughInkOrNull() {
         return strikethroughInk;
     }
 
     /** @return where the text sits; {@link Baseline#NORMAL} when not set */
-    public Baseline baselineKind() {
+    Baseline baselineKind() {
         return baseline != null ? baseline : Baseline.NORMAL;
     }
 
     /** @return the tracking in ems; 0 when not set */
-    public float trackingEms() {
+    float trackingEms() {
         return Float.isNaN(tracking) ? 0 : tracking;
     }
 

@@ -192,13 +192,13 @@ public final class Label extends Widget<Label> {
     private float styledWidth = Float.NaN;
     private int styledLimit;
     private boolean styledEllipsis;
-    private StyledLayout.@Nullable Base styledBase;
+    private @Nullable StyledBase styledBase;
     private long styledEpoch = -1;
     // The unbroken layout a one-line label is measured with, held apart from the one it is laid
     // out and painted with: in one slot the two would replace each other on every pass, and the
     // text would be shaped twice per pass for nothing.
     private @Nullable StyledLayout styledNatural;
-    private StyledLayout.@Nullable Base styledNaturalBase;
+    private @Nullable StyledBase styledNaturalBase;
     private long styledNaturalEpoch = -1;
     // The styled text's plain text as a reader hears it, read once per language: reading it formats
     // every translated pattern and counts the markers, which no paint should do.
@@ -630,7 +630,7 @@ public final class Label extends Widget<Label> {
      * as it reads in the language now, or the ruler's faces.
      */
     private StyledLayout styledLayout(StyledText value, Font f, float width, int limit, boolean ellipsis) {
-        StyledLayout.Base base = new StyledLayout.Base(f, LABEL_INK, styledAlignment(), neutralBase());
+        StyledBase base = new StyledBase(f, styledAlignment(), neutralBase());
         // The language's epoch stands for the text as it reads: a text built from translated
         // strings reads anew only when it moves, and a new text drops both layouts.
         long epoch = I18n.epoch();
@@ -641,7 +641,7 @@ public final class Label extends Widget<Label> {
                 && epoch == styledNaturalEpoch && natural.isCurrent(ruler);
         if (width == StyledLayout.UNBOUNDED) {
             if (!naturalHolds) {
-                natural = StyledLayout.of(value, base, width, limit, ellipsis, ruler);
+                natural = lay(value, base, width, limit, ellipsis, ruler);
                 styledNatural = natural;
                 styledNaturalLimit = limit;
                 styledNaturalEllipsis = ellipsis;
@@ -666,7 +666,7 @@ public final class Label extends Widget<Label> {
         if (held == null || Float.compare(width, styledWidth) != 0 || limit != styledLimit
                 || ellipsis != styledEllipsis || !base.equals(styledBase) || epoch != styledEpoch
                 || !held.isCurrent(ruler)) {
-            held = StyledLayout.of(value, base, width, limit, ellipsis, ruler);
+            held = lay(value, base, width, limit, ellipsis, ruler);
             styledLayout = held;
             styledWidth = width;
             styledLimit = limit;
@@ -675,6 +675,17 @@ public final class Label extends Widget<Label> {
             styledEpoch = epoch;
         }
         return held;
+    }
+
+    /** What a styled layout is laid out over, besides the label's ink: a change of any part lays it out again. */
+    private record StyledBase(Font font, limn.graphics.ParagraphStyle.Alignment alignment,
+                              ShapedText.Direction whenNeutral) {
+    }
+
+    private static StyledLayout lay(StyledText value, StyledBase base, float width, int limit, boolean ellipsis,
+                                    TextRuler ruler) {
+        return StyledLayout.builder(value, base.font(), LABEL_INK).alignment(base.alignment())
+                .direction(base.whenNeutral()).maxWidth(width).maxLines(limit).ellipsis(ellipsis).build(ruler);
     }
 
     /** {@link #hAlign} as the base alignment of a styled paragraph, read in this label's direction. */

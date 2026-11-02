@@ -705,6 +705,38 @@ public interface Canvas {
     }
 
     /**
+     * Draws styled text laid out beforehand, with {@code (x, y)} at the top-left corner of its box:
+     * the width limit it was laid out at, or its widest line without one, which its paragraphs are
+     * aligned in. Every ink is asked for its paint now, a {@code Tone} in the application's palette.
+     * The form to hold when the text is drawn every frame, or when its size places what is around it.
+     *
+     * @param layout the laid-out text
+     * @param x      the box's left edge
+     * @param y      the box's top edge
+     */
+    default void drawText(StyledLayout layout, float x, float y) {
+        layout.paint(this, x, y, layout.boxWidth());
+    }
+
+    /**
+     * Lays styled text out and draws it, with {@code (x, y)} at the top-left corner of its box: a
+     * paragraph per line where {@code maxWidth} is {@link StyledLayout#UNBOUNDED}, broken to fit
+     * it otherwise and aligned in it. Shaped by the installed ruler, {@link TextRulers#get()}, and
+     * again on every call; a widget, or text drawn every frame, holds a {@link StyledLayout} instead.
+     *
+     * @param text     the text
+     * @param x        the box's left edge
+     * @param y        the box's top edge
+     * @param maxWidth the width lines break at, in logical points
+     * @param font     the font a piece that sets none of its own is drawn in
+     * @param ink      the ink a piece that sets none of its own is drawn in
+     * @throws IllegalArgumentException when {@code maxWidth} is negative or not a number
+     */
+    default void drawText(StyledText text, float x, float y, float maxWidth, Font font, Ink ink) {
+        drawText(StyledLayout.builder(text, font, ink).maxWidth(maxWidth).build(), x, y);
+    }
+
+    /**
      * Measures a single line of text in logical points (baseline-relative,
      * unquantized and therefore independent of the monitor scale). Same
      * code-point rules as {@link #drawText}, and the same shaping: a canvas that

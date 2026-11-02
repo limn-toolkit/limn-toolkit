@@ -236,62 +236,62 @@ public final class ParagraphStyle {
     }
 
     /** @return the alignment set, or {@code null} for the base's */
-    public @Nullable Alignment alignmentOrNull() {
+    @Nullable Alignment alignmentOrNull() {
         return alignment;
     }
 
     /** @return the start indent, in logical points */
-    public float startIndent() {
+    float startIndent() {
         return startIndent;
     }
 
     /** @return the end indent, in logical points */
-    public float endIndent() {
+    float endIndent() {
         return endIndent;
     }
 
     /** @return the first line's extra indent, in logical points */
-    public float firstLineIndent() {
+    float firstLineIndent() {
         return firstLineIndent;
     }
 
     /** @return the room above, in logical points */
-    public float spaceBefore() {
+    float spaceBefore() {
         return spaceBefore;
     }
 
     /** @return the room below, in logical points */
-    public float spaceAfter() {
+    float spaceAfter() {
         return spaceAfter;
     }
 
     /** @return the line spacing factor; 1 when not set */
-    public float lineSpacingFactor() {
+    float lineSpacingFactor() {
         return Float.isNaN(lineSpacing) ? 1 : lineSpacing;
     }
 
     /** @return the list marker, or {@code null} for a paragraph in no list */
-    public @Nullable ListMarker listOrNull() {
+    @Nullable ListMarker listOrNull() {
         return list;
     }
 
     /** @return the list level, 0 the outermost */
-    public int level() {
+    int level() {
         return level;
     }
 
     /** @return the item's own number, or 0 where it is counted */
-    public int listNumber() {
+    int listNumber() {
         return number;
     }
 
     /** @return the direction set, or {@code null} where it is detected */
-    public ShapedText.@Nullable Direction directionOrNull() {
+    ShapedText.@Nullable Direction directionOrNull() {
         return direction;
     }
 
     /** @return the style the paragraph's text inherits */
-    public TextStyle textStyle() {
+    TextStyle textStyle() {
         return text;
     }
 

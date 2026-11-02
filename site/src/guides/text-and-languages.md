@@ -366,8 +366,27 @@ weight changed inside a word is shaped with the rest of the paragraph as its con
 halves stay joined too.
 
 A reader hears the plain text, each list item led by its marker; the styles are not read out.
-Styled text takes no input: it is for showing. To draw styled text on your own canvas, lay it out
-with `StyledLayout.of(text, base, width, maxLines, ellipsis, textRuler())` and call its `paint`.
+Styled text takes no input: it is for showing.
+
+**On your own canvas.** A widget or a chart that draws for itself puts styled text on its canvas in
+one call, or lays it out once to measure it and draw it as often as it shows:
+
+```java
+canvas.drawText(note, x, y, 240, Font.of(13), theme.text());   // laid out and drawn, 240 wide
+
+StyledLayout laid = StyledLayout.builder(note, Font.of(13), theme.text())
+        .maxWidth(240)
+        .maxLines(3)                      // and an ellipsis on the third, by default
+        .build(textRuler());              // the widget's ruler
+canvas.drawText(laid, x, y);              // (x, y) is the box's top-left corner
+float below = y + laid.height();
+```
+
+The box is the width limit, or the widest line without one, and the paragraphs are aligned in it.
+In a right-to-left interface pass `.direction(ShapedText.Direction.RTL)`, which is what a paragraph
+with no strong character reads in and where its start is. A tone is drawn in the application's
+palette; a widget with a palette of its own paints the layout with a resolver,
+`laid.paint(canvas, x, y, width, ink -> ...)`.
 
 ### Font weights
 

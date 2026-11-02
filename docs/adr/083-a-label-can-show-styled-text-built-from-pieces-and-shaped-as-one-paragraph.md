@@ -4,7 +4,9 @@
   owner set the scope (section 1) and answered the seven questions of section 4 (section 6), and
   the build followed (section 7, with what departed from the text). Owed: the owner's publication
   of `limn-fonts-roboto` 2.138.1 and the catalog line that takes it (section 7.4), and the
-  owner took the three choices a review of the whole branch left (section 7.6). This reopens,
+  owner took the three choices a review of the whole branch left (section 7.6), narrowed the
+  styles' public readers before the first release, and put styled text on the canvas through a
+  layout built by a builder (section 7.7). This reopens,
   for display only, the "rich text" that ADR 067 refused; an editor stays out (the owner: a distant
   future). [ADR 084](084-code-and-markdown-are-shown-by-projects-outside-the-toolkit-and-the-toolkit-carries-only-what-they-need.md)
   (2026-10-31) makes a line separator (U+2028) a line break inside its paragraph, and adds a
@@ -16,7 +18,8 @@
   part, how a paragraph of several styles is shaped, broken into lines and drawn, what a weight
   between regular and bold needs from the faces, and what reaches a printed page and a reader.
 - **New public API, all in `limn-toolkit`:** in `limn.graphics`, `StyledText`, `TextStyle`,
-  `ParagraphStyle`, `StyledLayout`, `Ink` and `TextDecorations`, a weight on `Font`,
+  `ParagraphStyle`, `StyledLayout` (built by a builder since section 7.7), `Ink` and
+  `TextDecorations`, two `Canvas.drawText` forms for styled text (7.7), a weight on `Font`,
   `TextRuler.shapeRun` and `TextRuler.decorations`, and `Canvas.drawText` over a range; in
   `limn.components`, `Label.setText(StyledText)`, `Label.styledText()`,
   `Label.setIconPosition` with `Label.IconPosition`, and `Tone` as an `Ink` (section 7).
@@ -465,7 +468,7 @@ merged, twenty-seven defects, all fixed, and three choices for the owner.
   instances are made at the nearest ten. A long paragraph no longer passes through the shaper's
   memo for short lines.
 - **Smaller:** a monospace bold drawn where HarfBuzz did not load is drawn synthetic bold rather
-  than regular; `StyledLayout.of` refuses a negative or NaN width and breaks after every cluster
+  than regular; the layout refuses a negative or NaN width and breaks after every cluster
   at 0; `TextStyle.toString` shows the line inks; two Javadocs said "in the text's ink" where an
   inherited line ink wins, and `ParagraphStyle`'s said start and end were always the paragraph's
   own, where a paragraph that sets no alignment follows the base (7.2).
@@ -477,8 +480,52 @@ Three choices were the owner's, and the owner took all three recommendations the
    styles; after text, the first paragraph still continues the open one.
 2. **`TextStyle.bold()` is at least bold,** as `Font.bold()` is: 700, or the inherited weight
    where that is heavier, so a word made bold inside a heading set in Black stays Black.
-   `weight(int)` sets a weight exactly; `isAtLeastBold()` tells the two apart.
+   `weight(int)` sets a weight exactly; the layout tells the two apart (`isAtLeastBold()`, inside
+   the package since 7.7).
 3. **An `Ink` keeps its signature, with no palette.** An application's own ink reads
    `Theme.current()`; a label answers its tones in its own palette, and a canvas of the
    application's does the same through `StyledLayout.paint`'s resolver. `Ink`'s Javadoc says so.
    Putting the palette in the signature would change a public interface for a rare need.
+
+### 7.7 The public API narrowed before its first release, and styled text on the canvas (2026-11-01)
+
+Asked whether the API had settled, a reading of who calls what found surface no consumer used:
+the toolkit's own widgets, the demo and the two projects of ADR 084 build styled text through the
+styles' builders, and nothing outside `limn.graphics` read a style back. None of it had reached a
+release, so it could change without a deprecation; once released, it stays until a major version.
+
+1. **The styles keep their builders and lose their readers.** `TextStyle`'s eleven readers
+   (`familyOrNull`, `weightOrZero`, `isAtLeastBold`, `inkOrNull` and the rest) and its `fontOver`,
+   `ParagraphStyle`'s twelve readers and `StyledText.Span`'s two are package-private: the layout,
+   in the same package, is their one reader. `TextStyle.over` stays public: it composes a style
+   rather than reading one, and both projects of ADR 084 use it for a style inside another
+   (emphasis inside strong text, a mark over a token's colour). This also drops a reader that
+   answered 700 both for a weight set exactly and for "at least bold" (7.6, choice 2). A reader an
+   application needs, to export styled text say, comes back as an addition.
+2. **`StyledLayout` stays public, built by a builder, and the canvas draws it.** As first built,
+   its `of(text, base, maxWidth, maxLines, ellipsis, ruler)` fixed six parameters and its `Base`
+   was a record, to which a component cannot be added without breaking its constructor, so every
+   later parameter of the layout (tab stops, a line height) would have been a break. It was first
+   taken out of the API for that reason; the owner wants it in, since the canvas is to be what an
+   application that draws for itself has at hand, as powerful as the platform's 2D graphics, and
+   styled text belongs on it. So it came back in a shape that can grow:
+   - `StyledLayout.builder(text, font, ink)`, then `alignment`, `direction` (the interface's, left
+     to right by default), `maxWidth`, `maxLines` and `ellipsis`, each with a default, and
+     `build(ruler)` (a widget's `textRuler()`) or `build()` (the installed ruler). A later option
+     is one more method on the builder. `Base` and `of` are package-private.
+   - The layout answers its size (`width`, `height`, `lineCount`, `isTruncated`,
+     `firstBaseline`, `lineCuts`), whether it is still current for a ruler, and paints, with every
+     ink asked now or through a resolver, the backgrounds' through a second one if wanted.
+   - `Canvas.drawText(StyledLayout, x, y)` draws it with its box's top-left corner at `(x, y)`,
+     the box being the width limit or, without one, the widest line; and
+     `Canvas.drawText(StyledText, x, y, maxWidth, font, ink)` lays out with the installed ruler
+     and draws in one call, as the platform's 2D graphics draws attributed text. Both are default
+     methods, so no canvas, the backend's, the printed page's or a recording, implements anything.
+   - The label lays out through the same builder; nothing of the toolkit uses a door the
+     application does not have.
+
+What is public is what the consumers use and the canvas offers: `StyledText` with its builder, its
+patterns and `span`, `text()` and `readerText()`; `TextStyle` and `ParagraphStyle` as builders
+with their enums, and `TextStyle.over`; `Ink`; `StyledLayout` and its builder; the two
+`Canvas.drawText` forms; `Label.setText(StyledText)` and `Label.styledText()`. Tests:
+`StyledLayoutTest` (the builder's defaults and limits, the direction, the canvas's two forms).

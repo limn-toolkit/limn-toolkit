@@ -10,7 +10,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Text in more than one style: paragraphs of pieces, each piece with the {@link TextStyle} it
  * differs by, each paragraph with its {@link ParagraphStyle}. A value, immutable, which a label
- * shows ({@code Label.setText(StyledText)}) and {@link StyledLayout} lays out for any canvas.
+ * shows ({@code Label.setText(StyledText)}).
  *
  * <p><b>Built from pieces, never from offsets.</b> A style stored as "characters 7 to 18" is a
  * fact about one language's sentence, and a translation moves the words. So a styled piece is
@@ -55,12 +55,12 @@ public final class StyledText {
         }
 
         /** @return the style the piece differs by */
-        public TextStyle style() {
+        TextStyle style() {
             return style;
         }
 
         /** @return the piece's text as it reads now */
-        public String text() {
+        String text() {
             return read(text);
         }
 
