@@ -115,6 +115,14 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
     private static final int STREAM_BUFFERS = 3;
 
     /**
+     * How long a looping stream whose source has nothing after its rewind is waited for before it
+     * is let go. A soundtrack read from a video's container rewinds when the pictures do, a few
+     * tenths of a second after its own end, and reads nothing until then; a source that is still
+     * empty after this long is empty, and the stream ends as one that does not loop would.
+     */
+    private static final long LOOP_REWIND_PATIENCE_NANOS = 2_000_000_000L;
+
+    /**
      * A clip and the device buffer made of it, the clip held weakly: the buffer is for as long as
      * the application has the clip, and a clip it let go of was otherwise kept here, samples and
      * all, until sixty-four others had been played.
@@ -889,6 +897,10 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                     stream.completedFrames += played == null ? 0 : played;
                     jobs.add(new RefillJob(stream, buffer));
                 }
+                for (int buffer : stream.waitingBuffers) {
+                    jobs.add(new RefillJob(stream, buffer)); // tried again: see applyRefills
+                }
+                stream.waitingBuffers.clear();
             } catch (Throwable error) {
                 LOG.log(Level.DEBUG, "stream service failed", error);
                 stream.stopRequested = true;
@@ -901,6 +913,14 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         for (RefillJob job : jobs) {
             Stream stream = job.stream;
             try {
+                if (job.frames <= 0 && waitsForRewind(stream, job)) {
+                    // Kept rather than deleted. A buffer deleted here is never made again, so a
+                    // looping soundtrack that read nothing for a pass or two at each rewind lost one
+                    // of its three every time, and from the second pass on played its chunks with
+                    // a gap after each: the clicks that got worse with every repeat.
+                    stream.waitingBuffers.add(job.buffer);
+                    continue;
+                }
                 if (stream.finished || stream.stopRequested || job.frames <= 0
                         || stream.seekSerial != job.serial) {
                     // Stream over, end of data, or seeked while this decode was in flight, in
@@ -916,11 +936,27 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                         streamUpload, stream.sampleRate);
                 alSourceQueueBuffers(stream.source, job.buffer);
                 stream.framesInBuffer.put(job.buffer, job.frames);
+                stream.waitingSince = 0;
             } catch (Throwable error) {
                 LOG.log(Level.DEBUG, "stream refill failed", error);
                 stream.stopRequested = true;
             }
         }
+    }
+
+    /**
+     * Whether an empty refill of {@code stream} is a looping source between its end and its
+     * rewind rather than the end of the stream. A source that rewinds at once (a file) never reads
+     * empty after {@link AudioStreamSource#reset()}; one whose position another reader moves (the
+     * soundtrack of a video, which the pictures rewind) reads empty until they do.
+     */
+    private static boolean waitsForRewind(Stream stream, RefillJob job) {
+        if (!stream.loop || stream.finished || stream.stopRequested
+                || stream.seekSerial != job.serial || stream.framesDelivered == 0) {
+            return false;
+        }
+        return stream.waitingSince == 0
+                || System.nanoTime() - stream.waitingSince < LOOP_REWIND_PATIENCE_NANOS;
     }
 
     /** Underruns, natural ends and stop requests (monitor held). */
@@ -940,6 +976,16 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             try {
                 int queued = alGetSourcei(stream.source, AL_BUFFERS_QUEUED);
                 int state = alGetSourcei(stream.source, AL_SOURCE_STATE);
+                if (queued == 0 && !stream.waitingBuffers.isEmpty()) {
+                    // Drained while its source rewinds: restarted below once a refill lands. The
+                    // wait is timed from here, and a pause is not part of it.
+                    if (stream.paused) {
+                        stream.waitingSince = 0;
+                    } else if (stream.waitingSince == 0) {
+                        stream.waitingSince = System.nanoTime();
+                    }
+                    continue;
+                }
                 if (queued == 0 && state != AL_PLAYING) {
                     reapStream(i, stream); // fully drained
                 } else if (!stream.paused && state != AL_PLAYING && state != AL_PAUSED) {
@@ -971,6 +1017,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             for (int q = 0; q < queued; q++) {
                 alDeleteBuffers(alSourceUnqueueBuffers(stream.source));
             }
+            deleteWaitingBuffers(stream);
             alDeleteSources(stream.source);
         } catch (Throwable error) {
             LOG.log(Level.DEBUG, "stream cleanup failed", error);
@@ -980,6 +1027,14 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         } else {
             decodersOwedAClose.add(stream.decoder);
         }
+    }
+
+    /** Deletes the buffers {@code stream} keeps while its source rewinds (monitor held). */
+    private static void deleteWaitingBuffers(Stream stream) {
+        for (int buffer : stream.waitingBuffers) {
+            alDeleteBuffers(buffer);
+        }
+        stream.waitingBuffers.clear();
     }
 
     /**
@@ -1118,6 +1173,13 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         final boolean loop;
         final boolean positional;
         final Map<Integer, Integer> framesInBuffer = new HashMap<>();
+        /**
+         * Buffers this looping stream's source had nothing for, because it is between its end and
+         * its rewind; refilled on the next service pass instead of deleted. See applyRefills.
+         */
+        final List<Integer> waitingBuffers = new ArrayList<>();
+        /** When the queue emptied with buffers waiting, or 0; see LOOP_REWIND_PATIENCE_NANOS. */
+        long waitingSince;
         /**
          * Where this stream's priming and seek decodes land. Priming runs on the caller's thread
          * before the stream is in {@link #streams}, seeks on the service thread after; nothing
@@ -1346,6 +1408,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                 for (int q = 0; q < queued; q++) {
                     alDeleteBuffers(alSourceUnqueueBuffers(stream.source));
                 }
+                deleteWaitingBuffers(stream); // the seek primes buffers of its own
                 stream.framesInBuffer.clear();
                 long frames = Math.round(target / 1_000_000.0 * stream.sampleRate);
                 stream.completedFrames = frames;

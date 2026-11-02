@@ -244,8 +244,6 @@ final class FfmpegNative {
      *          {@code generation} names a track that has been superseded */
     static native int readAudio(long handle, ByteBuffer out, int maxFrames, long generation);
 
-    static native void resetAudio(long handle, long generation);
-
     static native void releaseAudio(long handle, long generation);
 
     /**

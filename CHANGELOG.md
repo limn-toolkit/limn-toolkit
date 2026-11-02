@@ -6,6 +6,17 @@ Each section is named after the release it follows. It is complete on the day th
 tagged, and no release has to edit this file to rename it; the release on GitHub and the version on
 Maven Central say which number that was.
 
+## After 1.1.0
+
+### Fixed
+
+- A looping video's soundtrack plays every pass as cleanly as the first. From the second pass on
+  it clicked, with a short gap after every fifth of a second, and on some machines it got worse
+  with each repeat. The track runs out a little before the pictures rewind the file, and every
+  read that came back empty in between cost the audio engine one of the three buffers it streams
+  through, never made again. Those buffers now wait for the rewind and are filled when it comes.
+  A looping track that is still empty after two seconds ends, as one that does not loop does.
+
 ## After 1.0.0
 
 ### Added

@@ -975,17 +975,6 @@ public final class FfmpegMedia implements AutoCloseable {
         }
     }
 
-    void resetAudio(long generation) {
-        lock.readLock().lock();
-        try {
-            if (!closed) {
-                FfmpegNative.resetAudio(handle, generation);
-            }
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
     void releaseAudio(long generation) {
         lock.readLock().lock();
         try {

@@ -116,16 +116,19 @@ final class FfmpegAudioStream implements AudioStreamSource {
     }
 
     /**
-     * Rewinds nothing on its own. The position of both tracks belongs to the demultiplexer and the
-     * pictures are what move it, so a soundtrack cannot rewind without the video rewinding with
-     * it; what this does is drop whatever was queued for this track, so that a rewind driven from
-     * the video side does not then deliver sound from before it.
+     * Does nothing: the rewind is the pictures'. The position of both tracks belongs to the
+     * demultiplexer and the video is what moves it, so a soundtrack cannot rewind without the
+     * pictures rewinding with it. Until they do, {@link #readFrames} keeps reporting the end, and
+     * once they have, it delivers from the first sample, because the container's rewind flushes
+     * this track as it moves.
+     *
+     * <p>It used to drop whatever was queued for this track as well. Nothing queued at the end of
+     * a track is from before the rewind, and the engine calls this on every empty read while it
+     * waits, so a rewind landing between that read and this call had its first packets dropped.
      */
     @Override
     public void reset() {
-        if (!closed) {
-            media.resetAudio(generation);
-        }
+        // nothing: see above
     }
 
     /**
