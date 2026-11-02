@@ -62,6 +62,15 @@ Maven Central say which number that was.
 
 ### Changed
 
+- `Canvas.fillPath` fills a path under its fill rule, every subpath together, on screen and in a
+  printed document: a subpath turning the other way inside another is a hole under the default
+  `NON_ZERO`, every subpath inside another is one under `EVEN_ODD`, and an outline crossing itself
+  fills what the rule says. Each closed subpath was filled on its own, so a hole was drawn filled
+  and a self-crossing outline as stray triangles. Subpaths that turn the same way, and every path
+  of one outline that does not cross itself, draw as before; the toolkit's own paths are of these.
+  On screen such a path still fills in the frame's one draw, and any other takes three through the
+  stencil, inside a layer too (ADR 085).
+
 - A `Table` under an unbounded height (in a `ScrollView`, or a column that sets no height) prefers
   `setVisibleRows` rows of a row of text, the control height or a line of the body text and its
   padding, whichever is taller (32 points at the default size), where it counted the list's seed
@@ -76,6 +85,10 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A `LineChart`'s area whose values change sign covers the region between the line and the
+  baseline on both sides, and each side fades from its own farthest value to the baseline. It was
+  drawn as stray triangles, a wedge from the baseline up to the highest value and the parts under
+  zero partly missing, and what was drawn under zero was all at the faint end of the fade (ADR 085).
 - A `Table`'s widget cell stands where its column's alignment puts the header and the text cells
   (`Column.align`): at the column's end or centre as well as its start, mirrored right to left. It
   always stood at the start, so the widgets of a column aligned to its end sat under a header at

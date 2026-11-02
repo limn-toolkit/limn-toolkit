@@ -60,6 +60,11 @@ final class HeadlessGl {
     private static long window;
     /** The CGL context the fallback made current, or 0 while the context is the window's. */
     private static long cglContext;
+    /**
+     * ANGLE's context on Windows, which the backend makes on a window GLFW gave no context of its
+     * own, so that a lost one can be made again on the same window; null on every other path.
+     */
+    private static EglContext eglContext;
     private static Object capabilities;
 
     private HeadlessGl() {
@@ -193,6 +198,8 @@ final class HeadlessGl {
     private static void makeCurrent() {
         if (cglContext != 0L) {
             CGL.CGLSetCurrentContext(cglContext);
+        } else if (eglContext != null) {
+            eglContext.makeCurrent();
         } else {
             GLFW.glfwMakeContextCurrent(window);
         }
@@ -265,7 +272,14 @@ final class HeadlessGl {
             failure = "ANGLE gave no window: " + AngleFallback.failure();
             return false;
         }
-        GLFW.glfwMakeContextCurrent(window);
+        // On Windows the window has no context of GLFW's: the backend made ANGLE's on it, as it does
+        // for an application's window, and making the window's current there made nothing current.
+        eglContext = AngleFallback.takeOwnContext();
+        if (eglContext != null) {
+            eglContext.makeCurrent();
+        } else {
+            GLFW.glfwMakeContextCurrent(window);
+        }
         capabilities = Gl.api().createCapabilities();
         if (((org.lwjgl.opengles.GLESCapabilities) capabilities).GL_KHR_debug) {
             // ANGLE validates OpenGL ES strictly and says what it refused and why; a test that

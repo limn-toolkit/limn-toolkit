@@ -645,8 +645,9 @@ public interface Canvas {
     void drawLine(float x1, float y1, float x2, float y2, float strokeWidth, Paint paint);
 
     /**
-     * Fills a path. Each closed subpath is filled independently (see
-     * {@link Path2D} for the v1 winding limitations).
+     * Fills a path under its {@linkplain Path2D#fillRule() fill rule}: every subpath together, so
+     * that one turning the other way inside another is a hole under the non-zero rule, and an
+     * outline crossing itself fills what the rule says. A subpath left open is filled as if closed.
      */
     void fillPath(Path2D path, Paint paint);
 

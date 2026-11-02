@@ -18,9 +18,10 @@ import java.util.Objects;
  * with no canvas.
  *
  * <p>The {@linkplain #setFillRule fill rule} says which points the outline encloses, as
- * {@link #contains} answers. V1 limitation of the canvases: filling uses each closed subpath
- * independently, with no even-odd/non-zero interaction between subpaths, so paths with holes
- * render as overlapping fills; self-intersecting subpaths are unsupported.
+ * {@link #contains} answers and as the toolkit's canvases fill it: a subpath turning the other way
+ * inside another is a hole under {@link FillRule#NON_ZERO}, any subpath inside another is one under
+ * {@link FillRule#EVEN_ODD}, and an outline may cross itself. A subpath left open is filled as if
+ * closed.
  */
 public final class Path2D {
 

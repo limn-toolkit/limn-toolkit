@@ -183,6 +183,10 @@ final class Gl {
         return api.glClientWaitSync(sync, flags, timeout);
     }
 
+    static void glColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
+        api.glColorMask(red, green, blue, alpha);
+    }
+
     static void glCompileShader(int shader) {
         api.glCompileShader(shader);
     }
@@ -445,6 +449,18 @@ final class Gl {
 
     static void glShaderSource(int shader, CharSequence string) {
         api.glShaderSource(shader, string);
+    }
+
+    static void glStencilFunc(int func, int ref, int mask) {
+        api.glStencilFunc(func, ref, mask);
+    }
+
+    static void glStencilMask(int mask) {
+        api.glStencilMask(mask);
+    }
+
+    static void glStencilOpSeparate(int face, int sfail, int dpfail, int dppass) {
+        api.glStencilOpSeparate(face, sfail, dpfail, dppass);
     }
 
     static void glTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, ByteBuffer pixels) {

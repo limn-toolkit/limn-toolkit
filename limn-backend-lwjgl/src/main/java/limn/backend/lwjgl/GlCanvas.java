@@ -2,6 +2,7 @@ package limn.backend.lwjgl;
 
 import limn.graphics.Canvas;
 import limn.graphics.Color;
+import limn.graphics.FillRule;
 import limn.graphics.Font;
 import limn.graphics.Image;
 import limn.graphics.LinearGradient;
@@ -154,6 +155,18 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     private final FontStore fontStore;
     private final List<State> states = new ArrayList<>();
     private final PathCollector pathCollector = new PathCollector();
+    /** Decides whether a fill's contours go to the ear clipper one by one, or to the stencil. */
+    private final FillContours fillContours = new FillContours();
+    /** Per contour of the path being filled: its first point and how many it fills with. */
+    private int[] fillStarts = new int[8];
+    private int[] fillCounts = new int[8];
+    /**
+     * Whether this frame has asked the window's framebuffer for a stencil buffer yet, and its
+     * answer: asked once a frame, by the first fill that needs one, since the framebuffer bound at
+     * a frame's start is the caller's and may change between frames.
+     */
+    private boolean windowStencilKnown;
+    private boolean windowStencil;
     /** {@link #snapToStrokeGrid}'s answer: left, top, right, bottom. Reused, as every shape is. */
     private final float[] gridEdges = new float[4];
     private Gl3DContext gl3d; // lazy: only windows that use 3D pay for it
@@ -310,6 +323,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             texturesDeleted |= layers.beginFrame(framebufferWidth, framebufferHeight);
         }
         openLayers = 0;
+        windowStencilKnown = false;
         if (texturesDeleted) {
             batch.resetTexture();
         }
@@ -2064,7 +2078,12 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         }
         State s = state();
         collectPath(path, s.transform);
-        for (int c = 0; c < pathCollector.contourCount(); c++) {
+        int contours = pathCollector.contourCount();
+        if (fillStarts.length < contours) {
+            fillStarts = new int[contours * 2];
+            fillCounts = new int[contours * 2];
+        }
+        for (int c = 0; c < contours; c++) {
             int start = pathCollector.contourStart(c);
             int count = pathCollector.contourLength(c);
             // Open contour ending on its own start: ignore the duplicate for
@@ -2074,11 +2093,140 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
                     && Math.abs(pathCollector.ys[start + count - 1] - pathCollector.ys[start]) < EPSILON) {
                 count--;
             }
+            fillStarts[c] = start;
+            fillCounts[c] = count;
+        }
+        // Contours that neither cross nor meet fill the same under either rule, one at a time and in
+        // the batch's one draw, which is what nearly every path drawn is; any other takes the stencil.
+        if (!fillContours.separable(pathCollector.xs, pathCollector.ys, fillStarts, fillCounts, contours)
+                && stencilReady()) {
+            fillThroughStencil(path.fillRule() == FillRule.EVEN_ODD, contours, paint, s);
+            return;
+        }
+        for (int c = 0; c < contours; c++) {
+            if (fillCounts[c] >= 3) {
+                fillContour(fillStarts[c], fillCounts[c], paint, s);
+            }
+        }
+    }
+
+    /**
+     * Whether the target bound has a stencil buffer for a fill. Every context the backend makes
+     * asks for eight bits for the window, which the framebuffer bound for the window is asked once
+     * a frame to confirm; a layer's picture is given one the first time a fill needs it. Without
+     * one, a target fills each contour on its own, as every fill was before the stencil, rather
+     * than paint the whole of a cover the count never limited.
+     */
+    private boolean stencilReady() {
+        State layer = innermostLayer();
+        if (layer != null) {
+            return layers.stencil(layer.layer);
+        }
+        if (!windowStencilKnown) {
+            windowStencil = boundStencil();
+            windowStencilKnown = true;
+        }
+        return windowStencil;
+    }
+
+    /** Whether the framebuffer bound for drawing has stencil bits. */
+    private static boolean boundStencil() {
+        int target = org.lwjgl.opengl.GL33C.GL_DRAW_FRAMEBUFFER;
+        int bound = Gl.glGetInteger(org.lwjgl.opengl.GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        int attachment = bound == 0 ? org.lwjgl.opengl.GL33C.GL_STENCIL : org.lwjgl.opengl.GL33C.GL_STENCIL_ATTACHMENT;
+        if (bound != 0 && Gl.glGetFramebufferAttachmentParameteri(target, attachment,
+                org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE) == org.lwjgl.opengl.GL33C.GL_NONE) {
+            return false; // the size of an attachment that is not there is an error to ask
+        }
+        return Gl.glGetFramebufferAttachmentParameteri(target, attachment,
+                org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE) > 0;
+    }
+
+    /**
+     * Fills the collected contours through the stencil, exactly under {@code evenOdd}'s rule or
+     * the non-zero one, whatever they do: holes, overlaps, an outline crossing itself. Three draws
+     * of the batch's ({@link GlBatch#stencilPhase}): a fan per contour counting the winding, the
+     * antialiasing fringe on both sides of every contour where that count says outside, and a
+     * quad over all of it, painting inside and clearing the stencil.
+     */
+    private void fillThroughStencil(boolean evenOdd, int contours, Paint paint, State s) {
+        if (s.clip.isEmpty()) {
+            return;
+        }
+        float minX = Float.MAX_VALUE;
+        float minY = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE;
+        float maxY = -Float.MAX_VALUE;
+        for (int c = 0; c < contours; c++) {
+            if (fillCounts[c] < 3) {
+                continue;
+            }
+            for (int i = fillStarts[c]; i < fillStarts[c] + fillCounts[c]; i++) {
+                minX = Math.min(minX, pathCollector.xs[i]);
+                minY = Math.min(minY, pathCollector.ys[i]);
+                maxX = Math.max(maxX, pathCollector.xs[i]);
+                maxY = Math.max(maxY, pathCollector.ys[i]);
+            }
+        }
+        if (minX > maxX) {
+            return;
+        }
+        // One centre for the three draws, so that a gradient runs on across them.
+        float cx = (minX + maxX) / 2f;
+        float cy = (minY + maxY) / 2f;
+        Transform2D t = s.transform;
+        int paintType = applyPaint(paint, cx, cy, 1, 0, 0, 1, s.opacity);
+        applyBlend(s);
+
+        batch.stencilPhase(GlBatch.STENCIL_WINDING, evenOdd);
+        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_PLAIN, paintType);
+        batch.setClip(s.clip);
+        for (int c = 0; c < contours; c++) {
+            int start = fillStarts[c];
+            int count = fillCounts[c];
             if (count < 3) {
                 continue;
             }
-            fillContour(start, count, paint, s);
+            batch.ensure(count, (count - 2) * 3);
+            int base = batch.baseVertex();
+            for (int i = start; i < start + count; i++) {
+                float px = pathCollector.xs[i];
+                float py = pathCollector.ys[i];
+                batch.vertex(t.x(px, py), t.y(px, py), px - cx, py - cy);
+            }
+            for (int i = 1; i < count - 1; i++) {
+                batch.triangle(base, base + i, base + i + 1);
+            }
         }
+
+        // Both sides of every contour: which side is outside depends on the rule and on the other
+        // contours, which only the count knows, and the side it calls inside draws nothing.
+        batch.stencilPhase(GlBatch.STENCIL_FRINGE, evenOdd);
+        for (int c = 0; c < contours; c++) {
+            if (fillCounts[c] >= 3) {
+                emitFringeBand(fillStarts[c], fillCounts[c], cx, cy, paintType, s, 1f);
+                emitFringeBand(fillStarts[c], fillCounts[c], cx, cy, paintType, s, -1f);
+            }
+        }
+
+        // Over the fringe too, at its widest, mitred reach, so that the cover clears every mark.
+        batch.stencilPhase(GlBatch.STENCIL_COVER, evenOdd);
+        float pad = (FRINGE_MITER_LIMIT + 1) * AA_PAD_DEVICE / t.minScale();
+        float x0 = minX - pad;
+        float y0 = minY - pad;
+        float x1 = maxX + pad;
+        float y1 = maxY + pad;
+        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_PLAIN, paintType);
+        batch.setClip(s.clip);
+        batch.ensure(4, 6);
+        int base = batch.baseVertex();
+        batch.vertex(t.x(x0, y0), t.y(x0, y0), x0 - cx, y0 - cy);
+        batch.vertex(t.x(x1, y0), t.y(x1, y0), x1 - cx, y0 - cy);
+        batch.vertex(t.x(x1, y1), t.y(x1, y1), x1 - cx, y1 - cy);
+        batch.vertex(t.x(x0, y1), t.y(x0, y1), x0 - cx, y1 - cy);
+        batch.triangle(base, base + 1, base + 2);
+        batch.triangle(base, base + 2, base + 3);
+        batch.stencilPhase(GlBatch.STENCIL_NONE, false);
     }
 
     @Override
@@ -3146,11 +3294,20 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      * double-blend marginally on the boundary pixel, the v1 trade-off.
      */
     private void emitFringeRing(int start, int count, float cx, float cy, int paintType, State s) {
-        Transform2D t = s.transform;
-        float fringeWidth = AA_PAD_DEVICE / t.approxScale();
         // Outward side depends on winding: signedArea > 0 = clockwise (y-down).
         float orientation = PolygonTriangulator.signedArea(pathCollector.xs, pathCollector.ys, start, count) > 0
                 ? 1f : -1f;
+        emitFringeBand(start, count, cx, cy, paintType, s, orientation);
+    }
+
+    /**
+     * The fringe band on one side of a contour: the left of its direction of travel for
+     * {@code orientation} 1 (y down), the right for -1.
+     */
+    private void emitFringeBand(int start, int count, float cx, float cy, int paintType, State s,
+                                float orientation) {
+        Transform2D t = s.transform;
+        float fringeWidth = AA_PAD_DEVICE / t.approxScale();
 
         applyBlend(s);
         batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_FRINGE, paintType);

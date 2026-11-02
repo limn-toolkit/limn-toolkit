@@ -6,7 +6,8 @@
   against that API (section 1), proposes how to close it (sections 3 and 4) in six stages
   (section 7), names what stays out (section 5), and asked seven questions (section 6), which
   the owner answered the same day by taking every recommendation (section 9). Stage 1 built the
-  same day (section 10). Two defects in a shipped chart came out of the measurement (section 0.3).
+  same day (section 10), stage 2 on 11-02 (section 11). Two defects in a shipped chart came out
+  of the measurement (section 0.3); stage 2 fixed the first, and a third its pixel test found.
 - **Date:** 2026-11-01
 - **Scope:** `limn.graphics.Canvas` and the values it takes (`Paint`, `Path2D`, `BlendMode`), its
   three implementations in the project (the OpenGL canvas, the PDF canvas, the recording canvas
@@ -412,7 +413,7 @@ On 2026-11-01 the owner took the recommendation of every question in section 6:
 
 ## 10. Stage 1, as built
 
-Built 2026-11-01, uncommitted at the time of writing, on the branch of ADR 083's styled text.
+Built 2026-11-01 on the branch of ADR 083's styled text, and committed there on 11-02.
 
 - **`limn.math.Affine2D`** is a record of the six components PDF and `Mat4.affine2D` name
   (`a` to `f`), in double precision, validated finite, with a negative zero stored as zero so that
@@ -463,3 +464,77 @@ Built 2026-11-01, uncommitted at the time of writing, on the branch of ADR 083's
   perspective layer and a shear in pixels.
 - **Owed to the stages after it:** the custom-widgets guide covers what this stage built; the demo
   page of section 7 waits for stage 3, the first that draws anything new.
+
+## 11. Stage 2, as built
+
+Built 2026-11-02 on the same branch, after stage 1's commit.
+
+- **Every canvas fills by the rule.** The OpenGL canvas, the PDF canvas and, through the path it
+  copies, the recording canvas fill a path's subpaths together under its `FillRule`. The PDF
+  canvas writes them all and one `f` or `f*`, where it filled each subpath on its own. `Canvas`'s
+  and `Path2D`'s documentation no longer carry the limitation.
+- **The OpenGL canvas chooses per path.** A path whose contours are each a simple polygon, none
+  crossing, touching or doubling back on itself, with no two contours' boxes meeting, keeps the ear
+  clipper and the frame's one draw: under either rule each pixel inside it is inside one contour
+  once. The test (`FillContours`) sweeps a contour's edges in order of their left ends, so a chart's
+  long, mostly left-to-right outline costs about a sort. It is conservative: a contour touching
+  itself at a point, or two boxes overlapping without their outlines meeting, go to the stencil,
+  which is exact for them too.
+- **Stencil and cover, in three draws.** Any other path is drawn as section 4.2 said, with these
+  particulars. The fan of each contour counts the winding in the stencil's low six bits (wrapping
+  every 64 turns), or flips the lowest bit for even-odd, with no colour written. The
+  antialiasing fringe is drawn on both sides of every contour, since only the count knows which
+  side is outside once there are holes and crossings, and only where the count is zero. Each pixel
+  it draws is marked in the stencil's seventh bit, so two bands meeting at a corner do not blend
+  twice; a blend drawn in two passes (`GlBlend.inGroup`) marks with the eighth bit in its second.
+  One quad over the path and its fringe paints where the count is not zero and zeroes every value it
+  passes, inside or not, so each fill leaves the stencil as the frame's clear left it. That
+  invariant is what lets a layer's stencil be kept with its picture without a clear per layer.
+- **Layers get a stencil when a fill needs one.** Section 4.2 gave every layer texture a stencil
+  attachment; it is made instead the first time a fill through the stencil is drawn in a layer
+  (`GlLayerPool.stencil`), packed with depth (`DEPTH24_STENCIL8`, the stencil format both
+  profiles attach), cleared once, kept with the picture, and counted in its memory. A frame that
+  opens layers and fills no such path holds no more than before.
+- **A target without a stencil fills as before.** The framebuffer bound for the window is asked
+  once a frame, by the first fill that needs the stencil, whether it has stencil bits: every
+  context the backend makes asks for eight, but the framebuffer is the caller's, and a test's or
+  an embedder's may have none. Without them, and where a driver refuses a layer's attachment, the
+  canvas fills each contour on its own as before, rather than paint a cover no count limited.
+- **D1, and a third defect.** The line chart's area is filled exactly by the stencil. The asserting
+  pixel test then found what the first picture did not show: the area's fade ran from the run's
+  farthest value to the baseline and was clamped past it, so everything drawn under zero was at the
+  faint end, alpha 0.03 against 0.32 at the line. A run with values on both sides of the baseline
+  now fills its area twice, each under a clip to one side of the baseline and each fading from that
+  side's farthest value. A run on one side draws as before, in one fill.
+- **Tests:** `FillContoursTest` (simple, concave and either-way polygons; a bow tie, a vertex on
+  another edge, an edge doubling back; holes and boxes that touch; repeated points; a 4,000-point
+  circle and a zigzag above and across its baseline; the segment test). `GlFillRuleTest`, on a
+  headless context: a hole either way round under both rules, a star whole with its middle as the
+  rule says, an outline crossing a baseline four times, the stencil left clean for the next fill, a
+  fill inside a layer, the same under a blend drawn in two passes, a target without a stencil, and
+  the draw counts (a path that needs no stencil stays in the frame's one draw; a hole is three).
+  `GlLineChartAreaTest` takes its oracle from the area the chart asks to fill: every point well
+  inside it, under non-zero, is tinted and every point well outside shows the page, and the two
+  sides of zero are equally strong at the same fraction of their farthest value. `PdfFillRuleTest`
+  holds the operators and the recording's rule. Mutations: sending every path to the ear clipper
+  failed eight of the nine `GlFillRuleTest` cases (all but the target without a stencil, which is
+  that route) and the chart's coverage test (a point outside the area came out tinted); one fill
+  with one fade failed the chart's other test. The PDF was looked at as rasterized by the system's
+  own PDF renderer (`sips`): the hole, both stars and every lobe as the screen draws them.
+- **On the guests, as section 8 asked (2026-11-02).** The fill tests, the chart's, and the layer
+  and group-blend suites the stencil runs beside (39 tests) ran from a bundle built here, through
+  the JUnit launcher, in each guest's desktop session. Windows 11 ARM64 on the Parallels display
+  adapter's OpenGL: every stencil and chart test passed. On ANGLE over Direct3D 11, forced: 36 of
+  36, the three left out being the macOS-only software-context cases. Fedora KDE 44, Mesa 26.2.4
+  over virgl: 36 of 36. On this Mac, ANGLE over Metal, forced: the fill and chart tests pass.
+- **Two things the guests showed, apart from the stencil.** First, every device test had been
+  skipping on Windows on the ANGLE path, the GPU-less CI runners of `angle.yml` included:
+  since ADR 082 the backend makes ANGLE's context itself on a window GLFW gives none, and the
+  tests' `HeadlessGl` still made the window's (absent) context current, so its first GL call found
+  none and every test was skipped as if no device existed. It now takes the backend's context, and
+  the run above is the first on that path since. Second, `GlLayerTest.aClosedWindowKeepsNoPicture`
+  fails on the Windows guest's own OpenGL (a deleted layer texture still answers `glIsTexture`),
+  equally on the commit before this stage, and passes on ANGLE on the same guest and on this Mac:
+  not this stage's, and recorded for a look of its own.
+- **Owed:** the demo page, with stage 3.
+

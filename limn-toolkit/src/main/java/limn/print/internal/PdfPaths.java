@@ -58,12 +58,8 @@ final class PdfPaths {
         }
     }
 
-    /**
-     * A canvas path, one subpath at a time: each subpath goes to {@code each} whole, since the
-     * canvas fills each closed subpath on its own and a PDF fill of all of them at once would cut
-     * holes where they overlap the other way round.
-     */
-    static void subpaths(Path2D path, Consumer<String> each) {
+    /** A canvas path, one subpath at a time, each handed to {@code each} whole. */
+    private static void subpaths(Path2D path, Consumer<String> each) {
         StringBuilder[] current = {null};
         float[] point = new float[4]; // current x, y; subpath start x, y
         path.forEach(new Path2D.Visitor() {
@@ -119,7 +115,7 @@ final class PdfPaths {
         }
     }
 
-    /** A whole canvas path, every subpath together, for a stroke. */
+    /** A whole canvas path, every subpath together, for a fill under its rule or a stroke. */
     static String whole(Path2D path) {
         StringBuilder ops = new StringBuilder(128);
         subpaths(path, ops::append);

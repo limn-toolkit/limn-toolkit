@@ -26,7 +26,9 @@ from `(0, 0)` to `width()` by `height()`.
 The `Canvas` draws more than circles. Rectangles, rounded or not, and ellipses are filled or
 stroked, lines are drawn, text and images are placed, and any other outline is a `Path2D`, built
 with `moveTo`, `lineTo`, `quadTo`, `cubicTo` and `close`, then filled with `fillPath` or stroked
-with `drawPath`. A path also takes arcs (`arc`, `arcTo` for a rounded corner between two lines,
+with `drawPath`. Its fill rule, `FillRule.NON_ZERO` unless `setFillRule` says `EVEN_ODD`,
+decides what a fill encloses: a subpath turning the other way inside another is a hole, and an
+outline may cross itself, as a star drawn in one stroke does. A path also takes arcs (`arc`, `arcTo` for a rounded corner between two lines,
 `ellipticalArcTo` as SVG draws one) and whole shapes (`addRect`, `addRoundRect`, `addEllipse`,
 `addPath` with an `Affine2D` to place a copy), and `Path2D.parse` reads the path data an icon or
 a drawing program writes, `"M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"`. It answers in Java, with no canvas:

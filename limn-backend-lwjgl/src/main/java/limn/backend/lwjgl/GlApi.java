@@ -134,6 +134,8 @@ interface GlApi {
 
     int glClientWaitSync(long sync, int flags, long timeout);
 
+    void glColorMask(boolean red, boolean green, boolean blue, boolean alpha);
+
     void glCompileShader(int shader);
 
     void glCopyTexSubImage2D(int target, int level, int xoffset, int yoffset, int x, int y, int width, int height);
@@ -265,6 +267,12 @@ interface GlApi {
     void glScissor(int x, int y, int width, int height);
 
     void glShaderSource(int shader, CharSequence string);
+
+    void glStencilFunc(int func, int ref, int mask);
+
+    void glStencilMask(int mask);
+
+    void glStencilOpSeparate(int face, int sfail, int dpfail, int dppass);
 
     void glTexImage2D(int target, int level, int internalformat, int width, int height, int border, int format, int type, ByteBuffer pixels);
 

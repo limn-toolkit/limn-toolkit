@@ -6,26 +6,39 @@ import org.lwjgl.system.MemoryUtil;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
+import static org.lwjgl.opengl.GL33C.GL_ALWAYS;
 import static org.lwjgl.opengl.GL33C.GL_ARRAY_BUFFER;
+import static org.lwjgl.opengl.GL33C.GL_BACK;
 import static org.lwjgl.opengl.GL33C.GL_BLEND;
 import static org.lwjgl.opengl.GL33C.GL_CULL_FACE;
+import static org.lwjgl.opengl.GL33C.GL_DECR_WRAP;
 import static org.lwjgl.opengl.GL33C.GL_DEPTH_TEST;
 import static org.lwjgl.opengl.GL33C.GL_ELEMENT_ARRAY_BUFFER;
+import static org.lwjgl.opengl.GL33C.GL_EQUAL;
 import static org.lwjgl.opengl.GL33C.GL_FLOAT;
+import static org.lwjgl.opengl.GL33C.GL_FRONT;
+import static org.lwjgl.opengl.GL33C.GL_FRONT_AND_BACK;
+import static org.lwjgl.opengl.GL33C.GL_INCR_WRAP;
+import static org.lwjgl.opengl.GL33C.GL_INVERT;
+import static org.lwjgl.opengl.GL33C.GL_KEEP;
+import static org.lwjgl.opengl.GL33C.GL_NOTEQUAL;
 import static org.lwjgl.opengl.GL33C.GL_ONE;
 import static org.lwjgl.opengl.GL33C.GL_ONE_MINUS_SRC_ALPHA;
 import static org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST;
+import static org.lwjgl.opengl.GL33C.GL_STENCIL_TEST;
 import static org.lwjgl.opengl.GL33C.GL_STREAM_DRAW;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE0;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE_2D;
 import static org.lwjgl.opengl.GL33C.GL_TRIANGLES;
 import static org.lwjgl.opengl.GL33C.GL_UNSIGNED_INT;
+import static org.lwjgl.opengl.GL33C.GL_ZERO;
 import static limn.backend.lwjgl.Gl.glActiveTexture;
 import static limn.backend.lwjgl.Gl.glBindBuffer;
 import static limn.backend.lwjgl.Gl.glBindTexture;
 import static limn.backend.lwjgl.Gl.glBindVertexArray;
 import static limn.backend.lwjgl.Gl.glBlendFuncSeparate;
 import static limn.backend.lwjgl.Gl.glBufferData;
+import static limn.backend.lwjgl.Gl.glColorMask;
 import static limn.backend.lwjgl.Gl.glDeleteBuffers;
 import static limn.backend.lwjgl.Gl.glDeleteVertexArrays;
 import static limn.backend.lwjgl.Gl.glDisable;
@@ -34,6 +47,9 @@ import static limn.backend.lwjgl.Gl.glDrawElements;
 import static limn.backend.lwjgl.Gl.glEnable;
 import static limn.backend.lwjgl.Gl.glEnableVertexAttribArray;
 import static limn.backend.lwjgl.Gl.glScissor;
+import static limn.backend.lwjgl.Gl.glStencilFunc;
+import static limn.backend.lwjgl.Gl.glStencilMask;
+import static limn.backend.lwjgl.Gl.glStencilOpSeparate;
 import static limn.backend.lwjgl.Gl.glGenBuffers;
 import static limn.backend.lwjgl.Gl.glGenVertexArrays;
 import static limn.backend.lwjgl.Gl.glUniform1f;
@@ -67,6 +83,12 @@ import static limn.backend.lwjgl.Gl.glUniform4f;
  * a flat rectangle after anything else flushes it, and anything after a flat rectangle flushes
  * that: one extra draw call per switch, which is why only rectangles large enough to repay it
  * take this path (see {@code GlCanvas.emitFlatRect}).
+ *
+ * <p>A path that holes, overlaps or crosses itself is filled through the stencil, in three draws
+ * of its own ({@link #stencilPhase}): its triangles count how often the outline winds round each
+ * pixel, its antialiasing fringe is drawn where that count says outside, and one quad paints where
+ * it says inside and leaves the stencil at zero again, which is what every frame starts from and
+ * every fill ends with.
  */
 final class GlBatch implements AutoCloseable {
 
@@ -607,6 +629,110 @@ final class GlBatch implements AutoCloseable {
         exposure = value;
     }
 
+    /** Geometry drawn as every other draw is, outside a fill through the stencil. */
+    static final int STENCIL_NONE = 0;
+    /**
+     * A fill's triangles, fanned from each contour's first point: the stencil counts, per pixel,
+     * the times the outline winds round it, or flips its lowest bit for the even-odd rule; no
+     * colour is written.
+     */
+    static final int STENCIL_WINDING = 1;
+    /**
+     * The fill's antialiasing fringe, drawn only on pixels the count left outside and each of
+     * those once: a pixel it covers is marked, so two bands that meet at a corner do not blend
+     * twice.
+     */
+    static final int STENCIL_FRINGE = 2;
+    /**
+     * One quad over the fill and its fringe: it paints where the count says inside, and zeroes
+     * every stencil value it passes over, inside or not, so the next fill starts from nothing.
+     */
+    static final int STENCIL_COVER = 3;
+
+    /**
+     * The stencil bits that hold a fill's winding count, which wraps every 64 turns: the two above
+     * them mark a fringe pixel, the first for a blend's only (or first) pass and the second for its
+     * second pass, which must find the pixel unmarked by itself.
+     */
+    private static final int WINDING_BITS = 0x3f;
+    private static final int FIRST_MARK = 0x40;
+    private static final int SECOND_MARK = 0x80;
+
+    private int stencilPhase = STENCIL_NONE;
+    private boolean stencilEvenOdd;
+
+    /**
+     * Moves to a phase of a fill through the stencil, or back out of one with
+     * {@link #STENCIL_NONE}: what was queued under the phase before is drawn first, under that
+     * phase's stencil state, so each phase is its own draw. The canvas runs the three phases in
+     * order for one fill and then leaves; the target bound must have a stencil buffer.
+     *
+     * @param phase   one of the {@code STENCIL_} phases
+     * @param evenOdd whether the fill takes the even-odd rule rather than the non-zero one
+     */
+    void stencilPhase(int phase, boolean evenOdd) {
+        if ((phase != stencilPhase || evenOdd != stencilEvenOdd)
+                && (indices.position() > 0 || flatVertexCount > 0)) {
+            flush();
+        }
+        stencilPhase = phase;
+        stencilEvenOdd = evenOdd;
+    }
+
+    /**
+     * Draws the queued indices under the stencil phase in force, both passes where the blend has
+     * two, and puts the stencil test, its write mask and the colour mask back as every other draw
+     * expects them.
+     */
+    private void drawStencilPhase(int indexCount) {
+        glEnable(GL_STENCIL_TEST);
+        int inside = stencilEvenOdd ? 0x01 : WINDING_BITS;
+        switch (stencilPhase) {
+            case STENCIL_WINDING -> {
+                glColorMask(false, false, false, false);
+                glStencilMask(inside);
+                glStencilFunc(GL_ALWAYS, 0, 0xff);
+                if (stencilEvenOdd) {
+                    glStencilOpSeparate(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_INVERT);
+                } else {
+                    // Which face is front depends on the projection's flip; the count's sign does
+                    // not matter to the non-zero rule, only whether it is zero.
+                    glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
+                    glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+                }
+                drawRange(true, 0, indexCount);
+            }
+            case STENCIL_FRINGE -> {
+                glStencilOpSeparate(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_INVERT);
+                glStencilMask(FIRST_MARK);
+                glStencilFunc(GL_EQUAL, 0, 0xff);
+                drawRange(true, 0, indexCount);
+                if (secondPass()) {
+                    glStencilMask(SECOND_MARK);
+                    glStencilFunc(GL_EQUAL, FIRST_MARK, 0xff);
+                    drawRange(true, 0, indexCount);
+                }
+            }
+            case STENCIL_COVER -> {
+                glStencilMask(0xff);
+                glStencilFunc(GL_NOTEQUAL, 0, inside);
+                if (blendThen != null) {
+                    // The second pass paints the same pixels, so the first leaves the count.
+                    glStencilOpSeparate(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
+                    drawRange(true, 0, indexCount);
+                    secondPass();
+                }
+                glStencilOpSeparate(GL_FRONT_AND_BACK, GL_ZERO, GL_ZERO, GL_ZERO);
+                drawRange(true, 0, indexCount);
+            }
+            default -> throw new IllegalStateException("stencil phase " + stencilPhase);
+        }
+        twoPassCount = 0; // a fill's phases are drawn whole, whatever a two-pass blend recorded
+        glColorMask(true, true, true, true);
+        glStencilMask(0xff);
+        glDisable(GL_STENCIL_TEST);
+    }
+
     void ensure(int vertexSlots, int indexSlots) {
         if (blendThen != null) {
             if (flatVertexCount > 0) {
@@ -933,7 +1059,9 @@ final class GlBatch implements AutoCloseable {
             glBindTexture(GL_TEXTURE_2D, textureId);
         }
         applyRasterState();
-        if (blendThen != null) {
+        if (stencilPhase != STENCIL_NONE) {
+            drawStencilPhase(indexCount);
+        } else if (blendThen != null) {
             drawInTwoPasses(true, indexCount);
         } else {
             glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);

@@ -4,6 +4,7 @@ import limn.backend.spi.GlyphOutlines;
 import limn.graphics.BlendMode;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
+import limn.graphics.FillRule;
 import limn.graphics.Font;
 import limn.graphics.GpuSurface;
 import limn.graphics.Image;
@@ -293,7 +294,7 @@ final class PdfCanvas implements Canvas {
 
     // ------------------------------------------------------------------ painting
 
-    private enum Mode { FILL, STROKE }
+    private enum Mode { FILL, FILL_EVEN_ODD, STROKE }
 
     /**
      * Paints a path: the colour or the gradient, the opacity in force times the paint's own alpha,
@@ -306,8 +307,12 @@ final class PdfCanvas implements Canvas {
             if (mode == Mode.STROKE) {
                 ops.append(Pdf.num(strokeWidth)).append(" w ").append(cap).append(" J ").append(join).append(" j\n");
             }
-            setPaint(paint, mode == Mode.FILL);
-            ops.append(path).append(mode == Mode.FILL ? "f\n" : "S\n").append("Q\n");
+            setPaint(paint, mode != Mode.STROKE);
+            ops.append(path).append(switch (mode) {
+                case FILL -> "f\n";
+                case FILL_EVEN_ODD -> "f*\n";
+                case STROKE -> "S\n";
+            }).append("Q\n");
         } catch (IOException failed) {
             throw new UncheckedIOException(failed);
         }
@@ -406,8 +411,12 @@ final class PdfCanvas implements Canvas {
 
     @Override
     public void fillPath(Path2D path, Paint paint) {
-        // Each closed subpath on its own, as the canvas contract fills them (Path2D's notes).
-        PdfPaths.subpaths(path, subpath -> paint(subpath, paint, Mode.FILL, 0, 0, 0));
+        if (path.isEmpty()) {
+            return;
+        }
+        // Every subpath in one fill, under the path's rule, as PDF's own operators read it.
+        paint(PdfPaths.whole(path), paint, path.fillRule() == FillRule.EVEN_ODD ? Mode.FILL_EVEN_ODD : Mode.FILL,
+                0, 0, 0);
     }
 
     @Override
