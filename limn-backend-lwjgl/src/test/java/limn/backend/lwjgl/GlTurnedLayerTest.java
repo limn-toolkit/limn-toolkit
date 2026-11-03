@@ -148,10 +148,8 @@ class GlTurnedLayerTest {
                 "through the picture, nothing shows past the turned viewport");
         assertEquals(coverage(exact), coverage(picture), coverage(exact) * 0.003,
                 "the picture shows exactly the turned viewport");
-        // The straight clip's edge is a path fill's, whose fringe runs a pixel outward from the
-        // outline and so covers half a pixel more all round: 0.8% of this rectangle.
-        assertEquals(coverage(exact), coverage(straight), coverage(exact) * 0.01,
-                "and so does the straight draw, within a path fill's half pixel");
+        assertEquals(coverage(exact), coverage(straight), coverage(exact) * 0.003,
+                "and so does the straight draw");
     }
 
     @Test

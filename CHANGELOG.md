@@ -120,6 +120,11 @@ Maven Central say which number that was.
   baseline on both sides, and each side fades from its own farthest value to the baseline. It was
   drawn as stray triangles, a wedge from the baseline up to the highest value and the parts under
   zero partly missing, and what was drawn under zero was all at the faint end of the fade (ADR 085).
+- A filled path covers what its outline encloses, its antialiased edge centred on the outline as a
+  rectangle's or a circle's is. It covered half a device pixel more all round, its edge running a
+  whole pixel outward from the outline, so a path drawn beside the same shape drawn as a shape came
+  out bolder, and a path clip let half a pixel more through. A path whose subpaths overlap or cross,
+  filled through the stencil, covers a quarter of a pixel more, half of what it did (ADR 085).
 - A `LineChart`'s translucent line, as a series is while it fades in or out after its legend entry
   is toggled and whenever its colour has alpha, is even along its length; it was darker at every
   point (ADR 085).

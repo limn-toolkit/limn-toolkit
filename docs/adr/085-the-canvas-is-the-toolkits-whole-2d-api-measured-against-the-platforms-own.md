@@ -672,13 +672,24 @@ survive the measure, and one decision was the owner's.
   Direct3D 11, and on Fedora on Mesa over virgl: 64 each, the other three asking for macOS's second,
   software context. The copy of the target, the integer uniforms and the texel reads of the programs
   run on all three.
-- **Found, and owed: a path fill covers half a pixel too much all round.** Its antialiasing fringe
-  runs from the outline, at full coverage, a pixel outward, where an analytic shape's edge has half
-  its coverage on the outline itself; so every path filled, on either route of stage 2, is half a
-  device pixel larger than its outline, and a path clip, drawn with that fill, lets half a pixel more
-  through: 0.8% of a turned 320 by 200 pixel rectangle, against the turned picture's exact clip. It
-  is older than this record (the ear clipper's fringe always ran so); a mitred fringe past a sharp
-  tip also overreaches, about half the tip's pixel. A fringe centred on the outline needs the
-  interior inset by half a pixel on the ear clipper's route and, on the stencil's, a second fringe
-  pass for the inside, which the cover then skips.
+- **Found, and fixed after the stage's commit: a path fill covered half a pixel too much all
+  round.** Its antialiasing fringe ran from the outline, at full coverage, a pixel outward, where an
+  analytic shape's edge has half its coverage on the outline itself; so every path filled, on either
+  route of stage 2, was half a device pixel larger than its outline, and a path clip, drawn with that
+  fill, let half a pixel more through: 0.8% of a turned 320 by 200 pixel rectangle. It was older
+  than this record; the ear clipper's fringe always ran so. Now the ear clipper's route centres the
+  ramp on the outline: its interior stops half a pixel inside, each vertex moved along the band's
+  own mitred normal, and the band runs from there, covered, to half a pixel outside, clear, with no
+  pixel blended twice where the interior and the band met before. The stencil's route draws the
+  outer half of that ramp, half covered on the outline; its inner half stays the cover's, whole,
+  since a contour's inside may lie within another's fill, where a ramp would show as a seam (a
+  stroke's outline crossing itself at every joint), so such a fill covers a quarter of a pixel more
+  than its outline, half of what it did, in the same three draws. `GlFillCoverageTest` holds a
+  rectangle, a turned square and a circle drawn as paths to the area they enclose (a rectangle at
+  fractional corners within 3 of its 24,176 pixels, where it was 322 over) and to the same shapes
+  drawn analytically, and a frame with a hole through the stencil to at most a quarter pixel over
+  along its edge (it was 757 over on 1,520 pixels of edge); all four failed on the fringe before.
+  `GlTurnedLayerTest` holds the straight turned clip to the turned picture's coverage within 0.3%
+  again. On the guests, the fill, stroke, chart, clip and turned-layer tests with it, 43, pass on
+  Windows on the Parallels driver and on ANGLE over Direct3D 11, and on Fedora's Mesa.
 

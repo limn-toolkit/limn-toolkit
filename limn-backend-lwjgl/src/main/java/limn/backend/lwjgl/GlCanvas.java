@@ -2366,12 +2366,19 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         }
 
         // Both sides of every contour: which side is outside depends on the rule and on the other
-        // contours, which only the count knows, and the side it calls inside draws nothing.
+        // contours, which only the count knows, and the side it calls inside draws nothing. Each
+        // band is the outer half of an edge's ramp, half covered on the outline and clear half a
+        // pixel past it; the inner half is the cover's, whole, since a contour's inside may lie
+        // within another's fill, where a ramp would show as a seam. So such a fill covers a quarter
+        // of a pixel more than its outline all round, where a separable one covers it exactly.
         batch.stencilPhase(GlBatch.STENCIL_FRINGE, evenOdd);
+        float half = AA_PAD_DEVICE / 2 / t.approxScale();
         for (int c = 0; c < contours; c++) {
             if (fillCounts[c] >= 3) {
-                emitFringeBand(fillStarts[c], fillCounts[c], cx, cy, paintType, s, 1f);
-                emitFringeBand(fillStarts[c], fillCounts[c], cx, cy, paintType, s, -1f);
+                for (float side = 1f; side >= -1f; side -= 2f) {
+                    miters(fillStarts[c], fillCounts[c], side);
+                    emitFringeBand(fillStarts[c], fillCounts[c], cx, cy, paintType, s, 0, 0.5f, half);
+                }
             }
         }
 
@@ -3487,52 +3494,40 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         Transform2D t = s.transform;
         int paintType = applyPaint(paint, cx, cy, 1, 0, 0, 1, s.opacity);
         applyBlend(s);
+        // The edge's ramp is centred on the outline, as an analytic shape's is: the interior stops
+        // half a pixel inside it, and the band runs from there, covered, to half a pixel outside,
+        // clear. Each vertex moves along its mitred normal, the band's own, so the two meet with no
+        // gap and no pixel blended twice.
+        float orientation = PolygonTriangulator.signedArea(pathCollector.xs, pathCollector.ys, start, count) > 0
+                ? 1f : -1f; // the outward side: clockwise, y down, has its outside on the left
+        miters(start, count, orientation);
+        float half = AA_PAD_DEVICE / 2 / t.approxScale();
         batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_PLAIN, paintType);
         batch.setClip(s.clip);
         batch.ensure(count, triangles.length);
         int base = batch.baseVertex();
-        for (int i = start; i < start + count; i++) {
-            float px = pathCollector.xs[i];
-            float py = pathCollector.ys[i];
+        for (int i = 0; i < count; i++) {
+            float px = pathCollector.xs[start + i] - miterX[i] * half;
+            float py = pathCollector.ys[start + i] - miterY[i] * half;
             batch.vertex(t.x(px, py), t.y(px, py), px - cx, py - cy);
         }
         for (int i = 0; i < triangles.length; i += 3) {
             batch.triangle(base + triangles[i], base + triangles[i + 1], base + triangles[i + 2]);
         }
-
-        emitFringeRing(start, count, cx, cy, paintType, s);
+        emitFringeBand(start, count, cx, cy, paintType, s, -half, 1f, half);
     }
 
     /**
-     * Antialiasing skirt for path fills: a one-device-pixel band just outside
-     * the contour whose coverage ramps 1 → 0 (NanoVG-style fringe). Interior
-     * triangles stay hard-edged; the ring supplies the smooth edge. Vertex
-     * normals are averaged between neighbor edges (miter-limited) so the band
-     * is continuous, without overlapping quads. Translucent fills may
-     * double-blend marginally on the boundary pixel, the v1 trade-off.
+     * Per vertex of the contour fringed next, its mitred normal toward {@code orientation}'s side
+     * (the left of the direction of travel for 1, y down; the right for -1), scaled so that a band
+     * along it keeps about its width at a corner: the unit bisector of the two edges' normals over
+     * the cosine of half the turn, that cosine held to {@code 1 / FRINGE_MITER_LIMIT} at a sharp tip.
      */
-    private void emitFringeRing(int start, int count, float cx, float cy, int paintType, State s) {
-        // Outward side depends on winding: signedArea > 0 = clockwise (y-down).
-        float orientation = PolygonTriangulator.signedArea(pathCollector.xs, pathCollector.ys, start, count) > 0
-                ? 1f : -1f;
-        emitFringeBand(start, count, cx, cy, paintType, s, orientation);
-    }
-
-    /**
-     * The fringe band on one side of a contour: the left of its direction of travel for
-     * {@code orientation} 1 (y down), the right for -1.
-     */
-    private void emitFringeBand(int start, int count, float cx, float cy, int paintType, State s,
-                                float orientation) {
-        Transform2D t = s.transform;
-        float fringeWidth = AA_PAD_DEVICE / t.approxScale();
-
-        applyBlend(s);
-        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_FRINGE, paintType);
-        batch.setClip(s.clip);
-        batch.ensure(count * 2, count * 6);
-        int base = batch.baseVertex();
-
+    private void miters(int start, int count, float orientation) {
+        if (miterX.length < count) {
+            miterX = new float[count * 2];
+            miterY = new float[count * 2];
+        }
         for (int i = 0; i < count; i++) {
             float px = pathCollector.xs[start + i];
             float py = pathCollector.ys[start + i];
@@ -3540,8 +3535,6 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             float prevY = pathCollector.ys[start + (i - 1 + count) % count];
             float nextX = pathCollector.xs[start + (i + 1) % count];
             float nextY = pathCollector.ys[start + (i + 1) % count];
-
-            // Outward normals of the two edges meeting at this vertex.
             float n1x = edgeNormalX(prevX, prevY, px, py, orientation);
             float n1y = edgeNormalY(prevX, prevY, px, py, orientation);
             float n2x = edgeNormalX(px, py, nextX, nextY, orientation);
@@ -3556,14 +3549,39 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
                 nx /= len;
                 ny /= len;
             }
-            // Miter factor so the band keeps ~constant width at corners.
             float cosHalf = Math.max(nx * n2x + ny * n2y, 1f / FRINGE_MITER_LIMIT);
-            float offset = fringeWidth / cosHalf;
+            miterX[i] = nx / cosHalf;
+            miterY[i] = ny / cosHalf;
+        }
+    }
 
-            batch.setFringeCoverage(1f);
-            batch.vertex(t.x(px, py), t.y(px, py), px - cx, py - cy);
-            float ox = px + nx * offset;
-            float oy = py + ny * offset;
+    /** The mitred normals {@link #miters} leaves, per vertex of the contour. */
+    private float[] miterX = new float[64];
+    private float[] miterY = new float[64];
+
+    /**
+     * An antialiasing band along a contour, on the side {@link #miters} was last asked for: from
+     * {@code inner} along each vertex's mitred normal, covered by {@code innerCoverage}, out to
+     * {@code outer}, clear, both in the contour's own units. The ramp between is linear, so a band
+     * across the outline from half a pixel in to half a pixel out covers as an analytic edge does.
+     */
+    private void emitFringeBand(int start, int count, float cx, float cy, int paintType, State s,
+                                float inner, float innerCoverage, float outer) {
+        Transform2D t = s.transform;
+        applyBlend(s);
+        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_FRINGE, paintType);
+        batch.setClip(s.clip);
+        batch.ensure(count * 2, count * 6);
+        int base = batch.baseVertex();
+        for (int i = 0; i < count; i++) {
+            float px = pathCollector.xs[start + i];
+            float py = pathCollector.ys[start + i];
+            float ix = px + miterX[i] * inner;
+            float iy = py + miterY[i] * inner;
+            batch.setFringeCoverage(innerCoverage);
+            batch.vertex(t.x(ix, iy), t.y(ix, iy), ix - cx, iy - cy);
+            float ox = px + miterX[i] * outer;
+            float oy = py + miterY[i] * outer;
             batch.setFringeCoverage(0f);
             batch.vertex(t.x(ox, oy), t.y(ox, oy), ox - cx, oy - cy);
         }
