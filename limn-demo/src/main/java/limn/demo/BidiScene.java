@@ -6,7 +6,11 @@ import limn.components.ScrollView;
 
 import limn.components.TextField;
 import limn.components.Theme;
+import limn.components.Tone;
 import limn.graphics.Font;
+import limn.graphics.ParagraphStyle;
+import limn.graphics.StyledText;
+import limn.graphics.TextStyle;
 import limn.i18n.I18nString;
 import limn.scene.Insets;
 import limn.scene.LayoutDirection;
@@ -55,6 +59,8 @@ final class BidiScene {
         static final I18nString SCRIPTS = new I18nString("showcase.text.scripts", "Scripts");
         static final I18nString MIXED = new I18nString("showcase.text.mixed", "Mixed directions");
         static final I18nString CUSTOMERS = new I18nString("showcase.text.customers", "Customers");
+        static final I18nString STYLED = new I18nString("showcase.text.styled", "Styled text");
+        static final I18nString LATIN = new I18nString("showcase.text.latin", "Latin");
 
         static final I18nString ARABIC = new I18nString("showcase.text.arabic", "Arabic");
         static final I18nString HEBREW = new I18nString("showcase.text.hebrew", "Hebrew");
@@ -135,6 +141,9 @@ final class BidiScene {
 
     /** The Latin run the mixed lines and the editable fields put inside right-to-left text. */
     private static final String ISLAND = "Limn UI 2026";
+
+    /** The reference every notice carries, in Latin letters whatever the script around it. */
+    private static final String REFERENCE = "INV-4512-B";
 
     /**
      * The Arabic customer's locale: Egypt and not a bare {@code ar}, since CLDR makes Latin the
@@ -266,6 +275,15 @@ final class BidiScene {
         fields.add(hebrew);
         page.add(pairs(List.of(lines, fields), 18));
 
+        page.add(Page.section(Text.STYLED));
+        // One invoice notice in three scripts: in the two that read right to left the label takes
+        // that direction, so a paragraph with no alignment of its own and the list markers sit on
+        // the right, and the Latin reference keeps its own direction inside the line.
+        page.add(pairs(List.of(
+                styled(Text.LATIN, Locale.ENGLISH, styledLatin()),
+                styled(Text.ARABIC, ARABIC_EGYPT, styledArabic()),
+                styled(Text.HEBREW, Locale.forLanguageTag("he"), styledHebrew())), 18));
+
         page.add(Page.section(Text.CUSTOMERS));
         List<Widget<?>> cards = new ArrayList<>();
         for (Customer customer : CUSTOMERS) {
@@ -305,6 +323,95 @@ final class BidiScene {
         words.setLocale(Locale.forLanguageTag(language));
         block.add(words);
         return block;
+    }
+
+    /** A script's name over a notice in it, in its language and its direction. */
+    private static Widget<?> styled(I18nString script, Locale locale, StyledText text) {
+        Column block = new Column();
+        block.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
+        block.add(new Label(script).setMuted(true));
+        Label notice = new Label("").setText(text).setWrap(true);
+        notice.setLocale(locale);
+        notice.setLayoutDirection(LayoutDirection.forLocale(locale));
+        block.add(notice);
+        return block;
+    }
+
+    /** The invoice notice in English: a heading, figures, an overdue date, a list, a reference. */
+    static StyledText styledLatin() {
+        return StyledText.builder()
+                .paragraph(heading()).append("Invoice 4512")
+                .paragraph(ParagraphStyle.of().space(0, 6))
+                .append("Total ").append("$1,234", TextStyle.of().weight(600))
+                .append(", due ").append("tomorrow", TextStyle.of().ink(Tone.WARNING))
+                .append(". Was ").append("$1,498", TextStyle.of().strikethrough())
+                .append(", now ").append("$1,234", TextStyle.of().ink(Tone.SUCCESS)).append(".")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER))
+                .append("Check the ").append("tax number", TextStyle.of().underline(TextStyle.Underline.WAVY,
+                        Tone.DANGER)).append(" before sending.")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER))
+                .append("Area 12 m").append("2", TextStyle.of().superscript())
+                .append(", water H").append("2", TextStyle.of().subscript()).append("O, ")
+                .append("italic", TextStyle.of().italic()).append(" and ")
+                .append("light", TextStyle.of().weight(300)).append(".")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET, 1))
+                .append("Reference ").append(REFERENCE, reference()).append(".")
+                .build();
+    }
+
+    /**
+     * The same notice in Arabic, with Egypt's Arabic-Indic digits: the numbered list counts from the
+     * right, and the Latin reference is an island running left to right inside it.
+     */
+    static StyledText styledArabic() {
+        return StyledText.builder()
+                .paragraph(heading()).append("فاتورة رقم ٤٥١٢")
+                .paragraph(ParagraphStyle.of().space(0, 6))
+                .append("الإجمالي ").append("١٬٢٣٤ ج.م", TextStyle.of().weight(600))
+                .append("، يستحق الدفع ").append("غدًا", TextStyle.of().ink(Tone.WARNING))
+                .append(". كان ").append("١٬٤٩٨ ج.م", TextStyle.of().strikethrough())
+                .append("، والآن ").append("١٬٢٣٤ ج.م", TextStyle.of().ink(Tone.SUCCESS)).append(".")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER))
+                .append("تحقق من ").append("الرقم الضريبي", TextStyle.of().underline(TextStyle.Underline.WAVY,
+                        Tone.DANGER)).append(" قبل الإرسال.")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER))
+                .append("ملاحظة ").append("مميزة", highlighted()).append(" وأخرى ")
+                .append("خفيفة", TextStyle.of().weight(300)).append(".")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET, 1))
+                .append("المرجع ").append(REFERENCE, reference()).append(".")
+                .build();
+    }
+
+    /** The same notice in Hebrew, which writes its figures in Western digits. */
+    static StyledText styledHebrew() {
+        return StyledText.builder()
+                .paragraph(heading()).append("חשבונית 4512")
+                .paragraph(ParagraphStyle.of().space(0, 6))
+                .append("סך הכול ").append("1,234 ₪", TextStyle.of().weight(600))
+                .append(", לתשלום ").append("מחר", TextStyle.of().ink(Tone.WARNING))
+                .append(". היה ").append("1,498 ₪", TextStyle.of().strikethrough())
+                .append(", עכשיו ").append("1,234 ₪", TextStyle.of().ink(Tone.SUCCESS)).append(".")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET))
+                .append("בדקו את ").append("מספר העוסק", TextStyle.of().underline(TextStyle.Underline.WAVY,
+                        Tone.DANGER)).append(" לפני השליחה.")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET))
+                .append("הערה ").append("מסומנת", highlighted()).append(" ואחרת ")
+                .append("דקה", TextStyle.of().weight(300)).append(".")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET, 1))
+                .append("אסמכתה ").append(REFERENCE, reference()).append(".")
+                .build();
+    }
+
+    private static ParagraphStyle heading() {
+        return ParagraphStyle.of().text(TextStyle.of().weight(600).scale(1.15f)).space(0, 6);
+    }
+
+    private static TextStyle highlighted() {
+        return TextStyle.of().background(() -> Theme.current().primary()).ink(() -> Theme.current().onPrimary());
+    }
+
+    private static TextStyle reference() {
+        return TextStyle.of().family(Font.MONOSPACE_FAMILY).background(() -> Theme.current().surfaceRaised());
     }
 
     /**

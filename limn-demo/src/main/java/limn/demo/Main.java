@@ -568,7 +568,7 @@ public final class Main {
             // It went unnoticed because the documented capture example uses fr, which is Latin.
             boolean fontFallbackScene = switch (scene) {
                 case "fonts", "fonts-switched", "textfield-ime", "textarea-ime",
-                     "bidi", "bidi-light" -> true;
+                     "bidi", "bidi-light", "drawing" -> true;
                 default -> false;
             } || localeNeedsAFallbackFace(options.locale());
             if (screenshotMode && fontFallbackScene) {

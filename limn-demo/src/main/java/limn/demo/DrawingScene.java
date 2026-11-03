@@ -13,7 +13,10 @@ import limn.graphics.Images;
 import limn.graphics.Picture;
 import limn.graphics.LinearGradient;
 import limn.graphics.Path2D;
+import limn.graphics.ShapedText;
 import limn.graphics.Stroke;
+import limn.graphics.StyledLayout;
+import limn.graphics.StyledText;
 import limn.i18n.I18nString;
 import limn.math.Affine2D;
 import limn.math.Vec2;
@@ -34,7 +37,8 @@ import limn.scene.layout.Padding;
  * path and by a turning rectangle, an eraser and a fill inside a shape; every blend mode, each
  * drawn the same way; paints, a gradient of many colours, one from a focus, a sweep, and a picture
  * repeated as a pattern; and text as a shape, letters to see through, a recorded picture stamped
- * round a ring, and an image drawn off screen.
+ * round a ring, and an image drawn off screen; and styled text laid out once and drawn turned,
+ * through a lens and scaled, in three scripts.
  */
 final class DrawingScene {
 
@@ -70,6 +74,10 @@ final class DrawingScene {
                 "Seen through letters");
         static final I18nString STAMPED = new I18nString("showcase.drawing.stamped", "A picture, stamped");
         static final I18nString OFF_SCREEN = new I18nString("showcase.drawing.offScreen", "Drawn off screen");
+        static final I18nString STYLED = new I18nString("showcase.drawing.styled", "Styled text");
+        static final I18nString TURNED_TEXT = new I18nString("showcase.drawing.turnedText", "Turned");
+        static final I18nString LENS = new I18nString("showcase.drawing.lens", "Through a moving lens");
+        static final I18nString SCALED_TEXT = new I18nString("showcase.drawing.scaledText", "Scaled");
 
         private Text() {
         }
@@ -107,6 +115,8 @@ final class DrawingScene {
         column.add(new Paints());
         column.add(Page.section(Text.TEXT_AND_PICTURES));
         column.add(new TextAndPictures());
+        column.add(Page.section(Text.STYLED));
+        column.add(new Styled());
         return column; // the page scrolls it
     }
 
@@ -592,6 +602,71 @@ final class DrawingScene {
                     canvas.restore();
                 }
             }
+        }
+    }
+
+    /**
+     * The Text page's invoice notice, laid out once per cell width and drawn under the canvas's
+     * transform and clip: in Latin turning about its middle, in Arabic seen through a lens that
+     * drifts across it, and in Hebrew growing and shrinking. Its glyphs are drawn at the scale they
+     * show at, so the text stays sharp as it grows.
+     */
+    private static final class Styled extends Cells {
+        private final StyledText[] texts = {BidiScene.styledLatin(), BidiScene.styledArabic(),
+                BidiScene.styledHebrew()};
+        private final StyledLayout[] layouts = new StyledLayout[texts.length];
+        private final float[] laidOutAt = new float[texts.length];
+        private final Font[] laidOutIn = new Font[texts.length];
+
+        Styled() {
+            super(Text.STYLED, Text.TURNED_TEXT, Text.LENS, Text.SCALED_TEXT);
+        }
+
+        @Override
+        void paintCell(Canvas canvas, int index, float width, float height, Theme theme) {
+            animate();
+            float box = width * 0.9f;
+            Font font = theme.tokensFor(this).label();
+            StyledLayout layout = layout(index, box, font.withSize(font.size() * 0.85f));
+            float x = (width - box) / 2;
+            float y = Math.max(8, (height - layout.height()) / 2);
+            float cx = width / 2;
+            float cy = height / 2;
+            switch (index) {
+                case 0 -> canvas.rotate((float) (Math.sin(time * 0.6) * 0.3), cx, cy);
+                case 1 -> {
+                    float r = Math.min(width, height) * 0.36f;
+                    float lx = cx + (float) Math.sin(time * 0.5) * (width / 2 - r * 0.6f);
+                    float ly = cy + (float) Math.cos(time * 0.7) * height * 0.12f;
+                    canvas.fillCircle(lx, ly, r, theme.surfaceRaised());
+                    canvas.clipPath(new Path2D().addCircle(lx, ly, r));
+                }
+                default -> {
+                    float k = (float) (1 + Math.sin(time * 0.8) * 0.25);
+                    canvas.translate(cx, cy);
+                    canvas.scale(k, k);
+                    canvas.translate(-cx, -cy);
+                }
+            }
+            canvas.drawText(layout, x, y);
+        }
+
+        /**
+         * The notice laid out at this width, again only when the width, the font or the ruler
+         * changed. Its ink is asked for at every paint, so a change of theme recolours it as is.
+         */
+        private StyledLayout layout(int index, float width, Font font) {
+            StyledLayout layout = layouts[index];
+            if (layout == null || laidOutAt[index] != width || !font.equals(laidOutIn[index])
+                    || !layout.isCurrent(textRuler())) {
+                layout = StyledLayout.builder(texts[index], font, () -> Theme.current().text())
+                        .direction(index == 0 ? ShapedText.Direction.LTR : ShapedText.Direction.RTL)
+                        .maxWidth(width).build(textRuler());
+                layouts[index] = layout;
+                laidOutAt[index] = width;
+                laidOutIn[index] = font;
+            }
+            return layout;
         }
     }
 }
