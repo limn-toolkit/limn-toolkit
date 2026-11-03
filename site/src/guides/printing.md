@@ -89,7 +89,21 @@ document.writePdf(file).onSuccess(done -> backend.stop()).start();
 backend.runEventLoop();
 ```
 
-`Images.render` draws a picture the same way, with or without a window open.
+`Images.render` draws a picture the same way, with or without a window open. It draws on the UI
+thread, the one that made the backend, because the fonts and the glyphs drawn with them belong to
+it. A server's own threads hand the drawing to it and wait, while the UI thread runs the loop above,
+and encode the picture themselves:
+
+```java
+Image avatar = CompletableFuture
+        .supplyAsync(() -> Images.render(128, 128, 1, canvas -> draw(canvas, name)), Ui.executor())
+        .join();
+byte[] png = Images.encode(avatar, new ImageEncodeOptions(ImageFormat.PNG, ImageEncodeOptions.DEFAULT_QUALITY));
+```
+
+The UI thread draws one picture at a time, in the order they were asked for. A picture's first text
+in a script the default face lacks waits for the face, which loads once, in the background, so the
+first picture of a server is drawn with every letter in place.
 
 ## Printing it
 

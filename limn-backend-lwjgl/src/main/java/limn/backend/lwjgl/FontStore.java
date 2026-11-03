@@ -243,6 +243,8 @@ final class FontStore implements AutoCloseable {
      * What a printed page waits on before it records its text for good.
      */
     private java.util.concurrent.CompletableFuture<Void> heavyFallbacksDone;
+    /** The worker's parse of the heavy fallbacks, completed off the UI thread; null until asked for. */
+    private java.util.concurrent.CompletableFuture<HeavyFallbacks> heavyFallbacksParsed;
     private boolean systemScanRequested;
     // Re-installs the backend's catalog after a background fold-in, so Fonts
     // listeners (scene relayout, font pickers) observe the change.
@@ -429,7 +431,23 @@ final class FontStore implements AutoCloseable {
         heavyFallbacksRequested = true;
         java.util.concurrent.CompletableFuture<Void> done = new java.util.concurrent.CompletableFuture<>();
         heavyFallbacksDone = done;
-        limn.concurrent.Ui.async(FontStore::parseHeavyFallbacks).whenComplete((loaded, failed) -> {
+        // Completed by the worker itself, not through the UI thread's queue, so that the UI thread
+        // can wait for it in settleNow without waiting on itself.
+        java.util.concurrent.CompletableFuture<HeavyFallbacks> parsed = new java.util.concurrent.CompletableFuture<>();
+        heavyFallbacksParsed = parsed;
+        limn.concurrent.Ui.async(() -> {
+            try {
+                HeavyFallbacks loaded = parseHeavyFallbacks();
+                parsed.complete(loaded);
+                return loaded;
+            } catch (RuntimeException | Error e) {
+                parsed.completeExceptionally(e);
+                throw e;
+            }
+        }).whenComplete((loaded, failed) -> {
+            if (done.isDone()) {
+                return; // settleNow folded them in already
+            }
             try {
                 landHeavyFallbacks(loaded, failed);
             } finally {
@@ -445,6 +463,35 @@ final class FontStore implements AutoCloseable {
     java.util.concurrent.CompletionStage<Void> whenSettled() {
         java.util.concurrent.CompletableFuture<Void> done = heavyFallbacksDone;
         return done == null ? java.util.concurrent.CompletableFuture.completedFuture(null) : done;
+    }
+
+    /**
+     * Folds in the fallbacks still loading now, waiting for the worker parsing them: what a picture
+     * drawn off screen needs, since it returns at once and would keep the {@code .notdef} boxes a
+     * window's next frame heals. UI thread; at most once a process does this wait, and it is the
+     * parse's own time, a few hundred milliseconds.
+     *
+     * @return whether faces were folded in, so that what was drawn before is to be drawn again
+     */
+    boolean settleNow() {
+        java.util.concurrent.CompletableFuture<Void> done = heavyFallbacksDone;
+        java.util.concurrent.CompletableFuture<HeavyFallbacks> parsed = heavyFallbacksParsed;
+        if (done == null || done.isDone() || parsed == null) {
+            return false;
+        }
+        HeavyFallbacks loaded = null;
+        Throwable failed = null;
+        try {
+            loaded = parsed.join();
+        } catch (java.util.concurrent.CompletionException e) {
+            failed = e.getCause();
+        }
+        try {
+            landHeavyFallbacks(loaded, failed);
+        } finally {
+            done.complete(null);
+        }
+        return failed == null;
     }
 
     private void landHeavyFallbacks(HeavyFallbacks loaded, Throwable failed) {

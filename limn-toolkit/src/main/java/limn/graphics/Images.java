@@ -73,7 +73,10 @@ public final class Images {
      * @param height  in units
      * @param scale   pixels to a unit: the image is {@code ceil(width * scale)} by
      *                {@code ceil(height * scale)} pixels
-     * @param painter draws it; the canvas is valid only during the call
+     * @param painter draws it; the canvas is valid only during the call. It may be called a second
+     *                time, at most once while a backend runs: when its text needed a face the backend was
+     *                still loading in the background, the backend waits for it and draws again, so
+     *                that the picture does not keep the boxes drawn in the missing glyphs' place
      * @return the image, straight alpha
      * @throws IllegalArgumentException for a size or a scale not above 0, or not finite
      * @throws IllegalStateException    off the UI thread, with no backend started, on a machine where

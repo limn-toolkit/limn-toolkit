@@ -431,6 +431,12 @@ public final class LwjglBackend implements BackendPeer {
         });
         uiRuntime = UiRuntime.create(this::wakeLoop);
         uiRuntime.bindToCurrentThread();
+        if (headless) {
+            // A slow task is reported because it holds a frame back, and a backend with no display
+            // has no frame to hold: what runs on its UI thread is drawing, which belongs there, and
+            // a server drawing a picture per request would log every one.
+            uiRuntime.setSlowTaskBudgetMillis(Long.MAX_VALUE);
+        }
         if (Platform.current().isMacOs() && !headless) {
             MacQuitCommand.route(quitCommand); // GLFW made its delegate in glfwInit
         }
@@ -1667,7 +1673,19 @@ public final class LwjglBackend implements BackendPeer {
      * current; otherwise in the context of the first open window that can draw. Null with no such
      * window.
      */
+    /**
+     * A picture off screen, drawn again once when its text asked for fallback faces still loading:
+     * a window heals such boxes at its next frame, a picture keeps them, and the first picture of a
+     * server is often the first text in a script the default face lacks.
+     */
     private limn.graphics.@org.jspecify.annotations.Nullable Image paintOffscreen(int width, int height,
+            float scale, java.util.function.Consumer<limn.graphics.Canvas> painter) {
+        limn.graphics.Image picture = paintOffscreenOnce(width, height, scale, painter);
+        return picture != null && fontStore.settleNow() ? paintOffscreenOnce(width, height, scale, painter)
+                : picture;
+    }
+
+    private limn.graphics.@org.jspecify.annotations.Nullable Image paintOffscreenOnce(int width, int height,
             float scale, java.util.function.Consumer<limn.graphics.Canvas> painter) {
         if (GlCanvas.current() != null) {
             return GlOffscreen.paintHere(fontStore, width, height, scale, painter);

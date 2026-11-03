@@ -111,3 +111,23 @@ the context is made again on the next picture, and ANGLE's display with it where
 context made again by the path a loss takes, and draws a second picture after the window closes: the
 windows' contexts were made again on the first attempt, `opengl32.dll` unloaded, and both pictures
 were right.
+
+**A consumer of it.** A throwaway program outside this repository, an HTTP server that answers a
+name with a PNG avatar, resolved the toolkit from a file repository published from this branch as any
+application would, and ran in a Linux container with no display and no GPU: a Java 17 runtime on
+Ubuntu 22.04 (glibc 2.35), on arm64, with only EGL and Mesa's drivers added to the image. The
+backend started without a display by itself and drew with llvmpipe (OpenGL 4.5 core). The main
+thread made the backend and ran its loop, `UNTIL_QUIT`; the server's threads handed each picture to
+it through `Ui.executor()` and encoded the PNG themselves. Under 800 requests sixteen at a time, on
+two processors, every answer was a PNG, about 80 a second, the slowest in 0.3 s; a stop by
+`SIGTERM` ended the loop and closed the backend. It found two defects, both fixed:
+
+- The first picture in a script the default face lacks (Arabic, Hebrew, Devanagari, CJK) was drawn
+  in boxes: the faces for it start loading in the background on the first glyph missed, and land on
+  the UI thread, which a picture drawn there does not give back before it returns. A window heals
+  such boxes at its next frame; a picture kept them, and a server caches it. The backend now waits
+  for the worker's parse, folds the faces in, and draws the picture again, once a backend's life.
+  A printed document already waited for them.
+- Every picture that took longer than a frame's budget logged a warning advising to move the work
+  to a worker, which drawing cannot be; a backend without a display has no frame to hold back, and
+  reports no task as slow.

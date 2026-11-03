@@ -92,7 +92,13 @@ Maven Central say which number that was.
   window (`Backend.canOpenWindows()` answers false, and a window asked for is refused saying why),
   and draws pictures and documents with the same canvas, on the GPU where the system lets the process
   reach one and on the processor otherwise. `Images.render` and a document's Porter-Duff layers draw
-  with no window open too, with a context of the backend's own (ADR 086).
+  with no window open too, with a context of the backend's own (ADR 086). Such a backend reports no
+  UI task as slow: it has no frame to hold back, and a server drawing a picture per request logged
+  every one.
+- `Images.render` waits for a face still loading in the background when the text it draws needs
+  one, and draws again: a window heals the boxes drawn in the meantime at its next frame, and a
+  picture kept them, so the first picture a server drew in a script the default face lacks came
+  out as boxes.
 - `ShapedText.outline(x, y)`: the text as a `Path2D`, every glyph's outline where `drawText` draws
   it, read from the backend as a printed page reads them, so text can be stroked, dashed, filled
   with any paint, used as a clip or tested for a hit; a colour emoji, a picture, is left out (ADR

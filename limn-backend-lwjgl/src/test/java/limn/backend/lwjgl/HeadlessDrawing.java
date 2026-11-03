@@ -15,12 +15,14 @@ import limn.scene.Widget;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A program, not a test: what a server does with the toolkit, run in a process of its own by
  * {@link HeadlessBackendTest} and on the guests by hand. It starts the backend and opens no window,
- * draws a picture, and writes a document whose layer an eraser crosses, then prints one line per
+ * draws a picture, the first text it draws being in scripts whose faces load in the background, and
+ * writes a document whose layer an eraser crosses, then prints one line per
  * finding, and {@code OK} when every one held. With no argument the backend is expected to have
  * started without a display, and to refuse a window; with {@code display}, to have one, and to draw
  * all the same with no window open.
@@ -63,6 +65,12 @@ public final class HeadlessDrawing {
                     System.out.println("window refused: " + refused.getMessage());
                 }
             }
+            // The first text of the process, in scripts the default face lacks: their faces start
+            // loading only now, and the picture must not keep the boxes drawn while they load.
+            limn.graphics.Font font = limn.graphics.Font.of(20);
+            java.util.function.Consumer<Canvas> words = c -> c.drawText("\u0645\u0631\u062D\u0628\u0627 \u65E5\u672C",
+                    4, 24, font, Color.BLACK);
+            Image first = Images.render(140, 32, 1, words);
             Image image = Images.render(40, 30, 2, c -> {
                 c.fillCircle(20, 15, 10, Gradient.linear(10, 0, 30, 0, Color.rgb(0xCC2020), Color.rgb(0xCC2020)));
                 c.setBlendMode(BlendMode.DESTINATION_OUT);
@@ -94,6 +102,13 @@ public final class HeadlessDrawing {
             System.out.println("pdf " + bytes.size() + " bytes, " + (done.get() instanceof Throwable t ? "failed: " + t
                     : "written") + ", the erased layer " + (picture ? "as a picture" : "NOT as a picture"));
             ok &= !(done.get() instanceof Throwable) && picture;
+            // The loop has run since, and the document waited for every face still loading: the
+            // same words drawn now are drawn with the faces in place.
+            Image settled = Images.render(140, 32, 1, words);
+            boolean same = Arrays.equals(first.pixels(), settled.pixels());
+            System.out.println("the first text picture " + (same ? "matches" : "DIFFERS FROM")
+                    + " one drawn after the fonts settled");
+            ok &= same;
         } finally {
             backend.close();
         }
