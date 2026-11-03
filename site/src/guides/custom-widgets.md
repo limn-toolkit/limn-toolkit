@@ -43,7 +43,9 @@ Whatever takes a colour takes a `Paint`: a `Color`; a two-colour `LinearGradient
 `RadialGradient`; a `Gradient` of any number of colours, linear, radial from a focus or sweeping
 round a centre, padded, repeated or reflected past its ends and placed under a matrix of its own;
 or an `ImagePaint`, a picture repeated, mirrored or laid once under a matrix, which fills text and
-strokes as it fills shapes. `drawShadow(shape, shadow)` casts a `Shadow` under a rounded rectangle;
+strokes as it fills shapes. A shaped line's `outline(x, y)` is its text as a path, to stroke, to
+clip by or to test for a hit. A drawing made once and shown many times is a `Picture`, recorded
+with `Picture.record` and drawn with `drawPicture`; `Images.render` draws one into an image. `drawShadow(shape, shadow)` casts a `Shadow` under a rounded rectangle;
 `save`, `translate`, `rotate`, `scale` and `restore` move the coordinates, `rotate(angle, cx, cy)`
 turns about a point, `shear` leans, and `concat` draws through any `Affine2D`; `transform()`
 answers the matrix in force, which `invert()` turns into the way back from the canvas's

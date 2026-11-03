@@ -85,8 +85,17 @@ Maven Central say which number that was.
   triangles of a degree, and a picture as a tiling pattern. `Paint` permits both: a `switch` over
   it needs a `default` branch (ADR 085).
 - `limn.backend.spi.OffscreenPainter`, an optional service of `BackendServices`: draws into a
-  picture off any window, which a printed document asks for a layer drawn under a Porter-Duff
-  rule. The record's constructor of eleven services stays (ADR 085).
+  picture off any window, which `Images.render` answers and a printed document asks for a layer
+  drawn under a Porter-Duff rule. The record's constructor of eleven services stays (ADR 085).
+- `ShapedText.outline(x, y)`: the text as a `Path2D`, every glyph's outline where `drawText` draws
+  it, read from the backend as a printed page reads them, so text can be stroked, dashed, filled
+  with any paint, used as a clip or tested for a hit; a colour emoji, a picture, is left out (ADR
+  085).
+- `Picture`: a drawing recorded once (`Picture.record`) and drawn any number of times on any canvas,
+  `Canvas.drawPicture`, the screen, a printed page or another picture, in that canvas's coordinates
+  and state. `Images.render(width, height, scale, painter)` draws into an image with the backend's
+  canvas, inside a frame too, for a thumbnail, an exported chart or a drawing kept as a picture (ADR
+  085).
 
 ### Changed
 

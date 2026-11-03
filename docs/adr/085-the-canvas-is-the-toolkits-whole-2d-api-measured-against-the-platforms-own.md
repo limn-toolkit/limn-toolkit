@@ -7,7 +7,8 @@
   (section 7), names what stays out (section 5), and asked seven questions (section 6), which
   the owner answered the same day by taking every recommendation (section 9). Stage 1 built the
   same day (section 10), stage 2 on 11-02 (section 11), stage 3 the same day (section 12), stage 4
-  on 11-03 (section 13), stage 5 the same day (section 14). Two
+  on 11-03 (section 13), stage 5 the same day (section 14), stage 6, the last, the same day (section
+  15). Two
   defects in a shipped chart came out of the measurement (section 0.3); stage 2 fixed the first,
   and a third its pixel test found, and stage 3 the second.
 - **Date:** 2026-11-01
@@ -751,4 +752,58 @@ Built 2026-11-03 on the same branch, after the commit of the fill's centred edge
 - **On the guests,** `GlPaintTest` with the fill, coverage, clip, stroke and chart tests, 42, pass on
   Windows on the Parallels driver and on ANGLE over Direct3D 11, and on Fedora's Mesa: the float
   texture of stops, its loop and the samplers of the image paints run on all three.
+
+## 15. Stage 6, as built
+
+Built 2026-11-03 on the same branch, after stage 5's commit. With it the six stages of section 7
+are built.
+
+- **`ShapedText.outline(x, y)`**, a new `Path2D` of every glyph's outline where
+  `drawText(text, x, y, paint)` draws it: each glyph read from the backend's `GlyphOutlines`, the
+  service a printed page reads, scaled from its face's units, flipped from y up to the line's y down,
+  placed at its pen and its offset, under non-zero. A face the backend makes bold by thickening a
+  regular one is thickened as the PDF thickens it, by a stroke's outline a 24th of the size wide
+  added to each glyph's. A cluster the shaper left without a glyph is outlined from the glyphs the
+  screen falls back to; a piece that is a picture, a colour emoji, is left out, as section 4.7 said.
+  Without a backend the path is empty.
+- **`Picture`**, a final class: `Picture.record(width, height[, scale], painter)` and `draw(canvas)`,
+  with `Canvas.drawPicture(picture)` as a default that draws it. It is the recording canvas of
+  printing, in a mode of its own (`RecordingCanvas.picture`): every call kept as made, a layer under a
+  Porter-Duff rule as it is (a page the picture is drawn into rasterizes it there, if it must) and a
+  GPU surface kept, where a page leaves it out. Immutable; a path is copied when recorded.
+- **`Images.render(width, height, scale, painter)`**: an image of what the backend's canvas draws, at
+  {@code ceil(width * scale)} pixels across, straight alpha, transparent where nothing is drawn;
+  `IllegalStateException` off the UI thread or with no backend that draws off a window. The service
+  of stage 4 gained the scale, and its holder moved beside `Images`. Section 4.8 placed it between
+  frames by implication; a thumbnail or a cached drawing is made where it is first needed, which is
+  a paint, so it is drawn inside a frame too: the frame's canvas draws what it queued, the picture is
+  drawn in the frame's own context with a canvas kept for it (made once per context, so a picture
+  drawn on every frame compiles nothing), and the frame finds its framebuffer, its viewport and
+  itself as the current canvas again. Outside a frame it is drawn in the context of the first open
+  window that can draw.
+- **The demo's page** gains a panel of text and pictures: a word as a path stroked with a marching
+  dash, the same word as a clip a reflected gradient slides behind, a pin recorded once and stamped
+  eight times round a turning ring, and twelve by twelve pixels drawn off screen inside the first
+  frame that shows them, enlarged and pixelated. Strings in the 21 languages.
+- **Tests:** `TextOutlineTest`, with the backend's fonts on a headless context: a line's outline
+  covers what the line drawn as text covers, within 4% (the text from a rasterized atlas, the
+  outline as a path), stands at the pen and between the baseline and the ascent, and is what a clip
+  by it lets through; it strokes with a dash. `ShapedTextOutlineTest`, through a source of squares:
+  scale, flip, pen and offset, the thickened face, the fallback glyphs of a glyphless cluster and the
+  picture left out, and nothing without a source. A colour emoji could not stand in for the picture
+  on the headless context, whose fonts give it a monochrome glyph, which the outline rightly keeps.
+  `PictureTest`: drawn in the canvas's coordinates and state, a path kept as recorded, a picture inside
+  another, a surface kept, the size and scale the recording canvas answers. `GlOffscreenTest`: an
+  image at the scale asked, an eraser's hole in it; drawn inside a frame, what the frame queued before
+  and drew after both in it, the image drawn into the frame, the offscreen canvas kept and the frame's
+  canvas current again; no painter, no image, said. Mutation: the outline unflipped failed the
+  placement test. The first full run found the in-frame test leaving its viewport set, which a later
+  test sized its frame from; it restores it now, as every test that sets one does.
+- **On the guests,** `GlOffscreenTest`, `TextOutlineTest`, `PdfPorterDuffTest`, `GlPaintTest`,
+  `GlClipBlendTest` and `GlReadBackTest`, 27, pass on Windows on the Parallels driver and on ANGLE
+  over Direct3D 11, and on Fedora's Mesa: a picture drawn off screen inside a frame leaves the frame
+  as it was on all three.
+- **What is left.** Every stage of section 7 is built. Not proposed, and still not: a canvas over an
+  image on any thread (question 4) and constructive geometry (question 6), each waiting for an
+  application that asks.
 

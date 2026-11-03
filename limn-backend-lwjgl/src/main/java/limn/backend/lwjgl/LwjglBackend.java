@@ -1585,17 +1585,17 @@ public final class LwjglBackend implements BackendPeer {
     }
 
     /**
-     * Draws into a picture off screen, in the context of the first open window that can draw: what a
-     * printed page asks for a layer drawn under a Porter-Duff rule. Null with no such window, and
-     * inside a frame, whose canvas and context it would take from under the frame.
+     * Draws into a picture off screen: inside a frame in the frame's own context, which stays
+     * current; otherwise in the context of the first open window that can draw. Null with no such
+     * window.
      */
     private limn.graphics.@org.jspecify.annotations.Nullable Image paintOffscreen(int width, int height,
-            java.util.function.Consumer<limn.graphics.Canvas> painter) {
+            float scale, java.util.function.Consumer<limn.graphics.Canvas> painter) {
         if (GlCanvas.current() != null) {
-            return null;
+            return GlOffscreen.paintHere(fontStore, width, height, scale, painter);
         }
         for (LwjglWindow window : windows) {
-            limn.graphics.Image picture = window.paintOffscreen(width, height, painter);
+            limn.graphics.Image picture = window.paintOffscreen(width, height, scale, painter);
             if (picture != null) {
                 return picture;
             }

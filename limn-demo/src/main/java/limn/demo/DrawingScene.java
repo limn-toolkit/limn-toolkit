@@ -9,6 +9,8 @@ import limn.graphics.Font;
 import limn.graphics.Gradient;
 import limn.graphics.Image;
 import limn.graphics.ImagePaint;
+import limn.graphics.Images;
+import limn.graphics.Picture;
 import limn.graphics.LinearGradient;
 import limn.graphics.Path2D;
 import limn.graphics.Stroke;
@@ -30,8 +32,9 @@ import limn.scene.layout.Padding;
  * marching along their paths, and a translucent line crossing itself; transforms, a shear, a turn
  * about a point, and a hit test through the inverse of the matrix a shape was drawn with; clips by a
  * path and by a turning rectangle, an eraser and a fill inside a shape; every blend mode, each
- * drawn the same way; and paints, a gradient of many colours, one from a focus, a sweep, and a
- * picture repeated as a pattern.
+ * drawn the same way; paints, a gradient of many colours, one from a focus, a sweep, and a picture
+ * repeated as a pattern; and text as a shape, letters to see through, a recorded picture stamped
+ * round a ring, and an image drawn off screen.
  */
 final class DrawingScene {
 
@@ -60,6 +63,13 @@ final class DrawingScene {
         static final I18nString FOCUS = new I18nString("showcase.drawing.focus", "From a focus");
         static final I18nString SWEEP = new I18nString("showcase.drawing.sweep", "Sweep");
         static final I18nString PATTERN = new I18nString("showcase.drawing.pattern", "Image pattern");
+        static final I18nString TEXT_AND_PICTURES = new I18nString("showcase.drawing.textAndPictures",
+                "Text and pictures");
+        static final I18nString TEXT_PATH = new I18nString("showcase.drawing.textPath", "Text as a path");
+        static final I18nString THROUGH_LETTERS = new I18nString("showcase.drawing.throughLetters",
+                "Seen through letters");
+        static final I18nString STAMPED = new I18nString("showcase.drawing.stamped", "A picture, stamped");
+        static final I18nString OFF_SCREEN = new I18nString("showcase.drawing.offScreen", "Drawn off screen");
 
         private Text() {
         }
@@ -95,6 +105,8 @@ final class DrawingScene {
         column.add(new Blends());
         column.add(Page.section(Text.PAINTS));
         column.add(new Paints());
+        column.add(Page.section(Text.TEXT_AND_PICTURES));
+        column.add(new TextAndPictures());
         return column; // the page scrolls it
     }
 
@@ -510,6 +522,75 @@ final class DrawingScene {
                         Color.rgb(0x9B59B6), Color.rgb(0xE74C3C)));
                 default -> canvas.fillRoundRect(16, 12, width - 32, height - 24, 8, ImagePaint.of(HATCH)
                         .withTransform(limn.math.Affine2D.translation(cx, cy).rotate(time * 0.3).scale(0.75, 0.75)));
+            }
+        }
+    }
+
+    /**
+     * A word as a path, stroked with a dash that marches; the same word as a clip a gradient slides
+     * behind; a picture of a pin recorded once and stamped round a ring that turns; and an image the
+     * canvas drew off screen on the first paint, shown again enlarged and pixelated.
+     */
+    private static final class TextAndPictures extends Cells {
+        /** A map pin, recorded once and drawn at every stamp. */
+        private static final Picture PIN = Picture.record(16, 22, c -> {
+            c.fillPath(Path2D.parse("M8 0C3.6 0 0 3.4 0 7.8 0 13.6 8 22 8 22s8-8.4 8-14.2C16 3.4 12.4 0 8 0z"),
+                    Color.rgb(0xE74C3C));
+            c.fillCircle(8, 8, 3, Color.WHITE);
+        });
+        private Image offScreen;
+
+        TextAndPictures() {
+            super(Text.TEXT_AND_PICTURES, Text.TEXT_PATH, Text.THROUGH_LETTERS, Text.STAMPED, Text.OFF_SCREEN);
+        }
+
+        @Override
+        void paintCell(Canvas canvas, int index, float width, float height, Theme theme) {
+            animate();
+            Color ink = theme.primary();
+            switch (index) {
+                case 0, 1 -> {
+                    Font font = theme.tokensFor(this).title().withSize(Math.min(height * 0.48f, width * 0.28f))
+                            .withWeight(800);
+                    limn.graphics.ShapedText word = textRuler().shape("Limn", font);
+                    float x = (width - word.metrics().width()) / 2;
+                    float y = height / 2 + word.metrics().ascent() * 0.36f;
+                    Path2D outline = word.outline(x, y);
+                    if (index == 0) {
+                        canvas.drawPath(outline, Stroke.of(2).withCap(Stroke.Cap.ROUND).withDash(6, 4)
+                                .withDashPhase((float) (-time * 12)), ink);
+                    } else {
+                        canvas.clipPath(outline);
+                        float shift = (float) (Math.sin(time * 0.9) * width * 0.5);
+                        canvas.fillRect(0, 0, width, height, Gradient.linear(shift, 0, width + shift, 0,
+                                Color.rgb(0xE74C3C), Color.rgb(0xF1C40F), Color.rgb(0x2ECC71), Color.rgb(0x3498DB))
+                                .withSpread(Gradient.Spread.REFLECT));
+                    }
+                }
+                case 2 -> {
+                    float r = Math.min(width, height) * 0.3f;
+                    for (int i = 0; i < 8; i++) {
+                        double a = time * 0.5 + i * Math.PI / 4;
+                        canvas.save();
+                        canvas.translate(width / 2 + (float) Math.cos(a) * r - 8,
+                                height / 2 + (float) Math.sin(a) * r - 11); // by the pin's middle
+                        canvas.drawPicture(PIN);
+                        canvas.restore();
+                    }
+                }
+                default -> {
+                    if (offScreen == null) {
+                        // Drawn once, here, inside the frame: twelve by twelve pixels of a sweep.
+                        offScreen = Images.render(12, 12, 1, c -> c.fillCircle(6, 6, 6,
+                                Gradient.sweep(6, 6, 0, Color.rgb(0xE74C3C), Color.rgb(0x3498DB),
+                                        Color.rgb(0xE74C3C))));
+                    }
+                    float side = Math.min(width, height) * 0.7f;
+                    canvas.save();
+                    canvas.setSampling(limn.graphics.Sampling.PIXELATED);
+                    canvas.drawImage(offScreen, (width - side) / 2, (height - side) / 2, side, side);
+                    canvas.restore();
+                }
             }
         }
     }

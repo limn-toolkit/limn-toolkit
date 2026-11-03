@@ -72,6 +72,8 @@ public final class RecordingCanvas implements Canvas {
     private boolean pageRuled;
     /** Whether a layer under a Porter-Duff rule is drawn as a picture: false for a scratch recording. */
     private final boolean pictures;
+    /** Whether a GPU surface is kept, as a {@link limn.graphics.Picture} keeps it; a page leaves it out. */
+    private final boolean keepsSurfaces;
 
     private State state = new State(Affine2D.IDENTITY, null, 1, BlendMode.NORMAL, Sampling.SMOOTH, true);
     private final Deque<State> saved = new ArrayDeque<>();
@@ -83,7 +85,7 @@ public final class RecordingCanvas implements Canvas {
      * @param glyphs       where the outlines of the text recorded are kept for the PDF writer
      */
     public RecordingCanvas(float pageWidth, float pageHeight, float contentScale, GlyphBank glyphs) {
-        this(pageWidth, pageHeight, contentScale, glyphs, true);
+        this(pageWidth, pageHeight, contentScale, glyphs, true, false);
     }
 
     /**
@@ -97,12 +99,28 @@ public final class RecordingCanvas implements Canvas {
      */
     public static RecordingCanvas scratch(float width, float height, float contentScale) {
         return new RecordingCanvas(width, height, contentScale, new GlyphBank(limn.backend.spi.GlyphOutlines.NONE),
-                false);
+                false, false);
+    }
+
+    /**
+     * The canvas a {@link limn.graphics.Picture} is recorded with: every call kept as it is, a layer
+     * under a Porter-Duff rule and a GPU surface included, to be replayed onto a canvas that draws
+     * them; a page the picture is replayed into decides what it does with each.
+     *
+     * @param width        the picture's width
+     * @param height       its height
+     * @param contentScale what the canvas answers as its scale
+     * @return the canvas
+     */
+    public static RecordingCanvas picture(float width, float height, float contentScale) {
+        return new RecordingCanvas(width, height, contentScale, new GlyphBank(limn.backend.spi.GlyphOutlines.NONE),
+                false, true);
     }
 
     private RecordingCanvas(float pageWidth, float pageHeight, float contentScale, GlyphBank glyphs,
-                            boolean pictures) {
+                            boolean pictures, boolean keepsSurfaces) {
         this.pictures = pictures;
+        this.keepsSurfaces = keepsSurfaces;
         this.out = new Recording.Builder(pageWidth, pageHeight);
         this.glyphs = Objects.requireNonNull(glyphs, "glyphs");
         this.contentScale = contentScale;
@@ -186,7 +204,7 @@ public final class RecordingCanvas implements Canvas {
         if (pw > 0 && ph > 0) {
             float sx = pw / width;
             float sy = ph / height;
-            picture = Offscreen.current().paint(pw, ph, c -> {
+            picture = limn.graphics.internal.Offscreen.current().paint(pw, ph, 1f, c -> {
                 c.scale(sx, sy);
                 c.translate(-x, -y);
                 for (Recording.Op op : ops) {
@@ -676,6 +694,11 @@ public final class RecordingCanvas implements Canvas {
 
     @Override
     public void drawSurface(GpuSurface surface, float x, float y, float w, float h) {
+        if (keepsSurfaces) {
+            Objects.requireNonNull(surface, "surface");
+            out.add(c -> c.drawSurface(surface, x, y, w, h));
+            return;
+        }
         // A GPU texture (a video's frame, a 3D view) has no picture a page can hold: it is left out,
         // said once per page.
         if (!surfaceLogged) {

@@ -1,10 +1,11 @@
-package limn.print.internal;
+package limn.graphics.internal;
 
 import limn.backend.spi.Installed;
 import limn.backend.spi.OffscreenPainter;
 
 /**
- * Where the running backend's {@link OffscreenPainter} is installed, read by the recording of a page.
+ * Where the running backend's {@link OffscreenPainter} is installed, read by
+ * {@link limn.graphics.Images#render} and by the recording of a printed page.
  * Not API: a backend hands it over in {@link limn.backend.spi.BackendServices}, and nothing else
  * installs one but a test.
  */

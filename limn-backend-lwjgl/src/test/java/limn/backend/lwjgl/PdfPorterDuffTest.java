@@ -54,8 +54,8 @@ class PdfPorterDuffTest {
             ShapingRuler ruler = new ShapingRuler(store);
             TextRulers.install(ruler);
             List<Image> pictures = new ArrayList<>();
-            OffscreenPainter painter = (w, h, p) -> {
-                Image picture = GlOffscreen.paint(store, w, h, p);
+            OffscreenPainter painter = (w, h, k, p) -> {
+                Image picture = GlOffscreen.paint(store, w, h, k, p);
                 pictures.add(picture);
                 return picture;
             };

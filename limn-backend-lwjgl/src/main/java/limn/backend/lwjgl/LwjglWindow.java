@@ -918,14 +918,14 @@ final class LwjglWindow implements WindowPeer {
      * ({@link GlOffscreen}), and answers it; null when this window cannot draw now or the device
      * refuses the size. The window's next frame makes its context current again, as every frame does.
      */
-    limn.graphics.@org.jspecify.annotations.Nullable Image paintOffscreen(int width, int height,
+    limn.graphics.@org.jspecify.annotations.Nullable Image paintOffscreen(int width, int height, float scale,
             java.util.function.Consumer<limn.graphics.Canvas> painter) {
         if (destroyed || contextGone || glCapabilities == null) {
             return null;
         }
         makeContextCurrent();
         Gl.api().setCapabilities(glCapabilities);
-        return GlOffscreen.paint(backend.fontStore(), width, height, painter);
+        return GlOffscreen.paint(renderer.glCanvas().offscreen(), width, height, scale, painter);
     }
 
     /**

@@ -59,6 +59,42 @@ public final class Images {
     private Images() {
     }
 
+    /**
+     * An image of what {@code painter} draws on a canvas {@code width} by {@code height} units of
+     * {@code scale} pixels each, transparent where it draws nothing: a thumbnail, a chart exported as
+     * a picture, a drawing kept to be shown again as an image. The canvas is the running backend's,
+     * so the image is what a window would show, its antialiasing, text and every paint and blend mode
+     * included. Inside a frame too: what the frame queued is drawn first, and the frame goes on.
+     *
+     * @param width   in units
+     * @param height  in units
+     * @param scale   pixels to a unit: the image is {@code ceil(width * scale)} by
+     *                {@code ceil(height * scale)} pixels
+     * @param painter draws it; the canvas is valid only during the call
+     * @return the image, straight alpha
+     * @throws IllegalArgumentException for a size or a scale not above 0, or not finite
+     * @throws IllegalStateException    off the UI thread, or with no backend that draws off a window
+     *                                  (none started, or no window open whose context can draw), or
+     *                                  for a size the device refuses
+     */
+    public static Image render(float width, float height, float scale, java.util.function.Consumer<Canvas> painter) {
+        java.util.Objects.requireNonNull(painter, "painter");
+        if (!(width > 0 && height > 0 && scale > 0) || !Float.isFinite(width * height * scale)) {
+            throw new IllegalArgumentException("an image needs a size and a scale above 0: " + width + " x " + height
+                    + " at " + scale);
+        }
+        limn.concurrent.Ui.checkUiThread();
+        int pw = (int) Math.ceil(width * scale);
+        int ph = (int) Math.ceil(height * scale);
+        Image image = limn.graphics.internal.Offscreen.current().paint(pw, ph, scale, painter);
+        if (image == null) {
+            throw new IllegalStateException("no image of " + pw + " x " + ph + " pixels could be drawn: no backend "
+                    + "that draws off a window is running, no window is open whose context can draw, or the device "
+                    + "refuses the size");
+        }
+        return image;
+    }
+
     /** Installs the backend decoder (called once at backend startup). */
     public static void installDecoder(ImageDecoder newDecoder) {
         DECODER.install(newDecoder);

@@ -77,7 +77,7 @@ class PdfClipBlendTest {
     @Test
     void aLayerUnderAPorterDuffRuleIsThePictureTheBackendDraws() {
         Painter painter = new Painter();
-        Offscreen.install(painter);
+        limn.graphics.internal.Offscreen.install(painter);
         try {
             RecordingCanvas canvas = new RecordingCanvas(794, 1123, SCALE, new GlyphBank(PdfWriterTest.SQUARES));
             canvas.translate(100, 200);
@@ -98,14 +98,14 @@ class PdfClipBlendTest {
             assertEquals(List.of("setOpacity 0.5", "drawImage 10,20 30x40"), replay.calls,
                     "the page lays the picture where the layer stood, at its opacity");
         } finally {
-            Offscreen.uninstall(painter);
+            limn.graphics.internal.Offscreen.uninstall(painter);
         }
     }
 
     @Test
     void aPageWhoseOwnDrawingSetsARuleIsOnePicture() {
         Painter painter = new Painter();
-        Offscreen.install(painter);
+        limn.graphics.internal.Offscreen.install(painter);
         try {
             RecordingCanvas canvas = new RecordingCanvas(794, 1123, SCALE, new GlyphBank(PdfWriterTest.SQUARES));
             canvas.fillRect(0, 0, 100, 100, Color.rgb(0xFF0000));
@@ -116,7 +116,7 @@ class PdfClipBlendTest {
             assertEquals(List.of("drawImage 0,0 794x1123"), replay.calls);
             assertEquals(List.of((int) Math.ceil(794 * SCALE), (int) Math.ceil(1123 * SCALE)), painter.sizes);
         } finally {
-            Offscreen.uninstall(painter);
+            limn.graphics.internal.Offscreen.uninstall(painter);
         }
     }
 
@@ -160,7 +160,7 @@ class PdfClipBlendTest {
         final List<String> drawn = new ArrayList<>();
 
         @Override
-        public Image paint(int width, int height, Consumer<Canvas> painter) {
+        public Image paint(int width, int height, float scale, Consumer<Canvas> painter) {
             sizes.add(width);
             sizes.add(height);
             painter.accept(new NoopCanvas(width, height) {

@@ -311,6 +311,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      * their owner by identity, stay this window's.
      */
     void contextLost() {
+        if (offscreen != null) {
+            offscreen.contextLost();
+        }
         batch = null;
         atlas.contextLost();
         imageTextures.contextLost();
@@ -395,6 +398,35 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         return current;
     }
 
+    /**
+     * Makes {@code canvas} the current one again after a picture drawn off screen inside its frame,
+     * whose own canvas's frame ended by clearing it ({@link GlOffscreen}).
+     */
+    static void resumeCurrent(GlCanvas canvas) {
+        current = canvas;
+    }
+
+    /**
+     * The canvas pictures off screen are drawn with in this canvas's context, made on first use and
+     * kept, so that one drawn on every frame compiles nothing; its own layers and atlas are apart
+     * from this canvas's.
+     */
+    GlCanvas offscreen() {
+        if (offscreen == null) {
+            offscreen = new GlCanvas(fontStore);
+        }
+        return offscreen;
+    }
+
+    private GlCanvas offscreen;
+
+    /** Draws what this frame queued, before a picture off screen takes the context for a while. */
+    void flushForOffscreen() {
+        if (batch != null) {
+            batch.flush();
+        }
+    }
+
     /** This context's 3D resources, created on first use. */
     Gl3DContext gl3d() {
         if (gl3d == null) {
@@ -465,6 +497,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     }
 
     void dispose() {
+        if (offscreen != null) {
+            offscreen.dispose();
+            offscreen = null;
+        }
         if (gl3d != null) {
             gl3d.dispose(); // context is current here (LwjglWindow.destroy)
         }
