@@ -87,7 +87,7 @@ final class DrawingScene {
 
     /** Standalone {@code --scene drawing}. */
     static Scene create() {
-        return new Scene(new Padding(Insets.all(20), content()));
+        return new Scene(new limn.components.ScrollView(new Padding(Insets.all(20), content())));
     }
 
     /** The subtree, reusable as a page of the showcase. */
