@@ -45,7 +45,7 @@ limn-angle-natives = "2.1.8078.0"
 # compileOnly, so no POM names it and nothing loads it on the JVM. Its classes target Java 11, so
 # the 17 the artifacts target compiles against it; the Feature API it uses has not changed since
 # 22.3, and an image built with any GraalVM for JDK 25 runs it.
-graalvm-nativeimage = "25.0.4"
+graalvm-nativeimage = "25.4.4.1.1"
 
 [libraries]
 lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
