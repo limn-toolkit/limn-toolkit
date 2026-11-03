@@ -39,8 +39,11 @@ dash pattern, passed with the call as a paint is, so
 and `drawLine`, `drawRect`, `drawRoundRect`, `drawCircle` and `drawEllipse` take one too; a
 translucent line is painted once where it crosses itself. `Stroke.of(2).outline(path)` is the
 region a two-unit line along it covers, so `contains` on that tests a hit on the line.
-Whatever takes a colour takes a `Paint`, which is a `Color`, a `LinearGradient` or a
-`RadialGradient`. `drawShadow(shape, shadow)` casts a `Shadow` under a rounded rectangle;
+Whatever takes a colour takes a `Paint`: a `Color`; a two-colour `LinearGradient` or
+`RadialGradient`; a `Gradient` of any number of colours, linear, radial from a focus or sweeping
+round a centre, padded, repeated or reflected past its ends and placed under a matrix of its own;
+or an `ImagePaint`, a picture repeated, mirrored or laid once under a matrix, which fills text and
+strokes as it fills shapes. `drawShadow(shape, shadow)` casts a `Shadow` under a rounded rectangle;
 `save`, `translate`, `rotate`, `scale` and `restore` move the coordinates, `rotate(angle, cx, cy)`
 turns about a point, `shear` leans, and `concat` draws through any `Affine2D`; `transform()`
 answers the matrix in force, which `invert()` turns into the way back from the canvas's

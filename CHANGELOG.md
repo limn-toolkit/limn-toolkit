@@ -75,6 +75,15 @@ Maven Central say which number that was.
   covers, by as much as its antialiased edge covers. A printed document writes screen, darken and
   lighten as PDF's own, and a layer drawn under a Porter-Duff rule, which PDF has none of, as a
   picture the backend draws at the page's resolution. The Drawing page shows each (ADR 085).
+- `Gradient`, a paint of any number of colours, each at a position from 0 to 1, two at one position
+  making a hard edge: linear, radial from a focus inside its circle, or a sweep once round a centre
+  from a starting angle; padded, repeated or reflected past its ends, and placed under an
+  `Affine2D` of its own, which makes a radial gradient an ellipse. `ImagePaint` paints with a
+  picture, repeated, mirrored or laid once on each axis, under an `Affine2D`, smooth or pixelated.
+  On screen any number of gradients and pictures share the frame's one draw (one more per picture
+  a frame switches to); a printed document writes PDF's own shadings, a sweep as a mesh of
+  triangles of a degree, and a picture as a tiling pattern. `Paint` permits both: a `switch` over
+  it needs a `default` branch (ADR 085).
 - `limn.backend.spi.OffscreenPainter`, an optional service of `BackendServices`: draws into a
   picture off any window, which a printed document asks for a layer drawn under a Porter-Duff
   rule. The record's constructor of eleven services stays (ADR 085).

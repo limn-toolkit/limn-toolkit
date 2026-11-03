@@ -50,6 +50,11 @@ uniform vec4 u_maskRect;
 // the target taken under what is being drawn, texel for pixel. The output replaces the pixel.
 uniform int u_rule;
 uniform sampler2D u_dst;
+// A Gradient's stops (GradientRamps): one row per gradient, texel 0 the count, then each stop's
+// position and premultiplied colour. Floats read exactly, hence highp in the ES port.
+uniform highp sampler2D u_stops;
+// An ImagePaint's picture, premultiplied, wrapped by the sampler as its tiles ask.
+uniform sampler2D u_paint;
 
 out vec4 o_color;
 
@@ -152,6 +157,72 @@ vec4 ruled(vec4 src, float cover) {
         r = vec4(c, u_rule >= 9 ? dst.a : src.a + dst.a * (1.0 - src.a));
     }
     return mix(dst, r, cover);
+}
+
+// A Gradient's colour at the fragment, premultiplied. v_grad and v_colorB.xy map the shape's local
+// point into the gradient's unit space: for a linear one, x runs 0 to 1 from its start to its end;
+// for a radial one, the circle is the unit circle and its focus is v_colorB.zw; for a sweep, the
+// angle from the x axis is the turn from its start. v_colorA is (row, kind, spread, opacity).
+vec4 gradientAt() {
+    vec2 g = vec2(dot(v_grad.xy, v_local), dot(v_grad.zw, v_local)) + v_colorB.xy;
+    float t;
+    if (v_colorA.y < 0.5) {
+        t = g.x;
+    } else if (v_colorA.y < 1.5) {
+        // The two-circle gradient from a point, the focus, out to the unit circle: the circle
+        // through g of the family growing from the focus to the circle, as a share of the way.
+        // With the focus at the centre this is length(g).
+        vec2 f = v_colorB.zw;
+        vec2 d = g - f;
+        float a = dot(d, d);
+        float b = dot(f, d);
+        float c = dot(f, f) - 1.0;
+        t = a / max(-b + sqrt(max(b * b - a * c, 0.0)), 1e-12);
+    } else {
+        t = atan(g.y, g.x) / 6.28318530718;
+        t -= floor(t);
+    }
+    if (v_colorA.z < 0.5) {
+        t = clamp(t, 0.0, 1.0);
+    } else if (v_colorA.z < 1.5) {
+        t -= floor(t);
+    } else {
+        t = 1.0 - abs(t - 2.0 * floor(t * 0.5) - 1.0);
+    }
+    int row = int(v_colorA.x + 0.5);
+    int n = int(texelFetch(u_stops, ivec2(0, row), 0).x + 0.5);
+    float p0 = texelFetch(u_stops, ivec2(1, row), 0).x;
+    vec4 c0 = texelFetch(u_stops, ivec2(2, row), 0);
+    if (t <= p0) {
+        return c0 * v_colorA.w;
+    }
+    for (int i = 1; i < n; i++) {
+        float p1 = texelFetch(u_stops, ivec2(1 + 2 * i, row), 0).x;
+        vec4 c1 = texelFetch(u_stops, ivec2(2 + 2 * i, row), 0);
+        if (t <= p1) {
+            return mix(c0, c1, p1 > p0 ? (t - p0) / (p1 - p0) : 1.0) * v_colorA.w;
+        }
+        p0 = p1;
+        c0 = c1;
+    }
+    return c0 * v_colorA.w;
+}
+
+// An ImagePaint's colour at the fragment, premultiplied: the picture at the local point mapped to
+// its texture coordinates by v_grad and v_colorB.xy, wrapped by the sampler; past an edge whose tile
+// is none (v_colorB.zw, 1 for none), clear, the edge antialiased over a pixel. v_colorA.w: opacity.
+vec4 imageAt() {
+    vec2 uv = vec2(dot(v_grad.xy, v_local), dot(v_grad.zw, v_local)) + v_colorB.xy;
+    vec4 texel = texture(u_paint, uv);
+    float keep = 1.0;
+    vec2 w = max(fwidth(uv), vec2(1e-6));
+    if (v_colorB.z > 0.5) {
+        keep *= clamp(min(uv.x, 1.0 - uv.x) / w.x + 0.5, 0.0, 1.0);
+    }
+    if (v_colorB.w > 0.5) {
+        keep *= clamp(min(uv.y, 1.0 - uv.y) / w.y + 0.5, 0.0, 1.0);
+    }
+    return texel * (keep * v_colorA.w);
 }
 
 vec3 backdropAt(vec2 uv) {
@@ -498,10 +569,14 @@ void main() {
         float len2 = max(dot(dir, dir), 1e-6);
         float t = clamp(dot(v_local - v_grad.xy, dir) / len2, 0.0, 1.0);
         color = mix(a, b, t);
-    } else {
+    } else if (paintType < 2.5) {
         vec4 b = vec4(v_colorB.rgb * v_colorB.a, v_colorB.a);
         float t = clamp(length(v_local - v_grad.xy) / max(v_grad.z, 1e-6), 0.0, 1.0);
         color = mix(a, b, t);
+    } else if (paintType < 3.5) {
+        color = gradientAt();
+    } else {
+        color = imageAt();
     }
 
     if (u_rule != 0) {

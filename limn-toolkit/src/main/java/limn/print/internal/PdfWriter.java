@@ -2,7 +2,9 @@ package limn.print.internal;
 
 import limn.graphics.BlendMode;
 import limn.graphics.Color;
+import limn.graphics.Gradient;
 import limn.graphics.Image;
+import limn.graphics.ImagePaint;
 import limn.graphics.LinearGradient;
 import limn.graphics.Paint;
 import limn.graphics.RadialGradient;
@@ -215,6 +217,100 @@ public final class PdfWriter {
                 + Pdf.num(matrix.a()) + " " + Pdf.num(matrix.b()) + " " + Pdf.num(matrix.c()) + " "
                 + Pdf.num(matrix.d()) + " " + Pdf.num(matrix.e()) + " " + Pdf.num(matrix.f()) + "]>>"));
         return name;
+    }
+
+    /**
+     * A pattern painting {@code gradient}, placed by {@code matrix} from the gradient's own space
+     * (its transform included) to the pattern space.
+     *
+     * @param region the corners, x and y of each, of what it may paint, in the gradient's own space
+     */
+    String gradientPattern(Gradient gradient, Affine2D matrix, double[] region) throws IOException {
+        int shading = gradientShading(gradient, false, 1, region);
+        String name = "P" + (++counter);
+        resources.put(name, file.object("<</PatternType 2/Shading " + shading + " 0 R/Matrix[" + matrix(matrix)
+                + "]>>"));
+        return name;
+    }
+
+    /**
+     * A graphics state whose soft mask is {@code gradient}'s alpha times {@code opacity}, drawn as grey
+     * in the user space in force, for a gradient whose colours are not equally opaque.
+     *
+     * @param region as for {@link #gradientPattern}
+     */
+    String gradientMaskedState(Gradient gradient, float opacity, BlendMode blend, double[] region)
+            throws IOException {
+        int shading = gradientShading(gradient, true, opacity, region);
+        int group = file.stream("/Type/XObject/Subtype/Form/BBox[-100000 -100000 100000 100000]/Matrix["
+                        + matrix(gradient.transform()) + "]/Group<</S/Transparency/CS/DeviceGray>>"
+                        + "/Resources<</Shading<</Sh " + shading + " 0 R>>>>",
+                "/Sh sh".getBytes(StandardCharsets.ISO_8859_1), true);
+        String name = "GS" + (++counter);
+        resources.put(name, file.object("<</Type/ExtGState/BM" + blendName(blend) + "/SMask<</S/Luminosity/G "
+                + group + " 0 R>>>>"));
+        return name;
+    }
+
+    private int gradientShading(Gradient gradient, boolean gray, float opacity, double[] region) throws IOException {
+        PdfGradients.Shading shading = PdfGradients.shading(gradient, gray, opacity, region);
+        if (shading.mesh() == null) {
+            return file.object(shading.dictionary());
+        }
+        return file.stream(shading.dictionary().substring(2), shading.mesh(), true);
+    }
+
+    /**
+     * A tiling pattern painting {@code paint}'s picture, one pixel to one unit of its space, placed by
+     * {@code matrix}: a cell of the picture repeated on an axis it repeats, of the picture and its
+     * mirror on one it mirrors, and of the picture once, with a step past the region, on one it lays
+     * once.
+     *
+     * @param region the corners, x and y of each, of what it may paint, in the picture's space
+     */
+    String imagePattern(ImagePaint paint, Affine2D matrix, double[] region) throws IOException {
+        Image image = paint.image();
+        String xobject = image(image, paint.sampling() == limn.graphics.Sampling.SMOOTH);
+        int w = image.width();
+        int h = image.height();
+        boolean mirrorX = paint.tileX() == ImagePaint.Tile.MIRROR;
+        boolean mirrorY = paint.tileY() == ImagePaint.Tile.MIRROR;
+        double cellW = mirrorX ? 2.0 * w : w;
+        double cellH = mirrorY ? 2.0 * h : h;
+        double span = 0;
+        for (int i = 0; i < region.length; i += 2) {
+            span = Math.max(span, Math.max(Math.abs(region[i]), Math.abs(region[i + 1])));
+        }
+        double far = 2 * span + 2 * Math.max(cellW, cellH) + 1;
+        double stepX = paint.tileX() == ImagePaint.Tile.NONE ? far : cellW;
+        double stepY = paint.tileY() == ImagePaint.Tile.NONE ? far : cellH;
+        StringBuilder ops = new StringBuilder();
+        // An image fills its unit square bottom-up; the picture's space runs down, so each copy is
+        // flipped onto it, and a mirrored one flipped back across its own axis.
+        ops.append("q ").append(w).append(" 0 0 ").append(-h).append(" 0 ").append(h).append(" cm /Im Do Q\n");
+        if (mirrorX) {
+            ops.append("q ").append(-w).append(" 0 0 ").append(-h).append(' ').append(2 * w).append(' ').append(h)
+                    .append(" cm /Im Do Q\n");
+        }
+        if (mirrorY) {
+            ops.append("q ").append(w).append(" 0 0 ").append(h).append(" 0 ").append(h).append(" cm /Im Do Q\n");
+        }
+        if (mirrorX && mirrorY) {
+            ops.append("q ").append(-w).append(" 0 0 ").append(h).append(' ').append(2 * w).append(' ').append(h)
+                    .append(" cm /Im Do Q\n");
+        }
+        String name = "P" + (++counter);
+        resources.put(name, file.stream("/Type/Pattern/PatternType 1/PaintType 1/TilingType 1/BBox[0 0 "
+                        + Pdf.num((float) cellW) + " " + Pdf.num((float) cellH) + "]/XStep " + Pdf.num((float) stepX)
+                        + "/YStep " + Pdf.num((float) stepY) + "/Matrix[" + matrix(matrix)
+                        + "]/Resources<</XObject<</Im " + resources.get(xobject) + " 0 R>>>>",
+                ops.toString().getBytes(StandardCharsets.ISO_8859_1), true));
+        return name;
+    }
+
+    private static String matrix(Affine2D m) {
+        return Pdf.num((float) m.a()) + " " + Pdf.num((float) m.b()) + " " + Pdf.num((float) m.c()) + " "
+                + Pdf.num((float) m.d()) + " " + Pdf.num((float) m.e()) + " " + Pdf.num((float) m.f());
     }
 
     /** @return an image's XObject, written once per image and sampling */

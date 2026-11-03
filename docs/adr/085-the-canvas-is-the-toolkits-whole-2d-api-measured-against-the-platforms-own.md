@@ -7,7 +7,7 @@
   (section 7), names what stays out (section 5), and asked seven questions (section 6), which
   the owner answered the same day by taking every recommendation (section 9). Stage 1 built the
   same day (section 10), stage 2 on 11-02 (section 11), stage 3 the same day (section 12), stage 4
-  on 11-03 (section 13). Two
+  on 11-03 (section 13), stage 5 the same day (section 14). Two
   defects in a shipped chart came out of the measurement (section 0.3); stage 2 fixed the first,
   and a third its pixel test found, and stage 3 the second.
 - **Date:** 2026-11-01
@@ -692,4 +692,63 @@ survive the measure, and one decision was the owner's.
   `GlTurnedLayerTest` holds the straight turned clip to the turned picture's coverage within 0.3%
   again. On the guests, the fill, stroke, chart, clip and turned-layer tests with it, 43, pass on
   Windows on the Parallels driver and on ANGLE over Direct3D 11, and on Fedora's Mesa.
+
+## 14. Stage 5, as built
+
+Built 2026-11-03 on the same branch, after the commit of the fill's centred edge.
+
+- **`Gradient`**, a final class of value semantics: `linear`, `radial` and `sweep` factories, each
+  with positions and colours or colours alone, evenly spaced; `withFocus` (a focus on or past the
+  circle is moved in along the line from the centre to 0.99 of the radius, the platform's own
+  rule), `withSpread` (`PAD`, `REPEAT`, `REFLECT`) and `withTransform`. At most 256 colours; a
+  colour runs straight to the next, premultiplied, as the two-colour shorthands always did, and two
+  at one position are a hard edge. A sweep turns clockwise as y grows down, from its starting angle.
+  **`ImagePaint`**, a record: an image, one pixel to a unit, under an `Affine2D`, tiled `REPEAT`,
+  `MIRROR` or `NONE` on each axis, with a `Sampling`. `Paint` permits both and says a minor release
+  may permit more. `LinearGradient` and `RadialGradient` stay, drawn as they were.
+- **OpenGL.** Section 4.6 had a ramp texture: stops resampled into rows of colour, filtered. A hard
+  edge across a gradient two thousand pixels long would then have blurred over eight. Instead each
+  gradient's stops, exact, go into a row of a float texture (`GradientRamps`: 64 rows a round, a row
+  kept across frames while drawn, the rows started again after a flush when all are taken), and the
+  canvas program walks the row for the fragment's position, in unit space: the shape's local point
+  mapped by an affine map the canvas composes once per primitive from the gradient's own geometry,
+  its transform's inverse and the shape's frame, in the attribute slots the two-colour paints use.
+  The radial gradient is the two-circle formula from the focus, which is the plain distance with no
+  focus; the sweep an angle; the spread a few instructions. An image paint samples its picture's own
+  texture (every image has one, with mipmaps) on a unit of its own, with a sampler that repeats,
+  mirrors or clamps each axis as its tiles say, so the hardware wraps and filters across a tile's
+  seam; past an edge laid once, the picture's coverage falls off over a pixel. Gradients of any
+  number and kind, and image paints of one picture, are primitives of the frame's one draw: ten
+  gradients, a sweep and a stroke in a gradient, one draw call.
+- **PDF.** A linear gradient is an axial shading and a radial one a radial shading from a circle of
+  no radius at the focus, each with a stitching function of a straight run per stretch between two
+  stops, a hard edge being a bound with no stretch of nothing. A repeat or a reflection is that
+  function over the whole turns the stream's paintable region spans in the gradient's space (the
+  page, or the layer's rectangle), reflected turns read backwards, at most 4,096. A sweep, which
+  PDF has no shading for, is a mesh of free-form triangles fanned from its centre past the region, a
+  degree each at most and split at every stop, the centre of each taking the colour of its middle
+  angle, so that each shows a colour running straight with the angle to within half a degree near
+  the centre. Section 4.6 had "a mesh ... to be measured": a degree is the measure, finer than a
+  colour can turn by in a printed sweep. Unequal alphas are a luminosity soft mask of the same
+  gradient in grey, placed by the gradient's transform. An image paint is a tiling pattern of its
+  picture, of the picture and its mirror on a mirrored axis, and of the picture once with a step past
+  the region on an axis laid once. Rendered by the platform's PDF engine (`sips`), the eight samples
+  of the probe page match the screen's.
+- **The demo's page** gains a panel of paints: a sky of four colours with a hard horizon, a sphere
+  lit from a focus that circles, a sweep that turns, and a hatch from a picture of sixteen pixels
+  under a turning matrix. Strings in the 21 languages.
+- **Tests:** `GlPaintTest`, on a headless context, holds each pixel to the colour the paint names
+  there: the stops of a linear gradient in order, a hard edge a pixel each side, repeat and reflect
+  past the ends, a radial gradient from its focus to its circle on both sides, a sweep at a quarter,
+  a half and three quarters of a turn from its start, an ellipse by a gradient's own matrix, two
+  colours as a `Gradient` within 1 of the shorthand, and a picture repeated, mirrored and laid once;
+  and ten gradients, a sweep fill and a gradient stroke in one draw call. `PdfPaintTest` the shadings,
+  their functions and bounds, the turns of a repeat and a reflection, the focus's circle, the sweep's
+  360 triangles, the soft mask, the tiling patterns and the recording; `GradientTest` what the values
+  take and refuse. Mutations: a spread that always pads failed the repeat test; a focus read as the
+  centre, the radial one. The repository's own rules held the new API to them too: `equals` saying it
+  takes null, and each new enum saying a minor release may add to it.
+- **On the guests,** `GlPaintTest` with the fill, coverage, clip, stroke and chart tests, 42, pass on
+  Windows on the Parallels driver and on ANGLE over Direct3D 11, and on Fedora's Mesa: the float
+  texture of stops, its loop and the samplers of the image paints run on all three.
 

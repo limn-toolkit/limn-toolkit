@@ -6,6 +6,9 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.FillRule;
 import limn.graphics.Font;
+import limn.graphics.Gradient;
+import limn.graphics.Image;
+import limn.graphics.ImagePaint;
 import limn.graphics.LinearGradient;
 import limn.graphics.Path2D;
 import limn.graphics.Stroke;
@@ -26,8 +29,9 @@ import limn.scene.layout.Padding;
  * star drawn as one outline and a ring of two; strokes, with every kind of end and corner, dashes
  * marching along their paths, and a translucent line crossing itself; transforms, a shear, a turn
  * about a point, and a hit test through the inverse of the matrix a shape was drawn with; clips by a
- * path and by a turning rectangle, an eraser and a fill inside a shape; and every blend mode, each
- * drawn the same way.
+ * path and by a turning rectangle, an eraser and a fill inside a shape; every blend mode, each
+ * drawn the same way; and paints, a gradient of many colours, one from a focus, a sweep, and a
+ * picture repeated as a pattern.
  */
 final class DrawingScene {
 
@@ -51,6 +55,11 @@ final class DrawingScene {
         static final I18nString ERASER = new I18nString("showcase.drawing.eraser", "Eraser");
         static final I18nString FILL_INSIDE = new I18nString("showcase.drawing.fillInside", "Inside a shape");
         static final I18nString BLENDS = new I18nString("showcase.drawing.blends", "Blend modes");
+        static final I18nString PAINTS = new I18nString("showcase.drawing.paints", "Paints");
+        static final I18nString MANY_COLOURS = new I18nString("showcase.drawing.manyColours", "Many colours");
+        static final I18nString FOCUS = new I18nString("showcase.drawing.focus", "From a focus");
+        static final I18nString SWEEP = new I18nString("showcase.drawing.sweep", "Sweep");
+        static final I18nString PATTERN = new I18nString("showcase.drawing.pattern", "Image pattern");
 
         private Text() {
         }
@@ -84,6 +93,8 @@ final class DrawingScene {
         column.add(new Clips());
         column.add(Page.section(Text.BLENDS));
         column.add(new Blends());
+        column.add(Page.section(Text.PAINTS));
+        column.add(new Paints());
         return column; // the page scrolls it
     }
 
@@ -447,6 +458,58 @@ final class DrawingScene {
                 String name = modes[i].name();
                 var m = textRuler().measure(name, font);
                 canvas.drawText(name, x + (w - m.width()) / 2, y + SWATCH + 6 + m.ascent(), font, theme.textMuted());
+            }
+        }
+    }
+
+    /**
+     * A sky of four colours with a hard horizon, a sphere lit from a focus that circles, a sweep that
+     * turns, and a hatch drawn from a picture of sixteen pixels repeated under a turning matrix.
+     */
+    private static final class Paints extends Cells {
+        /** Sixteen by sixteen pixels: one diagonal line, which repeated is a hatch. */
+        private static final Image HATCH = hatch();
+
+        Paints() {
+            super(Text.PAINTS, Text.MANY_COLOURS, Text.FOCUS, Text.SWEEP, Text.PATTERN);
+        }
+
+        private static Image hatch() {
+            byte[] rgba = new byte[16 * 16 * 4];
+            for (int y = 0; y < 16; y++) {
+                for (int x = 0; x < 16; x++) {
+                    int at = (y * 16 + x) * 4;
+                    boolean line = (x + y) % 16 < 4;
+                    rgba[at] = (byte) (line ? 0x20 : 0);
+                    rgba[at + 1] = (byte) (line ? 0x50 : 0);
+                    rgba[at + 2] = (byte) (line ? 0xC0 : 0);
+                    rgba[at + 3] = (byte) (line ? 255 : 0);
+                }
+            }
+            return new Image(16, 16, rgba);
+        }
+
+        @Override
+        void paintCell(Canvas canvas, int index, float width, float height, Theme theme) {
+            animate();
+            float size = Math.min(width, height) * 0.42f;
+            float cx = width / 2;
+            float cy = height / 2;
+            switch (index) {
+                case 0 -> canvas.fillRoundRect(16, 12, width - 32, height - 24, 8, Gradient.linear(0, 12, 0,
+                        height - 12, new float[] {0, 0.55f, 0.56f, 1}, Color.rgb(0x1B2A49), Color.rgb(0xE8835A),
+                        Color.rgb(0x2A6F97), Color.rgb(0x0B2545)));
+                case 1 -> {
+                    float angle = (float) (time * 0.8);
+                    canvas.fillCircle(cx, cy, size, Gradient.radial(cx, cy, size, Color.WHITE,
+                            Color.rgb(0x7FB3D5), Color.rgb(0x1B4F72)).withFocus(
+                            cx + (float) Math.cos(angle) * size * 0.45f, cy + (float) Math.sin(angle) * size * 0.45f));
+                }
+                case 2 -> canvas.fillCircle(cx, cy, size, Gradient.sweep(cx, cy, (float) (time * 0.6),
+                        Color.rgb(0xE74C3C), Color.rgb(0xF1C40F), Color.rgb(0x2ECC71), Color.rgb(0x3498DB),
+                        Color.rgb(0x9B59B6), Color.rgb(0xE74C3C)));
+                default -> canvas.fillRoundRect(16, 12, width - 32, height - 24, 8, ImagePaint.of(HATCH)
+                        .withTransform(limn.math.Affine2D.translation(cx, cy).rotate(time * 0.3).scale(0.75, 0.75)));
             }
         }
     }

@@ -4,6 +4,8 @@ import limn.backend.spi.GlyphOutlines;
 import limn.graphics.BlendMode;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
+import limn.graphics.Gradient;
+import limn.graphics.ImagePaint;
 import limn.graphics.FillRule;
 import limn.graphics.Font;
 import limn.graphics.GpuSurface;
@@ -52,9 +54,18 @@ final class PdfCanvas implements Canvas {
         final Set<String> used = new HashSet<>();
         /** What maps this stream's coordinates at its start onto its pattern space. */
         final Affine2D base;
+        /** What this stream may paint, in its pattern space: the page, or the layer's rectangle. */
+        final float regionX;
+        final float regionY;
+        final float regionW;
+        final float regionH;
 
-        Buffer(Affine2D base) {
+        Buffer(Affine2D base, float regionX, float regionY, float regionW, float regionH) {
             this.base = base;
+            this.regionX = regionX;
+            this.regionY = regionY;
+            this.regionW = regionW;
+            this.regionH = regionH;
         }
     }
 
@@ -82,7 +93,7 @@ final class PdfCanvas implements Canvas {
         double sx = widthPt / width;
         double sy = heightPt / height;
         Affine2D base = new Affine2D(sx, 0, 0, -sy, 0, heightPt);
-        Buffer page = new Buffer(base);
+        Buffer page = new Buffer(base, 0, 0, widthPt, heightPt);
         page.ops.append(Pdf.num(sx)).append(" 0 0 ").append(Pdf.num(-sy)).append(" 0 ").append(Pdf.num(heightPt))
                 .append(" cm\n");
         buffers.push(page);
@@ -251,7 +262,7 @@ final class PdfCanvas implements Canvas {
         // from here, and its pattern space is this space.
         state = new State(Affine2D.IDENTITY, 1, BlendMode.NORMAL, state.sampling, true, x, y, w, h, clamped,
                 state.blend);
-        buffers.push(new Buffer(Affine2D.IDENTITY));
+        buffers.push(new Buffer(Affine2D.IDENTITY, x, y, w, h));
     }
 
     @Override
@@ -341,6 +352,33 @@ final class PdfCanvas implements Canvas {
                     .append(Pdf.num(color.b())).append(fill ? " rg\n" : " RG\n");
             return;
         }
+        if (paint instanceof Gradient g) {
+            Affine2D placed = out().base.concat(state.ctm).concat(g.transform());
+            double[] region = region(placed);
+            float a = g.colors().get(0).a();
+            boolean even = true;
+            for (Color c : g.colors()) {
+                even &= c.a() == a;
+            }
+            if (!even) {
+                ops.append('/').append(use(writer.gradientMaskedState(g, state.opacity, state.blend, region)))
+                        .append(" gs\n");
+            } else if (a * state.opacity < 1 || state.blend != BlendMode.NORMAL) {
+                ops.append('/').append(use(writer.state(a * state.opacity, state.blend))).append(" gs\n");
+            }
+            String pattern = use(writer.gradientPattern(g, placed, region));
+            ops.append(fill ? "/Pattern cs /" : "/Pattern CS /").append(pattern).append(fill ? " scn\n" : " SCN\n");
+            return;
+        }
+        if (paint instanceof ImagePaint ip) {
+            Affine2D placed = out().base.concat(state.ctm).concat(ip.transform());
+            if (state.opacity < 1 || state.blend != BlendMode.NORMAL) {
+                ops.append('/').append(use(writer.state(state.opacity, state.blend))).append(" gs\n");
+            }
+            String pattern = use(writer.imagePattern(ip, placed, region(placed)));
+            ops.append(fill ? "/Pattern cs /" : "/Pattern CS /").append(pattern).append(fill ? " scn\n" : " SCN\n");
+            return;
+        }
         float a0 = paint instanceof LinearGradient l ? l.start().a() : ((RadialGradient) paint).center().a();
         float a1 = paint instanceof LinearGradient l ? l.end().a() : ((RadialGradient) paint).edge().a();
         if (a0 != a1) {
@@ -351,6 +389,29 @@ final class PdfCanvas implements Canvas {
         }
         String pattern = use(writer.pattern(paint, out().base.concat(state.ctm)));
         ops.append(fill ? "/Pattern cs /" : "/Pattern CS /").append(pattern).append(fill ? " scn\n" : " SCN\n");
+    }
+
+    /**
+     * The corners of what the stream being written may paint, x and y of each, in the space that
+     * {@code placed} maps onto its pattern space.
+     */
+    private double[] region(Affine2D placed) {
+        Buffer b = out();
+        Affine2D back;
+        try {
+            back = placed.invert();
+        } catch (ArithmeticException singular) {
+            return new double[] {0, 0, 0, 0, 0, 0, 0, 0}; // collapsed: it paints nothing
+        }
+        double[] corners = {b.regionX, b.regionY, b.regionX + b.regionW, b.regionY, b.regionX + b.regionW,
+                b.regionY + b.regionH, b.regionX, b.regionY + b.regionH};
+        for (int i = 0; i < corners.length; i += 2) {
+            double x = corners[i];
+            double y = corners[i + 1];
+            corners[i] = back.a() * x + back.c() * y + back.e();
+            corners[i + 1] = back.b() * x + back.d() * y + back.f();
+        }
+        return corners;
     }
 
     @Override

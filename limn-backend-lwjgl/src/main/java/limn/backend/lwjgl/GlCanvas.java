@@ -57,6 +57,8 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     private static final int PAINT_SOLID = 0;
     private static final int PAINT_LINEAR = 1;
     private static final int PAINT_RADIAL = 2;
+    private static final int PAINT_GRADIENT = 3; // a Gradient: its stops in a row of GradientRamps
+    private static final int PAINT_IMAGE = 4;    // an ImagePaint: its picture on a unit of its own
     private static final float AA_PAD_DEVICE = 1.0f;
     private static final float FLATTEN_TOLERANCE_DEVICE = 0.25f;
     private static final float EPSILON = 1e-6f;
@@ -177,6 +179,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     private GlBatch batch = new GlBatch();
     private final GlyphAtlas atlas = new GlyphAtlas();
     private final ImageTextureCache imageTextures = new ImageTextureCache();
+    private final GradientRamps ramps = new GradientRamps();
+    /** Samplers for image paints, by wrap on each axis and filter: made on first use, 18 at most. */
+    private final int[] paintSamplers = new int[3 * 3 * 2];
     private final FontStore fontStore;
     private final List<State> states = new ArrayList<>();
     private final PathCollector pathCollector = new PathCollector();
@@ -309,6 +314,8 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         batch = null;
         atlas.contextLost();
         imageTextures.contextLost();
+        ramps.contextLost();
+        Arrays.fill(paintSamplers, 0);
         backdrop = null;
         layers = null;
         for (State st : states) {
@@ -466,6 +473,13 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         }
         atlas.close();
         imageTextures.close();
+        ramps.close();
+        for (int sampler : paintSamplers) {
+            if (sampler != 0) {
+                Gl.glDeleteSamplers(sampler);
+            }
+        }
+        Arrays.fill(paintSamplers, 0);
         if (backdrop != null) {
             backdrop.dispose();
         }
@@ -2477,6 +2491,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         if (paint instanceof LinearGradient g) {
             return g.start().a() >= 1f && g.end().a() >= 1f;
         }
+        if (paint instanceof limn.graphics.Gradient g) {
+            return g.isOpaque();
+        }
         return paint instanceof RadialGradient g && g.center().a() >= 1f && g.edge().a() >= 1f;
     }
 
@@ -3629,6 +3646,12 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             batch.setGradient(g0x, g0y, g1x, g1y);
             return PAINT_LINEAR;
         }
+        if (paint instanceof limn.graphics.Gradient g) {
+            return applyGradient(g, cx, cy, ux, uy, vx, vy, opacity);
+        }
+        if (paint instanceof limn.graphics.ImagePaint ip) {
+            return applyImagePaint(ip, cx, cy, ux, uy, vx, vy, opacity);
+        }
         RadialGradient rg = (RadialGradient) paint;
         Color a = rg.center();
         Color b = rg.edge();
@@ -3639,6 +3662,140 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
                 toLocalY(rg.cx(), rg.cy(), cx, cy, vx, vy),
                 rg.radius(), 0);
         return PAINT_RADIAL;
+    }
+
+    /**
+     * Loads a {@link limn.graphics.Gradient}: its row of stops, and the affine map from the shape's
+     * local point to the gradient's unit space, the gradient's own map after its transform's inverse
+     * after the shape's frame ({@link #unitMap}).
+     */
+    private int applyGradient(limn.graphics.Gradient g, float cx, float cy, float ux, float uy, float vx, float vy,
+                              float opacity) {
+        int row = ramps.rowFor(g);
+        if (row < 0) {
+            batch.flush(); // every row is read by what was queued: draw it, then start the rows again
+            ramps.reset();
+            row = ramps.rowFor(g);
+        }
+        batch.setStopsTexture(ramps.texture());
+        float[] q = g.geometry();
+        double a00;
+        double a01;
+        double a10;
+        double a11;
+        double b0;
+        double b1;
+        float fx = 0;
+        float fy = 0;
+        switch (g.kind()) {
+            case LINEAR -> {
+                double dx = q[2] - q[0];
+                double dy = q[3] - q[1];
+                double l2 = dx * dx + dy * dy;
+                a00 = dx / l2;
+                a01 = dy / l2;
+                a10 = -dy / l2;
+                a11 = dx / l2;
+                b0 = -(q[0] * a00 + q[1] * a01);
+                b1 = -(q[0] * a10 + q[1] * a11);
+            }
+            case RADIAL -> {
+                double r = q[2];
+                a00 = 1 / r;
+                a01 = 0;
+                a10 = 0;
+                a11 = 1 / r;
+                b0 = -q[0] / r;
+                b1 = -q[1] / r;
+                fx = (float) ((q[3] - q[0]) / r);
+                fy = (float) ((q[4] - q[1]) / r);
+            }
+            default -> {
+                double cos = Math.cos(-q[2]);
+                double sin = Math.sin(-q[2]);
+                a00 = cos;
+                a01 = -sin;
+                a10 = sin;
+                a11 = cos;
+                b0 = -(q[0] * a00 + q[1] * a01);
+                b1 = -(q[0] * a10 + q[1] * a11);
+            }
+        }
+        unitMap(a00, a01, a10, a11, b0, b1, g.transform(), cx, cy, ux, uy, vx, vy);
+        batch.setColors(row, g.kind().ordinal(), g.spread().ordinal(), opacity, unitMap[4], unitMap[5], fx, fy);
+        batch.setGradient(unitMap[0], unitMap[1], unitMap[2], unitMap[3]);
+        return PAINT_GRADIENT;
+    }
+
+    /**
+     * Loads an {@link limn.graphics.ImagePaint}: its picture and a sampler that wraps it as its tiles
+     * ask, and the map from the shape's local point to the picture's texture coordinates.
+     */
+    private int applyImagePaint(limn.graphics.ImagePaint p, float cx, float cy, float ux, float uy, float vx,
+                                float vy, float opacity) {
+        Image image = p.image();
+        int texture = imageTextures.textureFor(image);
+        batch.requirePaintImage(texture, paintSampler(p));
+        unitMap(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0, p.transform(), cx, cy, ux, uy, vx, vy);
+        float noneX = p.tileX() == limn.graphics.ImagePaint.Tile.NONE ? 1 : 0;
+        float noneY = p.tileY() == limn.graphics.ImagePaint.Tile.NONE ? 1 : 0;
+        batch.setColors(0, 0, 0, opacity, unitMap[4], unitMap[5], noneX, noneY);
+        batch.setGradient(unitMap[0], unitMap[1], unitMap[2], unitMap[3]);
+        return PAINT_IMAGE;
+    }
+
+    /** The sampler an image paint reads its picture with, made on first use. */
+    private int paintSampler(limn.graphics.ImagePaint p) {
+        boolean pixelated = p.sampling() == limn.graphics.Sampling.PIXELATED;
+        int key = (p.tileX().ordinal() * 3 + p.tileY().ordinal()) * 2 + (pixelated ? 1 : 0);
+        int sampler = paintSamplers[key];
+        if (sampler == 0) {
+            sampler = Gl.glGenSamplers();
+            Gl.glSamplerParameteri(sampler, org.lwjgl.opengl.GL33C.GL_TEXTURE_MIN_FILTER, pixelated
+                    ? org.lwjgl.opengl.GL33C.GL_NEAREST : org.lwjgl.opengl.GL33C.GL_LINEAR_MIPMAP_LINEAR);
+            Gl.glSamplerParameteri(sampler, org.lwjgl.opengl.GL33C.GL_TEXTURE_MAG_FILTER, pixelated
+                    ? org.lwjgl.opengl.GL33C.GL_NEAREST : org.lwjgl.opengl.GL33C.GL_LINEAR);
+            Gl.glSamplerParameteri(sampler, org.lwjgl.opengl.GL33C.GL_TEXTURE_WRAP_S, wrap(p.tileX()));
+            Gl.glSamplerParameteri(sampler, org.lwjgl.opengl.GL33C.GL_TEXTURE_WRAP_T, wrap(p.tileY()));
+            paintSamplers[key] = sampler;
+        }
+        return sampler;
+    }
+
+    private static int wrap(limn.graphics.ImagePaint.Tile tile) {
+        return switch (tile) {
+            case REPEAT -> org.lwjgl.opengl.GL33C.GL_REPEAT;
+            case MIRROR -> org.lwjgl.opengl.GL33C.GL_MIRRORED_REPEAT;
+            case NONE -> org.lwjgl.opengl.GL33C.GL_CLAMP_TO_EDGE;
+        };
+    }
+
+    /** {@link #unitMap}'s answer: the 2x2 matrix row by row, then the offset. */
+    private final float[] unitMap = new float[6];
+
+    /**
+     * The affine map from a shape's local point to a paint's unit space: {@code a·q + b} of the paint's
+     * own point {@code q}, which is {@code transform}'s inverse of the shape's point {@code p}, which is
+     * {@code (cx, cy) + lx·(ux, uy) + ly·(vx, vy)} of the local point {@code (lx, ly)}, the shape's
+     * frame being orthonormal as {@link #applyPaint} gives it.
+     */
+    private void unitMap(double a00, double a01, double a10, double a11, double b0, double b1,
+                         limn.math.Affine2D transform, float cx, float cy, float ux, float uy, float vx, float vy) {
+        limn.math.Affine2D inv = transform.equals(limn.math.Affine2D.IDENTITY) ? transform : transform.invert();
+        // K = A · Ti, where q = Ti·p + ti; x' = a x + c y + e, y' = b x + d y + f.
+        double k00 = a00 * inv.a() + a01 * inv.b();
+        double k01 = a00 * inv.c() + a01 * inv.d();
+        double k10 = a10 * inv.a() + a11 * inv.b();
+        double k11 = a10 * inv.c() + a11 * inv.d();
+        double o0 = a00 * inv.e() + a01 * inv.f() + b0;
+        double o1 = a10 * inv.e() + a11 * inv.f() + b1;
+        // Columns u and v of the shape's frame, and its centre.
+        unitMap[0] = (float) (k00 * ux + k01 * uy);
+        unitMap[1] = (float) (k00 * vx + k01 * vy);
+        unitMap[2] = (float) (k10 * ux + k11 * uy);
+        unitMap[3] = (float) (k10 * vx + k11 * vy);
+        unitMap[4] = (float) (k00 * cx + k01 * cy + o0);
+        unitMap[5] = (float) (k10 * cx + k11 * cy + o1);
     }
 
     private static float toLocalX(float px, float py, float cx, float cy, float ux, float uy) {

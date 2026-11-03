@@ -73,6 +73,8 @@ import static org.lwjgl.opengl.GL33C.GL_RGBA;
 import static org.lwjgl.opengl.GL33C.GL_RGBA8;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE1;
 import static org.lwjgl.opengl.GL33C.GL_TEXTURE2;
+import static org.lwjgl.opengl.GL33C.GL_TEXTURE3;
+import static org.lwjgl.opengl.GL33C.GL_TEXTURE4;
 import static org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE;
 
 /**
@@ -239,6 +241,8 @@ final class GlBatch implements AutoCloseable {
         glUniform1i(program.uniformLocation("u_atlas"), 0);
         glUniform1i(program.uniformLocation("u_mask"), 1);
         glUniform1i(program.uniformLocation("u_dst"), 2);
+        glUniform1i(program.uniformLocation("u_stops"), 3);
+        glUniform1i(program.uniformLocation("u_paint"), 4);
 
         flatProgram = ShaderProgram.fromResources(
                 "/limn/backend/lwjgl/shaders/canvas_flat.vert",
@@ -322,6 +326,7 @@ final class GlBatch implements AutoCloseable {
         drawCalls = 0;
         targetCopies = 0;
         maskTexture = 0;
+        paintTexture = 0;
         rule = GlBlend.RULE_NONE;
         scissorEnabled = false; // per-frame: partial rendering re-hints each frame
     }
@@ -652,6 +657,7 @@ final class GlBatch implements AutoCloseable {
     /** Forgets the tracked texture (after atlas eviction deletes the pages). */
     void resetTexture() {
         textureId = 0;
+        paintTexture = 0;
     }
 
     // Display exposure for HDR-surface quads (kind 7): a uniform, not a vertex
@@ -820,6 +826,30 @@ final class GlBatch implements AutoCloseable {
             glBindTexture(GL_TEXTURE_2D, targetCopy);
         }
         glActiveTexture(GL_TEXTURE0);
+    }
+
+    // The texture of the gradients' stops (GradientRamps), the same for the context's life, and the
+    // image an image paint samples with the sampler its tiles and sampling ask for: each read by the
+    // canvas program on a unit of its own, so that neither takes the glyph atlas's.
+    private int stopsTexture;
+    private int paintTexture;
+    private int paintSampler;
+
+    /** Declares the texture of the gradients' stops, which every flush binds. */
+    void setStopsTexture(int texture) {
+        stopsTexture = texture;
+    }
+
+    /**
+     * Declares the image an image paint samples for upcoming geometry, and its sampler. A change
+     * with pending geometry flushes it.
+     */
+    void requirePaintImage(int texture, int sampler) {
+        if ((texture != paintTexture || sampler != paintSampler) && (indices.position() > 0 || flatVertexCount > 0)) {
+            flush();
+        }
+        paintTexture = texture;
+        paintSampler = sampler;
     }
 
     /** Geometry drawn as every other draw is, outside a fill through the stencil. */
@@ -1287,6 +1317,16 @@ final class GlBatch implements AutoCloseable {
         glUniform2f(uniformWindow, fbWidth, fbHeight);
         glUniform1f(uniformExposure, exposure);
         applyMaskAndRule(uniformMaskOn, uniformMaskRect, uniformRule);
+        if (stopsTexture != 0) {
+            glActiveTexture(GL_TEXTURE3);
+            glBindTexture(GL_TEXTURE_2D, stopsTexture);
+        }
+        if (paintTexture != 0) {
+            glActiveTexture(GL_TEXTURE4);
+            glBindTexture(GL_TEXTURE_2D, paintTexture);
+            glBindSampler(4, paintSampler);
+        }
+        glActiveTexture(GL_TEXTURE0);
         if (textureId != 0) {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, textureId);
