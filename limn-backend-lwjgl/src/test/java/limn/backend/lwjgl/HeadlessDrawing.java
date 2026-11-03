@@ -113,6 +113,11 @@ public final class HeadlessDrawing {
             backend.close();
         }
         System.out.println(ok ? "OK" : "FAILED");
-        System.exit(ok ? 0 : 1);
+        // A success returns from main, as a server's or a batch job's process ends: the UI thread
+        // then ends before the process does, and anything a native library left with it runs.
+        // System.exit would end the process first, and once hid a crash at that thread's end.
+        if (!ok) {
+            System.exit(1);
+        }
     }
 }

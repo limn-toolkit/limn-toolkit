@@ -99,6 +99,11 @@ Maven Central say which number that was.
   one, and draws again: a window heals the boxes drawn in the meantime at its next frame, and a
   picture kept them, so the first picture a server drew in a script the default face lacks came
   out as boxes.
+- A process that ends by returning from `main` after a backend without a display on Linux no longer
+  dies with a segmentation fault: the windowing library unloaded the system's EGL library when the
+  backend closed, and a destructor EGL had left with the UI thread ran into unmapped code when that
+  thread ended. The library now stays in the process to its end, on Wayland too, where the windowing
+  library loads it the same way.
 - `ShapedText.outline(x, y)`: the text as a `Path2D`, every glyph's outline where `drawText` draws
   it, read from the backend as a printed page reads them, so text can be stroked, dashed, filled
   with any paint, used as a clip or tested for a hit; a colour emoji, a picture, is left out (ADR

@@ -120,7 +120,7 @@ backend started without a display by itself and drew with llvmpipe (OpenGL 4.5 c
 thread made the backend and ran its loop, `UNTIL_QUIT`; the server's threads handed each picture to
 it through `Ui.executor()` and encoded the PNG themselves. Under 800 requests sixteen at a time, on
 two processors, every answer was a PNG, about 80 a second, the slowest in 0.3 s; a stop by
-`SIGTERM` ended the loop and closed the backend. It found two defects, both fixed:
+`SIGTERM` ended the loop and closed the backend. It found three defects, all fixed:
 
 - The first picture in a script the default face lacks (Arabic, Hebrew, Devanagari, CJK) was drawn
   in boxes: the faces for it start loading in the background on the first glyph missed, and land on
@@ -131,3 +131,9 @@ two processors, every answer was a PNG, about 80 a second, the slowest in 0.3 s;
 - Every picture that took longer than a frame's budget logged a warning advising to move the work
   to a worker, which drawing cannot be; a backend without a display has no frame to hold back, and
   reports no task as slow.
+- A run of it that returned from `main` instead of being stopped died with a segmentation fault
+  after the backend closed: `glfwTerminate` unloads the system's EGL library, and a destructor the
+  library had left with the UI thread ran, into unmapped code, when that thread ended. Releasing the
+  thread's EGL state first did not help; keeping the library loaded did, each time, so the backend
+  keeps it (`RTLD_NODELETE`) to the process's end. `System.exit`, which the test's own child used,
+  ends the process before that thread and hid it; the child now returns from `main`.

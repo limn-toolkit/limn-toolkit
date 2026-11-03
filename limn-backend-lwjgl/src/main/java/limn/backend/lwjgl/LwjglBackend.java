@@ -1885,11 +1885,28 @@ public final class LwjglBackend implements BackendPeer {
         if (monitors != null) {
             monitors.free();
         }
+        if (Platform.current().isLinux()) {
+            keepEglLoaded();
+        }
         glfwTerminate();
         GLFWErrorCallback previous = glfwSetErrorCallback(null);
         if (previous != null) {
             previous.free();
         }
+    }
+
+    /**
+     * Keeps the system's EGL library, where the windowing library loaded it (with no display, or on
+     * Wayland), in the process after {@code glfwTerminate} unloads it: the library leaves a destructor
+     * of its own with the UI thread, which ran into unmapped code when that thread ended after a
+     * normal return from {@code main}, and the process died with a segmentation fault at its exit.
+     * {@code RTLD_NOLOAD} loads nothing where the library is not there.
+     */
+    private static void keepEglLoaded() {
+        org.lwjgl.system.linux.DynamicLinkLoader.dlopen("libEGL.so.1",
+                org.lwjgl.system.linux.DynamicLinkLoader.RTLD_NOW
+                        | org.lwjgl.system.linux.DynamicLinkLoader.RTLD_NOLOAD
+                        | org.lwjgl.system.linux.DynamicLinkLoader.RTLD_NODELETE);
     }
 
     private void ensureOpen() {
