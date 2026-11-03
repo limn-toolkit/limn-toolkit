@@ -64,6 +64,20 @@ Maven Central say which number that was.
   pattern, on screen and in a printed document, which writes PDF's own line operators. A canvas of
   the application's own gets them as defaults that fill the stroke's outline. The Showcase has a
   Drawing page with what a widget that paints for itself has on the canvas (ADR 085).
+- `Canvas.clipPath` clips what follows to the region a path fills under its rule, antialiased at
+  its edge, in whatever blend mode is in force, on screen and in a printed document, which writes
+  PDF's own clip. A canvas of the application's own gets it as a default that clips to the path's
+  bounds (ADR 085).
+- `BlendMode` gains `SCREEN`, `DARKEN`, `LIGHTEN` and the Porter-Duff rules, `CLEAR`, `SOURCE`,
+  `DESTINATION_OVER`, `SOURCE_IN`, `DESTINATION_IN`, `SOURCE_OUT`, `DESTINATION_OUT`,
+  `SOURCE_ATOP`, `DESTINATION_ATOP` and `XOR`: inside a `saveLayer` an eraser
+  (`DESTINATION_OUT`) or a fill over what the layer drew (`SOURCE_IN`). Each acts only where a draw
+  covers, by as much as its antialiased edge covers. A printed document writes screen, darken and
+  lighten as PDF's own, and a layer drawn under a Porter-Duff rule, which PDF has none of, as a
+  picture the backend draws at the page's resolution. The Drawing page shows each (ADR 085).
+- `limn.backend.spi.OffscreenPainter`, an optional service of `BackendServices`: draws into a
+  picture off any window, which a printed document asks for a layer drawn under a Porter-Duff
+  rule. The record's constructor of eleven services stays (ADR 085).
 
 ### Changed
 
@@ -79,6 +93,14 @@ Maven Central say which number that was.
   segments meet and where it crosses itself, as it is in a printed document. It was a capsule per
   segment, darker at every joint. An opaque round stroke is drawn as before, in the frame's one
   draw; a translucent one, or one in another blend mode, takes three (ADR 085).
+- `Canvas.clipRect` and `clipRoundRect` under a transform that turns or leans the axes clip by the
+  turned shape on screen, as a path clip; they clipped by the device box round its corners, so
+  what was drawn showed in the box's corners (ADR 085).
+- `Canvas.saveLayer` opens a layer at an opacity of 1 too: what is drawn inside may blend with the
+  layer's own picture, which starts transparent, under a Porter-Duff rule, and drawn straight it
+  blended with the window instead. A group faded to 1 that needs no picture of its own is cheaper as
+  a `save`, which is what the toolkit's own fades do at rest, so what they draw costs what it did
+  (ADR 085).
 
 - A `Table` under an unbounded height (in a `ScrollView`, or a column that sets no height) prefers
   `setVisibleRows` rows of a row of text, the control height or a line of the body text and its

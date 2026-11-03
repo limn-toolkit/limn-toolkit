@@ -1,5 +1,6 @@
 package limn.print.internal;
 
+import limn.backend.spi.OffscreenPainter;
 import limn.graphics.BlendMode;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -22,6 +23,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -35,6 +37,14 @@ import java.util.Objects;
  * {@code clear} and {@code clearRect}, which wipe a window's frame and have nothing to wipe on paper,
  * and {@code drawSurface}, whose GPU texture no page can hold; the first of those per page is
  * logged.
+ *
+ * <p>A layer whose drawing sets a Porter-Duff rule ({@link BlendMode#CLEAR} to {@link BlendMode#XOR})
+ * is kept as a picture: PDF has no such rules, so at the layer's restore its calls are drawn off
+ * screen by the backend's {@link OffscreenPainter}, at the page's resolution times the scale the
+ * layer is drawn at, and the layer becomes that image laid where the layer stood, at the layer's
+ * opacity. Outside any layer the page is the layer: a page whose drawing sets one is kept as one
+ * image of the page. The preview replays the same picture. Where no picture can be made the calls
+ * stay as they were, and the rules are drawn as normal painting, said once per page.
  *
  * <p>UI thread only, as every canvas a scene paints into.
  */
@@ -50,6 +60,18 @@ public final class RecordingCanvas implements Canvas {
     private float frameWidth;
     private float frameHeight;
     private boolean surfaceLogged;
+    private boolean rasterLogged;
+    private final float pageWidth;
+    private final float pageHeight;
+    /**
+     * Beside {@link #saved}, one entry per save: the layer a {@link #saveLayer} opened, or
+     * {@link #NO_LAYER} for a plain save.
+     */
+    private final Deque<Layer> layers = new ArrayDeque<>();
+    /** Whether the page's own drawing, outside any layer, set a Porter-Duff rule. */
+    private boolean pageRuled;
+    /** Whether a layer under a Porter-Duff rule is drawn as a picture: false for a scratch recording. */
+    private final boolean pictures;
 
     private State state = new State(Affine2D.IDENTITY, null, 1, BlendMode.NORMAL, Sampling.SMOOTH, true);
     private final Deque<State> saved = new ArrayDeque<>();
@@ -61,11 +83,33 @@ public final class RecordingCanvas implements Canvas {
      * @param glyphs       where the outlines of the text recorded are kept for the PDF writer
      */
     public RecordingCanvas(float pageWidth, float pageHeight, float contentScale, GlyphBank glyphs) {
+        this(pageWidth, pageHeight, contentScale, glyphs, true);
+    }
+
+    /**
+     * A recording no page keeps, which a scene's frames are drawn into while its animations settle:
+     * a layer under a Porter-Duff rule is not drawn as a picture, which would be thrown away.
+     *
+     * @param width        the frame's width, in document units
+     * @param height       its height
+     * @param contentScale what the canvas answers as its scale
+     * @return the canvas
+     */
+    public static RecordingCanvas scratch(float width, float height, float contentScale) {
+        return new RecordingCanvas(width, height, contentScale, new GlyphBank(limn.backend.spi.GlyphOutlines.NONE),
+                false);
+    }
+
+    private RecordingCanvas(float pageWidth, float pageHeight, float contentScale, GlyphBank glyphs,
+                            boolean pictures) {
+        this.pictures = pictures;
         this.out = new Recording.Builder(pageWidth, pageHeight);
         this.glyphs = Objects.requireNonNull(glyphs, "glyphs");
         this.contentScale = contentScale;
         this.frameWidth = pageWidth;
         this.frameHeight = pageHeight;
+        this.pageWidth = pageWidth;
+        this.pageHeight = pageHeight;
     }
 
     /**
@@ -83,7 +127,79 @@ public final class RecordingCanvas implements Canvas {
     /** @return what has been recorded, as a page */
     public Recording finish() {
         restoreToCount(0);
+        if (pageRuled) {
+            List<Recording.Op> page = out.cut(0);
+            Image picture = raster(page, 0, 0, pageWidth, pageHeight, contentScale);
+            if (picture == null) {
+                page.forEach(out::add);
+            } else {
+                out.add(c -> c.drawImage(picture, 0, 0, pageWidth, pageHeight));
+            }
+        }
         return out.build();
+    }
+
+    /** A layer opened by {@link #saveLayer}: where its calls start, where it stands, and how it is laid. */
+    private static final class Layer {
+        final int start;
+        final float x;
+        final float y;
+        final float width;
+        final float height;
+        final float opacity;
+        /** Device pixels per unit of the layer's coordinates, on the page at its raster resolution. */
+        final float scale;
+        boolean ruled;
+
+        Layer(int start, float x, float y, float width, float height, float opacity, float scale) {
+            this.start = start;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.opacity = opacity;
+            this.scale = scale;
+        }
+    }
+
+    private static final Layer NO_LAYER = new Layer(-1, 0, 0, 0, 0, 1, 1);
+
+    /** Whether {@code mode} is one of the Porter-Duff rules, which PDF has none of. */
+    private static boolean porterDuff(BlendMode mode) {
+        return switch (mode) {
+            case CLEAR, SOURCE, DESTINATION_OVER, SOURCE_IN, DESTINATION_IN, SOURCE_OUT, DESTINATION_OUT,
+                 SOURCE_ATOP, DESTINATION_ATOP, XOR -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Draws {@code ops}, recorded in coordinates where the region {@code (x, y, width, height)} is,
+     * into a picture of that region at {@code scale} pixels to the unit; null when the backend makes
+     * none, said once per page.
+     */
+    private @Nullable Image raster(List<Recording.Op> ops, float x, float y, float width, float height,
+                                   float scale) {
+        int pw = (int) Math.ceil(width * scale);
+        int ph = (int) Math.ceil(height * scale);
+        Image picture = null;
+        if (pw > 0 && ph > 0) {
+            float sx = pw / width;
+            float sy = ph / height;
+            picture = Offscreen.current().paint(pw, ph, c -> {
+                c.scale(sx, sy);
+                c.translate(-x, -y);
+                for (Recording.Op op : ops) {
+                    op.replay(c);
+                }
+            });
+        }
+        if (picture == null && !rasterLogged) {
+            rasterLogged = true;
+            LOG.log(System.Logger.Level.WARNING, "a layer drawn under a Porter-Duff rule is written as normal "
+                    + "painting: PDF has no such rules, and the backend drew no picture of it");
+        }
+        return picture;
     }
 
     // ------------------------------------------------------------------ frame
@@ -118,6 +234,7 @@ public final class RecordingCanvas implements Canvas {
     @Override
     public void save() {
         saved.push(state);
+        layers.push(NO_LAYER);
         out.add(Canvas::save);
     }
 
@@ -127,6 +244,23 @@ public final class RecordingCanvas implements Canvas {
             return;
         }
         state = saved.pop();
+        Layer layer = layers.pop();
+        if (layer.ruled) {
+            List<Recording.Op> calls = out.cut(layer.start);
+            Image picture = raster(calls.subList(1, calls.size()), layer.x, layer.y, layer.width, layer.height,
+                    layer.scale);
+            if (picture != null) {
+                // Laid where the layer stood, in the state it was opened in, at its opacity.
+                out.add(Canvas::save);
+                if (layer.opacity < 1) {
+                    out.add(c -> c.setOpacity(layer.opacity));
+                }
+                out.add(c -> c.drawImage(picture, layer.x, layer.y, layer.width, layer.height));
+                out.add(Canvas::restore);
+                return;
+            }
+            calls.forEach(out::add);
+        }
         out.add(Canvas::restore);
     }
 
@@ -193,6 +327,10 @@ public final class RecordingCanvas implements Canvas {
 
     @Override
     public void saveLayer(float x, float y, float width, float height, float opacity) {
+        Affine2D t = state.transform;
+        float stretch = (float) Math.sqrt(Math.abs(t.a() * t.d() - t.b() * t.c()));
+        layers.push(new Layer(out.size(), x, y, Math.max(0, width), Math.max(0, height),
+                Math.max(0, Math.min(1, opacity)), contentScale * Math.max(stretch, 1e-3f)));
         saved.push(state);
         // Inside a layer the opacity starts again from 1, and the drawing from the normal mode.
         state = new State(state.transform, state.clip, 1, BlendMode.NORMAL, state.sampling, state.snap);
@@ -202,6 +340,20 @@ public final class RecordingCanvas implements Canvas {
     @Override
     public void setBlendMode(BlendMode mode) {
         Objects.requireNonNull(mode, "mode");
+        if (pictures && porterDuff(mode)) {
+            Layer inner = null;
+            for (Layer l : layers) {
+                if (l != NO_LAYER) {
+                    inner = l; // the deque runs from the innermost save outward
+                    break;
+                }
+            }
+            if (inner != null) {
+                inner.ruled = true;
+            } else {
+                pageRuled = true;
+            }
+        }
         state = new State(state.transform, state.clip, state.opacity, mode, state.sampling, state.snap);
         out.add(c -> c.setBlendMode(mode));
     }
@@ -247,6 +399,19 @@ public final class RecordingCanvas implements Canvas {
         Objects.requireNonNull(roundRect, "roundRect");
         narrow(roundRect.x(), roundRect.y(), roundRect.width(), roundRect.height());
         out.add(c -> c.clipRoundRect(roundRect));
+    }
+
+    @Override
+    public void clipPath(Path2D path) {
+        Objects.requireNonNull(path, "path");
+        Rect bounds = path.bounds();
+        if (bounds == null) {
+            narrow(0, 0, 0, 0);
+        } else {
+            narrow(bounds.x(), bounds.y(), bounds.width(), bounds.height());
+        }
+        Path2D kept = path.copy();
+        out.add(c -> c.clipPath(kept));
     }
 
     /** Intersects the tracked clip, kept as a box on the page, with a rectangle's box on the page. */

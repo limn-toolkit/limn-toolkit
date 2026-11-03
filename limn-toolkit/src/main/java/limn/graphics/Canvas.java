@@ -264,9 +264,10 @@ public interface Canvas {
      * layer on a GPU and a percent or two of the frame on a software renderer; a window-sized one
      * costs 0.1 to 0.15 ms of GPU, and about 10% of a frame on a software renderer. A canvas keeps
      * the layer's memory, four bytes a device pixel, only while consecutive frames open layers.
-     * An opacity of 1 under {@link BlendMode#NORMAL} needs none, and a canvas opens none for it;
-     * under another mode it does, since the rule above holds at every opacity: drawing at 1
-     * blend by blend would not be the picture blended once, and a fade arriving at 1 would jump.
+     * A layer is opened at every opacity, 1 included, since what is drawn inside may blend with
+     * the layer's own picture, as a {@linkplain BlendMode Porter-Duff rule} does; a group faded to 1
+     * whose drawing needs no picture of its own is cheaper as a {@link #save()}, which is what the
+     * toolkit's own fades do at rest.
      *
      * <p><b>A canvas that cannot make layers</b> (a recording or measuring one) falls back to what
      * the default does: a {@link #save()} and a per-draw {@link #setOpacity}, which draws the same
@@ -383,13 +384,36 @@ public interface Canvas {
     }
 
     /**
-     * Intersects the clip with an axis-aligned rectangle (in current
-     * coordinates). V1 limitation: under a rotated transform the clip
-     * degrades to the device-space AABB of the transformed corners, a
-     * superset of the requested region (content may show in the AABB's
-     * corners). Axis-aligned transforms clip exactly.
+     * Intersects the clip with a rectangle in current coordinates. Under a transform that turns or
+     * leans the axes the toolkit's canvases clip by the turned rectangle, as {@link #clipPath}
+     * does; a canvas of an application's own may clip by the device box round the turned corners,
+     * a region that holds the rectangle and more, and {@link #clipBounds()} answers null there.
      */
     void clipRect(float x, float y, float width, float height);
+
+    /**
+     * Intersects the clip with the region {@code path} fills under its {@linkplain Path2D#fillRule()
+     * fill rule}, in current coordinates: what follows is drawn only inside it, antialiased at its
+     * edge as a fill is, and in whatever {@linkplain #setBlendMode blend mode} is in force, as
+     * without the clip. Restored by {@link #restore()}. A second path clip intersects the first.
+     *
+     * <p>Each path clip on the toolkit's OpenGL canvas is a picture of the region's coverage, the
+     * size of the region's device bounds cut to the clip in force, made with the path's fill and
+     * read by every draw until the restore: one fill and a draw call more where it is made, and
+     * none per draw after it. {@link #clipBounds()} answers the region's bounds.
+     *
+     * <p>The default intersects the clip with the path's {@linkplain Path2D#bounds() bounds}, a
+     * region that holds the path and more, for a canvas of an application's own that has no clip
+     * of another shape.
+     */
+    default void clipPath(Path2D path) {
+        Rect bounds = path.bounds();
+        if (bounds == null) {
+            clipRect(0, 0, 0, 0); // an empty path encloses nothing
+            return;
+        }
+        clipRect(bounds.x(), bounds.y(), bounds.width(), bounds.height());
+    }
 
     /** Intersects the clip with an axis-aligned rectangle (see {@link #clipRect(float, float, float, float)}). */
     default void clipRect(Rect rect) {
@@ -423,8 +447,9 @@ public interface Canvas {
      * outer one; where the two only overlap, every corner of the region they
      * leave is rounded by the inner radius, whichever rectangle it came from.
      * A rounded rect whose corners are all square clips like {@code clipRect}
-     * and leaves an earlier one's corners as they were. Rotation degrades to
-     * the AABB like {@code clipRect}.
+     * and leaves an earlier one's corners as they were. Under a transform that
+     * turns or leans the axes it is a path clip on the toolkit's canvases, as
+     * {@code clipRect} is.
      */
     void clipRoundRect(RoundRect roundRect);
 

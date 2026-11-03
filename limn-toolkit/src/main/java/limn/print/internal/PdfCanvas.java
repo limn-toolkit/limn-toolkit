@@ -293,6 +293,16 @@ final class PdfCanvas implements Canvas {
         ops().append(PdfPaths.roundRect(roundRect)).append("W n\n");
     }
 
+    /** PDF's own clip by a path, under the path's rule: {@code W} or {@code W*}, then {@code n}. */
+    @Override
+    public void clipPath(Path2D path) {
+        if (path.isEmpty()) {
+            ops().append("0 0 m h W n\n"); // a clip that encloses nothing
+            return;
+        }
+        ops().append(PdfPaths.whole(path)).append(path.fillRule() == FillRule.EVEN_ODD ? "W* n\n" : "W n\n");
+    }
+
     // ------------------------------------------------------------------ painting
 
     private enum Mode { FILL, FILL_EVEN_ODD, STROKE }

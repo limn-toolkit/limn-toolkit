@@ -1,10 +1,12 @@
 package limn.demo;
 
 import limn.components.Theme;
+import limn.graphics.BlendMode;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.FillRule;
 import limn.graphics.Font;
+import limn.graphics.LinearGradient;
 import limn.graphics.Path2D;
 import limn.graphics.Stroke;
 import limn.i18n.I18nString;
@@ -22,8 +24,10 @@ import limn.scene.layout.Padding;
 /**
  * The Drawing page: what a widget that paints for itself has on the canvas. Fill rules, with a
  * star drawn as one outline and a ring of two; strokes, with every kind of end and corner, dashes
- * marching along their paths, and a translucent line crossing itself; and transforms, a shear, a
- * turn about a point, and a hit test through the inverse of the matrix a shape was drawn with.
+ * marching along their paths, and a translucent line crossing itself; transforms, a shear, a turn
+ * about a point, and a hit test through the inverse of the matrix a shape was drawn with; clips by a
+ * path and by a turning rectangle, an eraser and a fill inside a shape; and every blend mode, each
+ * drawn the same way.
  */
 final class DrawingScene {
 
@@ -41,6 +45,12 @@ final class DrawingScene {
         static final I18nString SHEAR = new I18nString("showcase.drawing.shear", "Shear");
         static final I18nString TURN = new I18nString("showcase.drawing.turn", "Turn about a point");
         static final I18nString HIT_TEST = new I18nString("showcase.drawing.hitTest", "Hit test");
+        static final I18nString CLIPS = new I18nString("showcase.drawing.clips", "Clips and erasing");
+        static final I18nString PATH_CLIP = new I18nString("showcase.drawing.pathClip", "Clipped by a path");
+        static final I18nString TURNED_CLIP = new I18nString("showcase.drawing.turnedClip", "Turned rectangle");
+        static final I18nString ERASER = new I18nString("showcase.drawing.eraser", "Eraser");
+        static final I18nString FILL_INSIDE = new I18nString("showcase.drawing.fillInside", "Inside a shape");
+        static final I18nString BLENDS = new I18nString("showcase.drawing.blends", "Blend modes");
 
         private Text() {
         }
@@ -70,6 +80,10 @@ final class DrawingScene {
         column.add(new Strokes());
         column.add(Page.section(Text.TRANSFORMS));
         column.add(new Transforms());
+        column.add(Page.section(Text.CLIPS));
+        column.add(new Clips());
+        column.add(Page.section(Text.BLENDS));
+        column.add(new Blends());
         return column; // the page scrolls it
     }
 
@@ -320,6 +334,120 @@ final class DrawingScene {
                 }
             }
             invalidate();
+        }
+    }
+
+    /**
+     * A star clipping stripes that slide under it, a rectangle clipped as it turns, an eraser crossing
+     * a card, and a gradient drawn only over a shape, the last two each inside a layer of its own.
+     */
+    private static final class Clips extends Cells {
+        Clips() {
+            super(Text.CLIPS, Text.PATH_CLIP, Text.TURNED_CLIP, Text.ERASER, Text.FILL_INSIDE);
+        }
+
+        @Override
+        void paintCell(Canvas canvas, int index, float width, float height, Theme theme) {
+            animate();
+            Color ink = theme.primary();
+            Color accent = theme.danger();
+            float size = Math.min(width, height) * 0.4f;
+            switch (index) {
+                case 0 -> {
+                    Path2D shape = star(FillRule.NON_ZERO).transformed(Affine2D.translation(width / 2,
+                            height / 2 + size * 0.1f).scale(size, size));
+                    canvas.clipPath(shape);
+                    float slide = (float) (time * 20 % 16);
+                    for (float x = -16 + slide; x < width; x += 16) {
+                        canvas.fillRect(x, 0, 8, height, ink);
+                        canvas.fillRect(x + 8, 0, 8, height, accent);
+                    }
+                }
+                case 1 -> {
+                    canvas.rotate((float) (time * 0.5), width / 2, height / 2);
+                    canvas.clipRect(width / 2 - size, height / 2 - size * 0.7f, size * 2, size * 1.4f);
+                    canvas.rotate((float) (-time * 0.5), width / 2, height / 2);
+                    canvas.fillRect(0, 0, width, height, new LinearGradient(0, 0, width, height, ink, accent));
+                    for (float y = 8; y < height; y += 14) {
+                        for (float x = 8; x < width; x += 14) {
+                            canvas.fillCircle(x, y, 2.5f, theme.surface());
+                        }
+                    }
+                }
+                case 2 -> {
+                    float x0 = width / 2 - size * 1.2f;
+                    float y0 = height / 2 - size * 0.8f;
+                    canvas.saveLayer(x0, y0, size * 2.4f, size * 1.6f, 1);
+                    canvas.fillRoundRect(x0, y0, size * 2.4f, size * 1.6f, 10, ink);
+                    canvas.setBlendMode(BlendMode.DESTINATION_OUT);
+                    float t = (float) (Math.sin(time * 0.9) * 0.5 + 0.5);
+                    canvas.fillCircle(x0 + size * 2.4f * t, height / 2, size * 0.55f, Color.BLACK);
+                    canvas.fillCircle(x0 + size * 2.4f * (1 - t), height / 2 + size * 0.45f, size * 0.3f,
+                            new Color(0, 0, 0, 0.5f));
+                    canvas.restore();
+                }
+                default -> {
+                    Path2D ring = ring(FillRule.EVEN_ODD).transformed(Affine2D.translation(width / 2, height / 2)
+                            .scale(size, size));
+                    canvas.saveLayer(0, 0, width, height, 1);
+                    canvas.fillPath(ring, Color.BLACK);
+                    canvas.setBlendMode(BlendMode.SOURCE_IN);
+                    float shift = (float) (Math.sin(time * 0.7) * width * 0.3);
+                    canvas.fillRect(0, 0, width, height, new LinearGradient(shift, 0, width + shift, height, accent, ink));
+                    canvas.restore();
+                }
+            }
+        }
+    }
+
+    /** Every blend mode, each a disc and then a square drawn over it in that mode, inside a layer. */
+    private static final class Blends extends Widget<Blends> {
+        private static final int COLUMNS = 4;
+        private static final float SWATCH = 76;
+
+        Blends() {
+            setAccessibleName(Text.BLENDS);
+            setAccessibleRole(limn.accessibility.Accessible.Role.IMAGE);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            int rows = (BlendMode.values().length + COLUMNS - 1) / COLUMNS;
+            return c.constrain(c.hasBoundedWidth() ? c.maxWidth() : 720, rows * (SWATCH + CAPTION + GAP) - GAP);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            Theme theme = Theme.of(this);
+            Font font = theme.tokensFor(this).label();
+            float radius = theme.tokensFor(this).radiusMedium();
+            float w = (width() - GAP * (COLUMNS - 1)) / COLUMNS;
+            BlendMode[] modes = BlendMode.values();
+            Color checker = theme.textMuted().withAlpha(0.18f);
+            for (int i = 0; i < modes.length; i++) {
+                float x = (i % COLUMNS) * (w + GAP);
+                float y = (i / COLUMNS) * (SWATCH + CAPTION + GAP);
+                canvas.fillRoundRect(x, y, w, SWATCH, radius, theme.surface());
+                canvas.save();
+                canvas.clipRoundRect(limn.graphics.RoundRect.of(x, y, w, SWATCH, radius));
+                // A checkerboard behind, so that what a mode leaves transparent shows as such.
+                for (float cy = 0; cy < SWATCH; cy += 8) {
+                    for (float cx = ((int) (cy / 8) % 2) * 8; cx < w; cx += 16) {
+                        canvas.fillRect(x + cx, y + cy, 8, 8, checker);
+                    }
+                }
+                float cx = x + w / 2;
+                float cy = y + SWATCH / 2;
+                canvas.saveLayer(x, y, w, SWATCH, 1);
+                canvas.fillCircle(cx - 10, cy - 4, 24, theme.danger().withAlpha(0.9f));
+                canvas.setBlendMode(modes[i]);
+                canvas.fillRoundRect(cx - 6, cy - 12, 38, 34, 6, theme.primary().withAlpha(0.8f));
+                canvas.restore();
+                canvas.restore();
+                String name = modes[i].name();
+                var m = textRuler().measure(name, font);
+                canvas.drawText(name, x + (w - m.width()) / 2, y + SWATCH + 6 + m.ascent(), font, theme.textMuted());
+            }
         }
     }
 }

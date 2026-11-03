@@ -278,7 +278,7 @@ final class AppScene {
                         .keywords("BackdropPanel, backdrop, glass, blur, frosted, translucent, tint"),
                 new Place(ShowcaseStrings.NAV_DRAWING, "docs/custom-widgets/#measuring-and-painting",
                         () -> scrolling(DrawingScene.content())).icon("vector-bezier")
-                        .keywords("Canvas, drawing, Graphics2D, Path2D, path, SVG path, fill rule, even-odd, non-zero, Stroke, stroke, dash, dashed, cap, join, miter, Affine2D, transform, shear, rotate, hit test")).icon("movie");
+                        .keywords("Canvas, drawing, Graphics2D, Path2D, path, SVG path, fill rule, even-odd, non-zero, Stroke, stroke, dash, dashed, cap, join, miter, Affine2D, transform, shear, rotate, hit test, clip, clipPath, mask, eraser, BlendMode, blend mode, Porter-Duff, screen, darken, lighten, XOR")).icon("movie");
         return List.of(orders, components, media);
     }
 

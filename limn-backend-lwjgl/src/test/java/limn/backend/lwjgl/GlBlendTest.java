@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the blend-factor table the 2D canvas and the 3D pass share. Pure constant
@@ -95,6 +96,43 @@ class GlBlendTest {
         assertEquals(GL33C.GL_ONE, then.dstRgb());
         assertEquals(GL33C.GL_ONE_MINUS_DST_ALPHA, then.srcAlpha());
         assertEquals(GL33C.GL_ONE, then.dstAlpha(), "the coverage of an over");
+    }
+
+    @Test
+    void screenAndThePorterDuffRulesTheFactorsDrawExactly() {
+        GlBlend.Factors screen = GlBlend.of(BlendMode.SCREEN);
+        assertEquals(GL33C.GL_ONE, screen.srcRgb());
+        assertEquals(GL33C.GL_ONE_MINUS_SRC_COLOR, screen.dstRgb(), "cs + cb·(1 − cs)");
+        assertEquals(GL33C.GL_ZERO, screen.srcAlpha(), "on the window the coverage is kept");
+        assertEquals(GL33C.GL_ONE, screen.dstAlpha());
+        GlBlend.Factors inGroup = GlBlend.inGroup(BlendMode.SCREEN).first();
+        assertEquals(GL33C.GL_ONE, inGroup.srcAlpha(), "in a group, an over's coverage");
+        assertEquals(GL33C.GL_ONE_MINUS_SRC_ALPHA, inGroup.dstAlpha());
+        // Each weighs the destination by 1 or by 1 − as, which an antialiased edge's coverage,
+        // folded into the source's alpha, keeps exact.
+        for (BlendMode mode : new BlendMode[] {BlendMode.DESTINATION_OVER, BlendMode.DESTINATION_OUT,
+                BlendMode.SOURCE_ATOP, BlendMode.XOR}) {
+            GlBlend.Factors f = GlBlend.of(mode);
+            assertTrue(f.dstRgb() == GL33C.GL_ONE || f.dstRgb() == GL33C.GL_ONE_MINUS_SRC_ALPHA, mode.name());
+            assertEquals(GlBlend.RULE_NONE, GlBlend.shaderRule(mode, false), mode + " needs no rule");
+            assertSame(f, GlBlend.inGroup(mode).first(), mode + ": the group's are the window's");
+        }
+    }
+
+    @Test
+    void theOtherRulesAreComputedByTheProgramAndReplaceThePixel() {
+        for (BlendMode mode : new BlendMode[] {BlendMode.CLEAR, BlendMode.SOURCE, BlendMode.SOURCE_IN,
+                BlendMode.DESTINATION_IN, BlendMode.SOURCE_OUT, BlendMode.DESTINATION_ATOP, BlendMode.DARKEN,
+                BlendMode.LIGHTEN}) {
+            assertSame(GlBlend.REPLACE, GlBlend.of(mode), mode.name());
+            assertSame(GlBlend.REPLACE, GlBlend.inGroup(mode).first(), mode + " in a group");
+            assertTrue(GlBlend.shaderRule(mode, true) != GlBlend.RULE_NONE, mode + ": a rule");
+        }
+        assertEquals(GlBlend.RULE_DARKEN_KEEP, GlBlend.shaderRule(BlendMode.DARKEN, false), "the window's coverage kept");
+        assertEquals(GlBlend.RULE_DARKEN, GlBlend.shaderRule(BlendMode.DARKEN, true));
+        for (BlendMode mode : new BlendMode[] {BlendMode.NORMAL, BlendMode.ADDITIVE, BlendMode.MULTIPLY}) {
+            assertEquals(GlBlend.RULE_NONE, GlBlend.shaderRule(mode, true), mode.name());
+        }
     }
 
     @Test

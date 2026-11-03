@@ -40,6 +40,16 @@ const float CRT_GRILLE_PITCH = 3.0;
 uniform sampler2D u_atlas; // bound texture for this draw: R8 glyph atlas
                            // (.r = coverage) or RGBA8 image; LINEAR filtered.
 uniform float u_exposure;  // HDR-surface quads only (kind 7): display exposure
+// A path clip (GlCanvas.clipPath): its coverage in u_mask's alpha, one texel per pixel of the
+// target's space, over u_maskRect (x, y, width, height in that space's device px, top-down, its
+// first row at the bottom as a layer's picture has it); 0 past it. Multiplies every clip coverage.
+uniform int u_maskOn;
+uniform sampler2D u_mask;
+uniform vec4 u_maskRect;
+// A blend rule computed here (GlBlend.RULE_*; 0: the fixed factors do it), from u_dst, a copy of
+// the target taken under what is being drawn, texel for pixel. The output replaces the pixel.
+uniform int u_rule;
+uniform sampler2D u_dst;
 
 out vec4 o_color;
 
@@ -103,6 +113,47 @@ vec2 clampBackdrop(vec2 uv) {
     return clamp(uv, v_grad.xy, v_grad.zw);
 }
 
+// The path clip's coverage at the fragment, read at its own pixel: the mask was drawn on these
+// pixels, so no filter may blend a neighbour in.
+float maskAt(vec2 fragDev) {
+    vec2 p = floor(vec2(fragDev.x - u_maskRect.x, u_maskRect.y + u_maskRect.w - fragDev.y));
+    if (p.x < 0.0 || p.y < 0.0 || p.x >= u_maskRect.z || p.y >= u_maskRect.w) {
+        return 0.0;
+    }
+    return texelFetch(u_mask, ivec2(p), 0).a;
+}
+
+// The pixel a blend rule leaves: its result for the premultiplied source over the destination, the
+// copy of the target at this pixel, weighed against the destination by the coverage, so that a pixel
+// the shape covers in part keeps the rest of what it held and one it misses keeps all of it. The
+// numbers are GlBlend's RULE_ constants.
+vec4 ruled(vec4 src, float cover) {
+    vec4 dst = texelFetch(u_dst, ivec2(gl_FragCoord.xy), 0);
+    vec4 r;
+    if (u_rule == 1) {
+        r = vec4(0.0);                                   // clear
+    } else if (u_rule == 2) {
+        r = src;                                         // source
+    } else if (u_rule == 3) {
+        r = src * dst.a;                                 // source in
+    } else if (u_rule == 4) {
+        r = dst * src.a;                                 // destination in
+    } else if (u_rule == 5) {
+        r = src * (1.0 - dst.a);                         // source out
+    } else if (u_rule == 6) {
+        r = dst * src.a + src * (1.0 - dst.a);           // destination atop
+    } else {
+        // Darken or lighten: the web's separable blend, B(cs, cb) the minimum or the maximum,
+        // premultiplied: B over both, each where the other is not.
+        vec3 s = src.rgb * dst.a;
+        vec3 d = dst.rgb * src.a;
+        vec3 b = (u_rule == 7 || u_rule == 9) ? min(s, d) : max(s, d);
+        vec3 c = b + src.rgb * (1.0 - dst.a) + dst.rgb * (1.0 - src.a);
+        r = vec4(c, u_rule >= 9 ? dst.a : src.a + dst.a * (1.0 - src.a));
+    }
+    return mix(dst, r, cover);
+}
+
 vec3 backdropAt(vec2 uv) {
     vec4 texel = texture(u_atlas, clampBackdrop(uv));
     // The framebuffer is premultiplied; un-premultiply so the tint below mixes
@@ -161,6 +212,9 @@ void main() {
         }
     }
     float clipCoverage = 1.0 - smoothstep(-0.5, 0.5, dClip);
+    if (u_maskOn != 0) {
+        clipCoverage *= maskAt(fragDev);
+    }
 
     if (kind > 8.5) {
         // Shadow: the shape blurred, with no blur pass. The blur of a straight edge is the
@@ -177,6 +231,11 @@ void main() {
         float erfAx = 1.0 - (((((1.061405429 * tt - 1.453152027) * tt) + 1.421413741) * tt
                 - 0.284496736) * tt + 0.254829592) * tt * exp(-ax * ax);
         float aShadow = 0.5 * (1.0 - sign(x) * erfAx) * v_colorA.a * clipCoverage;
+        if (u_rule != 0) {
+            float aOwn = 0.5 * (1.0 - sign(x) * erfAx) * v_colorA.a;
+            o_color = ruled(vec4(v_colorA.rgb * aOwn, aOwn), clipCoverage);
+            return;
+        }
         o_color = vec4(v_colorA.rgb * aShadow, aShadow);
         return;
     }
@@ -353,6 +412,10 @@ void main() {
             sampled += (backdropAt(uv + step1 * 4.0) + backdropAt(uv - step1 * 4.0)) * 0.04;
         }
         float aGlass = coverGlass * v_colorB.w;
+        if (u_rule != 0) {
+            o_color = ruled(vec4(mix(sampled, v_colorA.rgb, v_colorA.a) * v_colorB.w, v_colorB.w), coverGlass);
+            return;
+        }
         o_color = vec4(mix(sampled, v_colorA.rgb, v_colorA.a) * aGlass, aGlass);
         return;
     }
@@ -368,6 +431,11 @@ void main() {
             // (applied display-referred; drawSurface always sends white).
             float tintScale = v_colorA.a * clipCoverage;
             vec3 c = displayTransform(texel.rgb / max(texel.a, 1e-4));
+            if (u_rule != 0) {
+                o_color = ruled(vec4(c * v_colorA.rgb * texel.a * v_colorA.a, texel.a * v_colorA.a),
+                        clipCoverage);
+                return;
+            }
             o_color = vec4(c * v_colorA.rgb * texel.a * tintScale, texel.a * tintScale);
         } else if (kind >= 5.5) {
             // Image mask (icon): the texel's alpha is the coverage; paint it in
@@ -375,6 +443,11 @@ void main() {
             // the theme this way, unlike the modulate branch below, where a
             // black mask (texel.rgb == 0) would stay black.
             float a = texel.a * v_colorA.a * clipCoverage;
+            if (u_rule != 0) {
+                // The mask is the shape: its alpha covers, as a fill's edge does.
+                o_color = ruled(vec4(v_colorA.rgb * v_colorA.a, v_colorA.a), texel.a * clipCoverage);
+                return;
+            }
             o_color = vec4(v_colorA.rgb * a, a);
         } else {
             // Image: PREMULTIPLIED RGBA texel (images premultiply at upload
@@ -383,6 +456,12 @@ void main() {
             // of transparent texels into every edge sample (color halos).
             // The tint (v_colorA) stays straight; output premultiplied.
             float tintScale = v_colorA.a * clipCoverage;
+            if (u_rule != 0) {
+                // An image is a paint over its whole quad: a transparent texel is a transparent
+                // source, which a rule such as source draws as it is.
+                o_color = ruled(vec4(texel.rgb * v_colorA.rgb * v_colorA.a, texel.a * v_colorA.a), clipCoverage);
+                return;
+            }
             o_color = vec4(texel.rgb * v_colorA.rgb * tintScale, texel.a * tintScale);
         }
         return;
@@ -425,5 +504,9 @@ void main() {
         color = mix(a, b, t);
     }
 
+    if (u_rule != 0) {
+        o_color = ruled(color, coverage);
+        return;
+    }
     o_color = color * coverage;
 }

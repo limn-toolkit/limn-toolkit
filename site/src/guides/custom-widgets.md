@@ -44,11 +44,16 @@ Whatever takes a colour takes a `Paint`, which is a `Color`, a `LinearGradient` 
 `save`, `translate`, `rotate`, `scale` and `restore` move the coordinates, `rotate(angle, cx, cy)`
 turns about a point, `shear` leans, and `concat` draws through any `Affine2D`; `transform()`
 answers the matrix in force, which `invert()` turns into the way back from the canvas's
-coordinates to the drawing's. `clipRect` and
-`clipRoundRect` cut what follows; `setBlendMode` draws in `BlendMode.ADDITIVE`, for light, or
-`MULTIPLY`, for shade; and `saveLayer` paints a group into a picture of its own, composited at one
-opacity, so overlapping parts do not show through each other. A widget that paints outside its
-box says how far, as [A layout of your own](#a-layout-of-your-own) explains.
+coordinates to the drawing's. `clipRect`,
+`clipRoundRect` and `clipPath`, which takes any path under its fill rule, cut what follows, a
+turned rectangle by its turned edges; `setBlendMode` draws in `BlendMode.ADDITIVE`, for light,
+`MULTIPLY`, for shade, `SCREEN`, `DARKEN` or `LIGHTEN`; and `saveLayer` paints a group into a
+picture of its own, composited at one opacity, so overlapping parts do not show through each
+other. Inside a layer the Porter-Duff rules mean what their names say, since its picture starts
+transparent: a draw in `DESTINATION_OUT` erases what the group drew, by as much as its paint is
+opaque, and one in `SOURCE_IN` paints only over it, as a gradient filling a shape drawn before.
+A widget that paints outside its box says how far, as [A layout of your own](#a-layout-of-your-own)
+explains.
 
 Sizes, spacing and fonts come from the theme's tokens for the widget's control size, read in
 `onMeasure` and `onPaint`. Do not read them in the constructor: a widget being constructed has

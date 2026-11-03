@@ -68,6 +68,12 @@ import static limn.backend.lwjgl.Gl.glDeleteSamplers;
 import static limn.backend.lwjgl.Gl.glGenSamplers;
 import static limn.backend.lwjgl.Gl.glSamplerParameteri;
 import static limn.backend.lwjgl.Gl.glUniform4f;
+import static org.lwjgl.opengl.GL33C.GL_NEAREST;
+import static org.lwjgl.opengl.GL33C.GL_RGBA;
+import static org.lwjgl.opengl.GL33C.GL_RGBA8;
+import static org.lwjgl.opengl.GL33C.GL_TEXTURE1;
+import static org.lwjgl.opengl.GL33C.GL_TEXTURE2;
+import static org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE;
 
 /**
  * Geometry batcher: accumulates every canvas primitive of a frame into one
@@ -89,6 +95,11 @@ import static limn.backend.lwjgl.Gl.glUniform4f;
  * pixel, its antialiasing fringe is drawn where that count says outside, and one quad paints where
  * it says inside and leaves the stencil at zero again, which is what every frame starts from and
  * every fill ends with.
+ *
+ * <p>Two states more travel as uniforms, since each changes seldom: a path clip's mask
+ * ({@link #requireMask}), whose coverage every program but the flat one multiplies in, and a blend
+ * rule the programs compute themselves ({@link #requireRule}), drawn run by run as a mode drawn in
+ * two passes is, each run after a copy of the target under it.
  */
 final class GlBatch implements AutoCloseable {
 
@@ -109,6 +120,9 @@ final class GlBatch implements AutoCloseable {
     private final int uniformOrigin;
     private final int uniformWindow;
     private final int uniformExposure;
+    private final int uniformMaskOn;
+    private final int uniformMaskRect;
+    private final int uniformRule;
     private final int vao;
     private final int vbo;
     private final int ebo;
@@ -144,6 +158,9 @@ final class GlBatch implements AutoCloseable {
     private final int clippedUniformClip;
     private final int clippedUniformRoundClip;
     private final int clippedUniformClipRadius;
+    private final int clippedUniformMaskOn;
+    private final int clippedUniformMaskRect;
+    private final int clippedUniformRule;
     /**
      * Bilinear sampling for a picture laid at an angle or another scale, bound over the picture's
      * own sampling, which is nearest because a picture laid back on the pixels it was drawn on must
@@ -196,6 +213,9 @@ final class GlBatch implements AutoCloseable {
         uniformOrigin = program.uniformLocation("u_origin");
         uniformWindow = program.uniformLocation("u_window");
         uniformExposure = program.uniformLocation("u_exposure");
+        uniformMaskOn = program.uniformLocation("u_maskOn");
+        uniformMaskRect = program.uniformLocation("u_maskRect");
+        uniformRule = program.uniformLocation("u_rule");
         vao = glGenVertexArrays();
         vbo = glGenBuffers();
         ebo = glGenBuffers();
@@ -217,6 +237,8 @@ final class GlBatch implements AutoCloseable {
         glBindVertexArray(0);
         program.use();
         glUniform1i(program.uniformLocation("u_atlas"), 0);
+        glUniform1i(program.uniformLocation("u_mask"), 1);
+        glUniform1i(program.uniformLocation("u_dst"), 2);
 
         flatProgram = ShaderProgram.fromResources(
                 "/limn/backend/lwjgl/shaders/canvas_flat.vert",
@@ -258,8 +280,13 @@ final class GlBatch implements AutoCloseable {
         clippedUniformClip = clippedCompositeProgram.uniformLocation("u_clip");
         clippedUniformRoundClip = clippedCompositeProgram.uniformLocation("u_roundClip");
         clippedUniformClipRadius = clippedCompositeProgram.uniformLocation("u_clipRadius");
+        clippedUniformMaskOn = clippedCompositeProgram.uniformLocation("u_maskOn");
+        clippedUniformMaskRect = clippedCompositeProgram.uniformLocation("u_maskRect");
+        clippedUniformRule = clippedCompositeProgram.uniformLocation("u_rule");
         clippedCompositeProgram.use();
         glUniform1i(clippedCompositeProgram.uniformLocation("u_picture"), 0);
+        glUniform1i(clippedCompositeProgram.uniformLocation("u_mask"), 1);
+        glUniform1i(clippedCompositeProgram.uniformLocation("u_dst"), 2);
 
         smoothSampler = glGenSamplers();
         glSamplerParameteri(smoothSampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -293,6 +320,9 @@ final class GlBatch implements AutoCloseable {
         flatVertexCount = 0;
         twoPassCount = 0;
         drawCalls = 0;
+        targetCopies = 0;
+        maskTexture = 0;
+        rule = GlBlend.RULE_NONE;
         scissorEnabled = false; // per-frame: partial rendering re-hints each frame
     }
 
@@ -575,7 +605,13 @@ final class GlBatch implements AutoCloseable {
         int n = twoPassCount;
         int head = n == 0 ? total : twoPassStart[0];
         if (head > 0) {
-            drawBothPasses(indexed, 0, head);
+            if (rule != GlBlend.RULE_NONE) {
+                copyTarget(0, 0, targetWidth, targetHeight); // unrecorded: its bounds are unknown
+                bindTargetCopy();
+                drawRange(indexed, 0, head);
+            } else {
+                drawBothPasses(indexed, 0, head);
+            }
         }
         int runFrom = 0;
         for (int i = 1; i <= n; i++) {
@@ -583,7 +619,13 @@ final class GlBatch implements AutoCloseable {
                 int first = twoPassStart[runFrom];
                 int end = i == n ? total : twoPassStart[i];
                 if (end > first) {
-                    drawBothPasses(indexed, first, end - first);
+                    if (rule != GlBlend.RULE_NONE) {
+                        copyTargetUnderRecords(runFrom, i);
+                        bindTargetCopy();
+                        drawRange(indexed, first, end - first);
+                    } else {
+                        drawBothPasses(indexed, first, end - first);
+                    }
                 }
                 runFrom = i;
             }
@@ -627,6 +669,157 @@ final class GlBatch implements AutoCloseable {
             flush();
         }
         exposure = value;
+    }
+
+    // A path clip's mask (GlCanvas.clipPath): its picture's texture, 0 for none, and its rectangle in
+    // the target space's device pixels, top-down. A uniform: it changes where a clip is made or
+    // restored, and a flush there is the price.
+    private int maskTexture;
+    private float maskX;
+    private float maskY;
+    private float maskW;
+    private float maskH;
+
+    /**
+     * Declares the path clip's mask for upcoming geometry, or none with a texture of 0: every
+     * program but the flat one multiplies its coverage in. A change with pending geometry flushes it.
+     *
+     * @param texture the mask's picture
+     * @param x       its rectangle's left edge in the target space's device pixels
+     * @param y       its top edge, top-down
+     * @param width   its width in pixels
+     * @param height  its height
+     */
+    void requireMask(int texture, float x, float y, float width, float height) {
+        boolean changed = texture != maskTexture || (texture != 0
+                && (x != maskX || y != maskY || width != maskW || height != maskH));
+        if (changed && (indices.position() > 0 || flatVertexCount > 0)) {
+            flush();
+        }
+        maskTexture = texture;
+        maskX = x;
+        maskY = y;
+        maskW = width;
+        maskH = height;
+    }
+
+    /** @return whether a path clip's mask is in force; the flat program cannot draw under one */
+    boolean masked() {
+        return maskTexture != 0;
+    }
+
+    // The blend rule the programs compute (GlBlend.RULE_*), RULE_NONE while the fixed factors draw.
+    private int rule = GlBlend.RULE_NONE;
+    // The copy of the target a rule reads: one texture the framebuffer's size, made on first use.
+    private int targetCopy;
+    private int targetCopyWidth;
+    private int targetCopyHeight;
+    private int targetCopies;
+
+    /**
+     * Declares the blend rule the programs compute for upcoming geometry, drawn under
+     * {@link GlBlend#REPLACE}'s factors, which the caller requires with it. A change with pending
+     * geometry flushes it. Every run of primitives none of which overlaps another is drawn after a
+     * copy of the target under it, since a rule reads what the pixel held before the draw.
+     */
+    void requireRule(int value) {
+        if (value != rule && (indices.position() > 0 || flatVertexCount > 0)) {
+            flush();
+        }
+        rule = value;
+    }
+
+    /** @return whether a blend rule computed by the programs is in force; the flat program has none */
+    boolean ruled() {
+        return rule != GlBlend.RULE_NONE;
+    }
+
+    /** @return the copies of the target made this frame for a blend rule; for tests */
+    int targetCopies() {
+        return targetCopies;
+    }
+
+    /** Whether the primitives queued are recorded one by one, to be drawn in runs that do not overlap. */
+    private boolean byRuns() {
+        return blendThen != null || rule != GlBlend.RULE_NONE;
+    }
+
+    /**
+     * Copies the bound target's pixels {@code (x, y)} to {@code (x + width, y + height)}, counted as
+     * GL counts them from its bottom-left corner, into the same texels of the copy the rule reads.
+     */
+    private void copyTarget(int x, int y, int width, int height) {
+        int x0 = Math.max(0, x);
+        int y0 = Math.max(0, y);
+        int x1 = Math.min(targetWidth, x + width);
+        int y1 = Math.min(targetHeight, y + height);
+        if (x1 <= x0 || y1 <= y0) {
+            return;
+        }
+        glActiveTexture(GL_TEXTURE2);
+        if (targetCopy == 0 || targetCopyWidth < fbWidth || targetCopyHeight < fbHeight) {
+            if (targetCopy == 0) {
+                targetCopy = Gl.glGenTextures();
+            }
+            glBindTexture(GL_TEXTURE_2D, targetCopy);
+            targetCopyWidth = Math.max(targetCopyWidth, fbWidth);
+            targetCopyHeight = Math.max(targetCopyHeight, fbHeight);
+            Gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, targetCopyWidth, targetCopyHeight, 0, GL_RGBA,
+                    GL_UNSIGNED_BYTE, (java.nio.ByteBuffer) null);
+            Gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            Gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        } else {
+            glBindTexture(GL_TEXTURE_2D, targetCopy);
+        }
+        Gl.glCopyTexSubImage2D(GL_TEXTURE_2D, 0, x0, y0, x0, y0, x1 - x0, y1 - y0);
+        targetCopies++;
+        glActiveTexture(GL_TEXTURE0);
+    }
+
+    /**
+     * Copies the target under device pixels {@code (x0, y0)} to {@code (x1, y1)} of the target's
+     * space, top-down, grown to whole pixels and by one more for the antialiasing ramp.
+     */
+    private void copyTargetUnder(float x0, float y0, float x1, float y1) {
+        if (!(x1 >= x0) || !(y1 >= y0)) {
+            return; // nothing recorded
+        }
+        int left = (int) Math.floor(x0) - 1 - targetX;
+        int right = (int) Math.ceil(x1) + 1 - targetX;
+        int top = (int) Math.floor(y0) - 1 - targetY;
+        int bottom = (int) Math.ceil(y1) + 1 - targetY;
+        copyTarget(left, targetHeight - bottom, right - left, bottom - top);
+    }
+
+    /** Copies the target under the union of the primitives recorded from {@code from} to {@code to}. */
+    private void copyTargetUnderRecords(int from, int to) {
+        float x0 = Float.POSITIVE_INFINITY;
+        float y0 = Float.POSITIVE_INFINITY;
+        float x1 = Float.NEGATIVE_INFINITY;
+        float y1 = Float.NEGATIVE_INFINITY;
+        for (int i = from; i < to; i++) {
+            x0 = Math.min(x0, twoPassBox[i * 4]);
+            y0 = Math.min(y0, twoPassBox[i * 4 + 1]);
+            x1 = Math.max(x1, twoPassBox[i * 4 + 2]);
+            y1 = Math.max(y1, twoPassBox[i * 4 + 3]);
+        }
+        copyTargetUnder(x0, y0, x1, y1);
+    }
+
+    /** Binds the mask and the copy a rule reads, and sets the main program's uniforms for them. */
+    private void applyMaskAndRule(int maskOnUniform, int maskRectUniform, int ruleUniform) {
+        glUniform1i(maskOnUniform, maskTexture != 0 ? 1 : 0);
+        if (maskTexture != 0) {
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, maskTexture);
+            glUniform4f(maskRectUniform, maskX, maskY, maskW, maskH);
+        }
+        glUniform1i(ruleUniform, rule);
+        if (rule != GlBlend.RULE_NONE) {
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, targetCopy);
+        }
+        glActiveTexture(GL_TEXTURE0);
     }
 
     /** Geometry drawn as every other draw is, outside a fill through the stencil. */
@@ -703,6 +896,10 @@ final class GlBatch implements AutoCloseable {
                 drawRange(true, 0, indexCount);
             }
             case STENCIL_FRINGE -> {
+                if (rule != GlBlend.RULE_NONE) {
+                    copyTargetUnderRecords(0, twoPassCount);
+                    bindTargetCopy();
+                }
                 glStencilOpSeparate(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_INVERT);
                 glStencilMask(FIRST_MARK);
                 glStencilFunc(GL_EQUAL, 0, 0xff);
@@ -714,6 +911,12 @@ final class GlBatch implements AutoCloseable {
                 }
             }
             case STENCIL_COVER -> {
+                // The cover paints only pixels the fringe left alone, inside the outline, so the copy
+                // made for the fringe still holds what they held; made again, it is the same there.
+                if (rule != GlBlend.RULE_NONE) {
+                    copyTargetUnderRecords(0, twoPassCount);
+                    bindTargetCopy();
+                }
                 glStencilMask(0xff);
                 glStencilFunc(GL_NOTEQUAL, 0, inside);
                 if (blendThen != null) {
@@ -733,8 +936,15 @@ final class GlBatch implements AutoCloseable {
         glDisable(GL_STENCIL_TEST);
     }
 
+    /** Binds the copy a rule reads after {@link #copyTarget} left another texture on its unit. */
+    private void bindTargetCopy() {
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, targetCopy);
+        glActiveTexture(GL_TEXTURE0);
+    }
+
     void ensure(int vertexSlots, int indexSlots) {
-        if (blendThen != null) {
+        if (byRuns()) {
             if (flatVertexCount > 0) {
                 flushFlat(); // drawn before this primitive, and its records with it
             }
@@ -767,7 +977,7 @@ final class GlBatch implements AutoCloseable {
         if (flatVertexCount > 0) {
             flushFlat(); // drawn before this primitive, which the canvas asked for after it
         }
-        if (blendThen != null && twoPassCount > 0) {
+        if (twoPassCount > 0 && byRuns()) {
             int at = (twoPassCount - 1) * 4; // the primitive this vertex belongs to grows to hold it
             twoPassBox[at] = Math.min(twoPassBox[at], posX);
             twoPassBox[at + 1] = Math.min(twoPassBox[at + 1], posY);
@@ -804,7 +1014,7 @@ final class GlBatch implements AutoCloseable {
         if (flatVertices.remaining() < 6 * FLAT_VERTEX_FLOATS) {
             flatVertices = MemoryUtil.memRealloc(flatVertices, flatVertices.capacity() * 2);
         }
-        if (blendThen != null) {
+        if (byRuns()) {
             beginTwoPassPrimitive(flatVertexCount, x0, y0, x1, y1, 0);
         }
         flatVertex(x0, y0, r, g, b, a);
@@ -916,6 +1126,19 @@ final class GlBatch implements AutoCloseable {
 
     /** The composite's quad, or its pieces, under the clip, once, in the factors set now. */
     private void drawCompositeOnce(float alpha, @Nullable DeviceClip clip) {
+        if (maskTexture != 0 || rule != GlBlend.RULE_NONE) {
+            // A mask's coverage and a rule are computed per fragment, by the variant program,
+            // over all of the picture; under no clip, the target is the clip.
+            DeviceClip under = clip;
+            if (under == null) {
+                under = wholeTarget;
+                under.resetTo(targetX, targetY, targetX + targetWidth, targetY + targetHeight);
+            }
+            useComputedComposite(alpha, under);
+            drawIn((int) Math.floor(under.x0), (int) Math.floor(under.y0),
+                    (int) Math.ceil(under.x1), (int) Math.ceil(under.y1));
+            return;
+        }
         if (clip == null) {
             usePlainComposite(alpha);
             glDrawArrays(GL_TRIANGLES, 0, compositeCount);
@@ -971,8 +1194,12 @@ final class GlBatch implements AutoCloseable {
         glUniform1f(compositeUniformAlpha, alpha);
     }
 
+    /** The target's own rectangle, for a composite under a mask or a rule and no clip. */
+    private final DeviceClip wholeTarget = new DeviceClip();
+
     private void useComputedComposite(float alpha, DeviceClip clip) {
         clippedCompositeProgram.use();
+        applyMaskAndRule(clippedUniformMaskOn, clippedUniformMaskRect, clippedUniformRule);
         glUniform2f(clippedUniformViewport, targetWidth, targetHeight);
         glUniform2f(clippedUniformOrigin, targetX, targetY);
         glUniform1f(clippedUniformAlpha, alpha);
@@ -1015,6 +1242,11 @@ final class GlBatch implements AutoCloseable {
         if (right <= left || top <= bottom) {
             return;
         }
+        if (rule != GlBlend.RULE_NONE) {
+            glDisable(GL_SCISSOR_TEST);
+            copyTarget(left, bottom, right - left, top - bottom);
+            bindTargetCopy();
+        }
         glEnable(GL_SCISSOR_TEST);
         glScissor(left, bottom, right - left, top - bottom);
         glDrawArrays(GL_TRIANGLES, 0, compositeCount);
@@ -1054,6 +1286,7 @@ final class GlBatch implements AutoCloseable {
         glUniform2f(uniformOrigin, targetX, targetY);
         glUniform2f(uniformWindow, fbWidth, fbHeight);
         glUniform1f(uniformExposure, exposure);
+        applyMaskAndRule(uniformMaskOn, uniformMaskRect, uniformRule);
         if (textureId != 0) {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, textureId);
@@ -1061,7 +1294,7 @@ final class GlBatch implements AutoCloseable {
         applyRasterState();
         if (stencilPhase != STENCIL_NONE) {
             drawStencilPhase(indexCount);
-        } else if (blendThen != null) {
+        } else if (byRuns()) {
             drawInTwoPasses(true, indexCount);
         } else {
             glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
@@ -1086,7 +1319,7 @@ final class GlBatch implements AutoCloseable {
         glUniform2f(flatUniformViewport, targetWidth, targetHeight);
         glUniform2f(flatUniformOrigin, targetX, targetY);
         applyRasterState();
-        if (blendThen != null) {
+        if (byRuns()) {
             drawInTwoPasses(false, flatVertexCount);
         } else {
             glDrawArrays(GL_TRIANGLES, 0, flatVertexCount);
@@ -1137,6 +1370,9 @@ final class GlBatch implements AutoCloseable {
         clippedCompositeProgram.close();
         glDeleteSamplers(smoothSampler);
         glDeleteSamplers(mipmapSampler);
+        if (targetCopy != 0) {
+            Gl.glDeleteTextures(targetCopy);
+        }
         MemoryUtil.memFree(compositeVertices);
         MemoryUtil.memFree(vertices);
         MemoryUtil.memFree(indices);

@@ -127,18 +127,29 @@ public final class PdfWriter {
         String key = Pdf.num(alpha) + "/" + blend;
         String name = states.get(key);
         if (name == null) {
-            String mode = switch (blend) {
-                case MULTIPLY -> "/Multiply";
-                // PDF has no linear add; Screen is the nearest of its separable modes.
-                case ADDITIVE -> "/Screen";
-                default -> "/Normal";
-            };
+            String mode = blendName(blend);
             name = "GS" + (++counter);
             resources.put(name, file.object("<</Type/ExtGState/ca " + Pdf.num(alpha) + "/CA " + Pdf.num(alpha)
                     + "/BM" + mode + ">>"));
             states.put(key, name);
         }
         return name;
+    }
+
+    /**
+     * PDF's name for a blend mode. The Porter-Duff rules are none of PDF's: a layer drawn in one
+     * reaches the page as an image ({@link RecordingCanvas}), and where no picture could be made it
+     * is drawn as normal painting.
+     */
+    private static String blendName(BlendMode blend) {
+        return switch (blend) {
+            case MULTIPLY -> "/Multiply";
+            // PDF has no linear add; Screen is the nearest of its separable modes.
+            case ADDITIVE, SCREEN -> "/Screen";
+            case DARKEN -> "/Darken";
+            case LIGHTEN -> "/Lighten";
+            default -> "/Normal";
+        };
     }
 
     /**
@@ -153,7 +164,7 @@ public final class PdfWriter {
                         + resources.get(shading) + " 0 R>>>>",
                 ("/" + shading + " sh").getBytes(StandardCharsets.ISO_8859_1), true);
         String name = "GS" + (++counter);
-        String mode = blend == BlendMode.MULTIPLY ? "/Multiply" : blend == BlendMode.ADDITIVE ? "/Screen" : "/Normal";
+        String mode = blendName(blend);
         resources.put(name, file.object("<</Type/ExtGState/BM" + mode + "/SMask<</S/Luminosity/G " + group
                 + " 0 R>>>>"));
         return name;

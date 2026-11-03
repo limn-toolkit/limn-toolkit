@@ -94,6 +94,7 @@ public final class LwjglBackend implements BackendPeer {
     private final UiRuntime uiRuntime;
     private final FontStore fontStore;
     private final FontOutlines glyphOutlines;
+    private final limn.backend.spi.OffscreenPainter offscreenPainter = this::paintOffscreen;
     private limn.graphics.FontCatalog fontCatalog;
     private limn.graphics.FontLoader fontLoader;
     private final ShapingRuler textRuler;
@@ -437,7 +438,8 @@ public final class LwjglBackend implements BackendPeer {
         glyphOutlines = new FontOutlines(fontStore);
         // Every service at once, through the one call the SPI names (ADR 046 §5).
         new limn.backend.spi.BackendServices(uiRuntime, textRuler, fontCatalog, fontLoader, imageDecoder,
-                svgRenderer, graphics3d, videoSurfaces, audio, audioDecoder, glyphOutlines).install();
+                svgRenderer, graphics3d, videoSurfaces, audio, audioDecoder, glyphOutlines,
+                offscreenPainter).install();
         // Same shape as the font store's background loads: pay the file-dialog
         // library's extract-and-link on a worker now, not on the click that
         // wants a chooser. It buys back milliseconds, not the panel's real
@@ -1582,6 +1584,25 @@ public final class LwjglBackend implements BackendPeer {
         return glCapabilities;
     }
 
+    /**
+     * Draws into a picture off screen, in the context of the first open window that can draw: what a
+     * printed page asks for a layer drawn under a Porter-Duff rule. Null with no such window, and
+     * inside a frame, whose canvas and context it would take from under the frame.
+     */
+    private limn.graphics.@org.jspecify.annotations.Nullable Image paintOffscreen(int width, int height,
+            java.util.function.Consumer<limn.graphics.Canvas> painter) {
+        if (GlCanvas.current() != null) {
+            return null;
+        }
+        for (LwjglWindow window : windows) {
+            limn.graphics.Image picture = window.paintOffscreen(width, height, painter);
+            if (picture != null) {
+                return picture;
+            }
+        }
+        return null;
+    }
+
     /** @return the windows that are open, for the menu bar's rule of which bar is shown */
     List<LwjglWindow> openWindows() {
         return windows;
@@ -1723,6 +1744,7 @@ public final class LwjglBackend implements BackendPeer {
         Ui.uninstall(uiRuntime);
         limn.graphics.TextRulers.uninstall(textRuler);
         limn.backend.spi.GlyphOutlines.uninstall(glyphOutlines);
+        limn.backend.spi.OffscreenPainter.uninstall(offscreenPainter);
         limn.graphics.Fonts.uninstallCatalog(fontCatalog);
         limn.graphics.Fonts.uninstallLoader(fontLoader);
         limn.graphics.Images.uninstallDecoder(imageDecoder);

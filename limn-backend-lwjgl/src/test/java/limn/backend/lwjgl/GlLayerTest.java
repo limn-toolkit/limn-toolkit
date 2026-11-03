@@ -265,7 +265,7 @@ class GlLayerTest {
     // ------------------------------------------------------------------ the two ends
 
     @Test
-    void anOpacityOfOneOpensNoLayerAndZeroDrawsNothing() {
+    void anOpacityOfOneOpensALayerAsBelowItAndZeroDrawsNothing() {
         byte[] none = render(c -> { });
         byte[] zero = render(c -> {
             c.saveLayer(0, 0, W_PT, H_PT, 0f);
@@ -281,9 +281,10 @@ class GlLayerTest {
             popup(c);
             c.restore();
         });
-        assertEquals(0, open[0], "at 1 the layer is a save: no picture is made");
-        assertEquals(0, canvas.layerStats().textures(), "and none is held");
-        assertAtMost(0, render(GlLayerTest::popup), one, "the frame of today");
+        // What is drawn inside may blend with the layer's own picture, under a Porter-Duff rule, so
+        // the picture is made at 1 too; under normal drawing it is the frame drawn straight.
+        assertEquals(1, open[0], "at 1 too a picture is made");
+        assertAtMost(2, render(GlLayerTest::popup), one, "the frame drawn straight");
     }
 
     // ------------------------------------------------------------------ a 3D view inside a layer
@@ -355,7 +356,7 @@ class GlLayerTest {
             open[0] = c.openLayers();
             c.restore();
         });
-        assertEquals(0, open[0], "under NORMAL, 1 still opens nothing");
+        assertEquals(1, open[0], "under NORMAL, 1 opens a picture as well");
     }
 
     @Test

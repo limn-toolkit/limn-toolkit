@@ -1356,7 +1356,11 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
 
         // The panel, its border, its swatches and its lines fade as one picture, so the border
         // does not show through the text that covers it halfway through the fade.
-        canvas.saveLayer(px - 1, py - 1, panelWidth + 2, panelHeight + 2, fade);
+        if (fade < 1) {
+            canvas.saveLayer(px - 1, py - 1, panelWidth + 2, panelHeight + 2, fade);
+        } else {
+            canvas.save(); // faded in: drawn straight, as a picture of it at 1 would be
+        }
         try {
             canvas.fillRoundRectWithBorder(px, py, panelWidth, panelHeight, t.radiusSmall(),
                     theme.surfaceRaised(), Strokes.BORDER, theme.outline());

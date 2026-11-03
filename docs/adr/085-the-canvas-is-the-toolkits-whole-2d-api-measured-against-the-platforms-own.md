@@ -6,7 +6,8 @@
   against that API (section 1), proposes how to close it (sections 3 and 4) in six stages
   (section 7), names what stays out (section 5), and asked seven questions (section 6), which
   the owner answered the same day by taking every recommendation (section 9). Stage 1 built the
-  same day (section 10), stage 2 on 11-02 (section 11), stage 3 the same day (section 12). Two
+  same day (section 10), stage 2 on 11-02 (section 11), stage 3 the same day (section 12), stage 4
+  on 11-03 (section 13). Two
   defects in a shipped chart came out of the measurement (section 0.3); stage 2 fixed the first,
   and a third its pixel test found, and stage 3 the second.
 - **Date:** 2026-11-01
@@ -586,4 +587,98 @@ Built 2026-11-02 on the same branch, after stage 2's commit.
   was rewritten for the new page's row (29 rows to 30; nothing else changed in it), and the
   Showcase's draw-count budget did not move.
 - **Owed:** stage 4 (path clips, the exact rotated clip, blend modes), and the stages after it.
+
+## 13. Stage 4, as built
+
+Built 2026-11-03 on the same branch, after stage 3's commit. Two mechanisms of section 4 did not
+survive the measure, and one decision was the owner's.
+
+- **A path clip is a mask, not a layer.** Section 4.3 had a path clip open a layer and keep, at its
+  restore, what the path covers. A layer is a group: every blend mode inside it would then combine
+  with the group's transparent picture instead of with what lies under the clip, so a multiply
+  under a star clip would have shown as the plain colour. `clipPath` instead draws the path's
+  coverage, with the fill of stage 2 and so antialiased as a fill is, into a picture of the path's
+  device bounds cut to the clip in force (the clip rectangle is cut to the same bounds, so a scissor
+  and `clipBounds` see them); every draw until the restore multiplies its own coverage by the
+  mask's at its pixel, in the canvas program and in the composite of a layer opened under it. A
+  second path clip draws its mask under the first, which it then replaces: their intersection. The
+  clip rectangle and the rounded clip stay apart from the mask, each counted once. The cost is the
+  fill into the mask and a flush where the clip is made, and nothing per draw after it: a circle
+  clip and a frame under it, two draw calls. A layer opened under a mask starts without one, and
+  its composite is cut by it.
+- **The exact turned clip** is that path clip: `clipRect` and `clipRoundRect` under a transform
+  that turns or leans the axes clip by the rectangle as a path, so case 4 of section 0.3 stops at
+  its turned edges. Under a scale or a mirror they are the rectangle clips of before.
+- **Sixteen blend modes.** `SCREEN` is one pass of fixed factors, `cs + cb·(1 − cs)`, keeping the
+  window's coverage as `MULTIPLY` does and taking an over's in a group. Of the Porter-Duff rules,
+  those that weigh the destination by 1 or by `1 − as` (`DESTINATION_OVER`, `DESTINATION_OUT`,
+  `SOURCE_ATOP`, `XOR`) are exact with fixed factors at an antialiased edge too, where the edge's
+  coverage is folded into the source's alpha. The other six (`CLEAR`, `SOURCE`, `SOURCE_IN`,
+  `DESTINATION_IN`, `SOURCE_OUT`, `DESTINATION_ATOP`) weigh it by 0 or by `as`, and folded coverage
+  then takes too much or too little of the destination at every edge. And section 4.4's minimum and
+  maximum equations for `DARKEN` and `LIGHTEN` take no factors at all: measured, a white shape in
+  `DARKEN` over grey darkened its own edge toward black, `min(m, 0.5)` at coverage `m`. Those eight
+  are computed by the canvas program from a copy of the target under what is drawn, with the
+  coverage kept apart from the paint: the pixel is the rule's result weighed against the
+  destination by the coverage, so an edge keeps the rest of what it held and a pixel the draw
+  misses keeps all of it. The copy is made per run of draws none of which overlaps another, as the
+  two passes of `MULTIPLY` in a group are: two shapes apart, one copy and one draw; two that
+  overlap, two. `DARKEN` and `LIGHTEN` are the web's separable formula, keeping the window's
+  coverage on the window. A Porter-Duff rule outside any layer acts on the window, which is opaque:
+  what it leaves transparent shows black, as on any opaque surface.
+- **`saveLayer` at 1 opens a layer.** It opened none at an opacity of 1 under the normal mode,
+  since the picture was the same drawn straight; under a Porter-Duff rule it is not, and the eraser
+  of the guide would have erased the window. The toolkit's own fades, a chart's and the scene's
+  tooltip, now save at 1 themselves; the `Opacity` container already opened no layer at rest.
+- **Porter-Duff in PDF is a picture, at the owner's word (2026-11-03).** PDF has none of these
+  rules, and the core has no rasterizer of its own. Asked whether to raster now, to write seven
+  rules by soft masks (exact in the shapes' interiors for seven, wrong for three with translucent
+  colours), or to wait for stage 6's image off screen, the owner took the first. A
+  `limn.backend.spi.OffscreenPainter`, an optional service of `BackendServices` (the record keeps
+  its constructor of eleven), draws into a picture off any window: the backend's draws with a canvas
+  of its own in the context of the first open window that can draw, so a window's layers and atlas
+  are left as they were, and answers nothing inside a frame. The recording of a page asks it, at a
+  layer's restore, for a layer whose drawing set a Porter-Duff rule: at the page's resolution times
+  the scale the layer stands at, and the layer becomes that image where it stood, at its opacity;
+  outside any layer the page is the layer. The preview replays the same picture. A scene's settling
+  frames are recorded into a scratch canvas that asks for none. Without a backend, or a window, the
+  calls stay and the rules are drawn as normal painting, said once per page. `SCREEN`, `DARKEN` and
+  `LIGHTEN` are PDF's own; a path clip is PDF's `W n` or `W* n`.
+- **The demo's page** gains two panels: a star clipping stripes that slide under it, a rectangle
+  clipped as it turns, an eraser crossing a card and a gradient drawn only over a ring, each of the
+  last two inside a layer; and the sixteen modes, a disc and then a square drawn over it in each,
+  over a checkerboard so that what a mode leaves transparent shows. Strings in the Showcase's 21
+  languages.
+- **Tests:** `GlClipBlendTest`, on a headless context: a star clip under both rules and a turned
+  rectangle clip each equal, pixel for pixel within 2, to the fill of the same path, and the points
+  clearly inside and outside each are ink and page; two path clips leave their intersection, and
+  each restore lifts its own; a path clip cuts a layer's composite and keeps a multiply a multiply;
+  a circle clip and a frame under it are two draw calls; every mode, on a target of any coverage and
+  inside a layer, gives its premultiplied rule over both, over the source alone, and leaves the
+  destination alone untouched; darken and lighten leave no ring at an edge; `SOURCE` at an edge
+  keeps the destination in part; a rule copies the target once per run and a fixed one never.
+  `PdfPorterDuffTest` prints a widget whose layer an eraser crosses through the backend's own
+  painter: the layer is drawn once, at the page's resolution, with the hole clear, and the file
+  holds an image. `PdfClipBlendTest` holds the clip operators, PDF's own modes, a layer kept as a
+  picture where it stood at its opacity, a page kept as one, the calls kept without a backend, and a
+  recorded clip's own copy of its path; `GlBlendTest` the factors and the rules; `CanvasClipDefaultsTest`
+  the default. `GlTurnedLayerTest` held the turned clip's old box as its control; it now holds the
+  straight clip as exact as the turned picture's. Mutations: a rule that ignores the coverage failed
+  the edge test; a mask that reads 1 everywhere, the star and turned-square clips; no copy of the
+  target, every rule test.
+- **On the guests,** with the bundle of section 11: `GlClipBlendTest`, `PdfPorterDuffTest`,
+  `GlLayerTest`, `GlGroupBlendTest`, `GlTurnedLayerTest`, `GlBlendTest`, `GlFillRuleTest` and
+  `GlStrokeTest`, 67 tests, pass on Windows 11 ARM64 on the Parallels driver and on ANGLE over
+  Direct3D 11, and on Fedora on Mesa over virgl: 64 each, the other three asking for macOS's second,
+  software context. The copy of the target, the integer uniforms and the texel reads of the programs
+  run on all three.
+- **Found, and owed: a path fill covers half a pixel too much all round.** Its antialiasing fringe
+  runs from the outline, at full coverage, a pixel outward, where an analytic shape's edge has half
+  its coverage on the outline itself; so every path filled, on either route of stage 2, is half a
+  device pixel larger than its outline, and a path clip, drawn with that fill, lets half a pixel more
+  through: 0.8% of a turned 320 by 200 pixel rectangle, against the turned picture's exact clip. It
+  is older than this record (the ear clipper's fringe always ran so); a mitred fringe past a sharp
+  tip also overreaches, about half the tip's pixel. A fringe centred on the outline needs the
+  interior inset by half a pixel on the ear clipper's route and, on the stencil's, a second fringe
+  pass for the inside, which the cover then skips.
 

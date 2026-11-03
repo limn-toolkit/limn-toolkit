@@ -125,6 +125,18 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
          * composite reads past the picture's own; 0 for every other state.
          */
         int mipLevels;
+        /**
+         * The path clip in force ({@link #clipPath}): a picture of its coverage on the pixels of the
+         * space this state draws in, over the rectangle below, or null for none. A save shares its
+         * parent's; a layer starts with none, since its composite is what the clip cuts.
+         */
+        GlLayerPool.Picture mask;
+        int maskX;
+        int maskY;
+        int maskWidth;
+        int maskHeight;
+        /** Whether this state made {@link #mask} and gives it back to the pool at its restore. */
+        boolean ownsMask;
 
         void copyFrom(State other) {
             transform.copyFrom(other.transform);
@@ -140,6 +152,18 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             layer = null; // a save is never a layer of its own; saveLayer makes it one
             rebased = false;
             mipLevels = 0;
+            mask = other.mask;
+            maskX = other.maskX;
+            maskY = other.maskY;
+            maskWidth = other.maskWidth;
+            maskHeight = other.maskHeight;
+            ownsMask = false;
+        }
+
+        /** Starts this state's drawing with no path clip, as a layer's does. */
+        void dropMask() {
+            mask = null;
+            ownsMask = false;
         }
     }
 
@@ -287,6 +311,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         imageTextures.contextLost();
         backdrop = null;
         layers = null;
+        for (State st : states) {
+            st.dropMask(); // their pictures went with the pool
+        }
         openLayers = 0;
         baseFramebuffer = 0;
         if (gl3d != null) {
@@ -317,6 +344,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         root.blendMode = limn.graphics.BlendMode.NORMAL;
         root.sampling = limn.graphics.Sampling.SMOOTH;
         root.pixelSnap = true;
+        root.dropMask();
         // Frame boundary: no pending geometry references the old pages/textures.
         boolean texturesDeleted = imageTextures.beginFrameAndEvict();
         texturesDeleted |= atlas.beginFrameAndEvict();
@@ -343,6 +371,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             }
         }
         batch.flush();
+        State root = states.get(0);
+        if (root.ownsMask) {
+            layers.give(root.mask); // a path clip the frame never restored
+        }
+        root.dropMask();
         if (layers != null && layers.endFrame()) {
             batch.resetTexture(); // a picture this frame did not use went back to the driver
         }
@@ -373,6 +406,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
 
     int drawCallsLastFrame() {
         return batch != null ? batch.drawCalls() : 0;
+    }
+
+    /** @return the copies of the target the last frame made for a blend rule; for tests */
+    int targetCopiesLastFrame() {
+        return batch != null ? batch.targetCopies() : 0;
     }
 
     /** @return how many rectangles this frame drew with the flat program (see {@link #emitFlatRect}) */
@@ -592,6 +630,12 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         if (closing.layer != null) {
             closeLayer(closing);
         }
+        if (closing.ownsMask) {
+            // What was drawn under it is drawn now, before the pool may hand its picture out again.
+            batch.flush();
+            layers.give(closing.mask);
+            closing.dropMask();
+        }
     }
 
     /**
@@ -605,11 +649,12 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      * flush, a bind and the clear of the picture's part, and nothing per draw inside it.
      *
      * <p>Inside it the opacity starts again from 1 and the blend mode from normal, since the
-     * composite carries both; the clip is cut to the layer. An opacity of 1 under
-     * {@link limn.graphics.BlendMode#NORMAL} opens no layer and is a {@link #save()}, since the
-     * picture is then the same drawn straight; under another mode it opens one, so that the rule
-     * holds at every opacity and a fade arriving at 1 does not jump. One of 0, or a rectangle
-     * nothing of which can show, is a save under an empty clip, which draws nothing. Where the
+     * composite carries both; the clip is cut to the layer. A layer is opened at every opacity, 1
+     * included: what is drawn inside may blend with the layer's own picture, which starts
+     * transparent, under a Porter-Duff rule or another mode, and drawn straight it would blend with
+     * the window instead; a caller that fades a group whose drawing needs no picture of its own
+     * saves instead at 1. One of 0, or a rectangle nothing of which can show, is a save under an
+     * empty clip, which draws nothing. Where the
      * driver cannot make a picture, the layer falls back to what every canvas without layers draws:
      * the per-draw opacity, each draw in the blend mode in force.
      */
@@ -624,12 +669,6 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     private void openLayer(float x, float y, float width, float height, float opacity) {
         float alpha = opacity > 0 ? Math.min(1f, opacity) : 0f;
         State s = state();
-        if (alpha >= 1f && s.blendMode == limn.graphics.BlendMode.NORMAL) {
-            // Nothing to fade and nothing to blend: drawing straight into the target is the same
-            // picture. Under another mode it is not, since each draw would blend on its own where
-            // the picture is blended once, and a fade arriving at 1 would jump.
-            return;
-        }
         // The rectangle's device bounds, cut to the clip and moved outward to whole device pixels,
         // so every draw inside keeps the pixel grid it has in the window.
         Transform2D t = s.transform;
@@ -685,6 +724,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         s.opacity = 1f;
         s.blendMode = limn.graphics.BlendMode.NORMAL;
         s.clip.intersectRect(lx0, ly0, lx1, ly1);
+        s.dropMask(); // the composite is cut by it, at the restore
         openLayers++;
         bindTarget(s);
         // Only the part this layer draws in is cleared: the picture may be larger than the layer,
@@ -700,10 +740,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      * Opens a layer drawn in a space of its own and composited through {@code transform}, after the
      * canvas's own transform: a rotated, skewed or turned subtree.
      *
-     * <p><b>A transform that keeps the axes needs no picture.</b> A translation and a scale, a
-     * mirror among them, are applied straight to the state, every clip inside staying exact, and the
-     * layer is then the plain one of {@link #saveLayer(float, float, float, float, float)}, which at
-     * an opacity of 1 under normal blending is no layer at all.
+     * <p><b>A transform that keeps the axes needs no space of its own.</b> A translation and a
+     * scale, a mirror among them, are applied straight to the state, every clip inside staying
+     * exact, and the layer is then the plain one of
+     * {@link #saveLayer(float, float, float, float, float)}, on the pixels it is drawn on. (The
+     * toolkit's transform container draws such a transform with no layer at all.)
      *
      * <p><b>Any other is drawn re-based.</b> The picture covers what of the rectangle can be seen:
      * the rectangle cut by the near plane, where a perspective puts the eye, and by the enclosing
@@ -911,6 +952,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         s.layerOpacity = alpha;
         s.opacity = 1f;
         s.blendMode = limn.graphics.BlendMode.NORMAL;
+        s.dropMask(); // in a space of its own; the composite is cut by it, at the restore
         Transform2D inside = s.transform;
         inside.m00 = (float) k;
         inside.m01 = 0;
@@ -1453,6 +1495,15 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      * overlaps one already in it, since the second pass reads what the first left.
      */
     private void applyBlend(State s) {
+        GlLayerPool.Picture mask = s.mask;
+        batch.requireMask(mask == null ? 0 : mask.texture, s.maskX, s.maskY, s.maskWidth, s.maskHeight);
+        int rule = veiling ? GlBlend.RULE_NONE : GlBlend.shaderRule(s.blendMode, openLayers > 0);
+        batch.requireRule(rule);
+        if (rule != GlBlend.RULE_NONE) {
+            GlBlend.Factors f = GlBlend.REPLACE;
+            batch.requireBlend(f.srcRgb(), f.dstRgb(), f.srcAlpha(), f.dstAlpha());
+            return;
+        }
         if (!veiling && openLayers > 0 && s.blendMode != limn.graphics.BlendMode.NORMAL) {
             GlBlend.InGroup g = GlBlend.inGroup(s.blendMode);
             batch.requireBlend(g.first(), g.then());
@@ -1464,6 +1515,12 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
 
     @Override
     public void clipRect(float x, float y, float width, float height) {
+        Transform2D t = state().transform;
+        if (t.m01 != 0 || t.m10 != 0) {
+            // Turned or leaning: its device box would hold more than the rectangle.
+            clipPath(new Path2D().addRect(x, y, Math.max(0, width), Math.max(0, height)));
+            return;
+        }
         // Narrows the clip rectangle only. A rounded clip already in force keeps its own rectangle
         // and radius, so this cuts it straight rather than rounding the corners of what is left:
         // the pass a partial repaint clips to is one of these, and a pass must draw what the whole
@@ -1492,6 +1549,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     @Override
     public void clipRoundRect(RoundRect roundRect) {
         ensureInFrame();
+        Transform2D t = state().transform;
+        if (t.m01 != 0 || t.m10 != 0) {
+            clipPath(new Path2D().addRoundRect(roundRect));
+            return;
+        }
         RoundRect rr = roundRect.normalized();
         float maxRadius = Math.max(Math.max(rr.topLeft(), rr.topRight()),
                 Math.max(rr.bottomRight(), rr.bottomLeft()));
@@ -1518,6 +1580,109 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         float dx1 = max4(t.x(x, y), t.x(x1, y), t.x(x, y1), t.x(x1, y1));
         float dy1 = max4(t.y(x, y), t.y(x1, y), t.y(x, y1), t.y(x1, y1));
         s.clip.intersectRoundRect(dx0, dy0, dx1, dy1, deviceRadius);
+    }
+
+    /**
+     * Cuts the clip to the region {@code path} fills: its device bounds narrow the clip rectangle, as
+     * a scissor and {@link #clipBounds()} see it, and its coverage is drawn into a picture of those
+     * bounds, the mask, which every draw until the restore multiplies its own coverage by. The mask
+     * is drawn with the path's own fill, antialiased as a fill is, under the mask already in force,
+     * which it then replaces, so that two path clips leave their intersection; the clip rectangle
+     * and the rounded clip stay apart, each counted once by the draws. Where the driver gives no
+     * picture the bounds alone clip.
+     */
+    @Override
+    public void clipPath(Path2D path) {
+        ensureInFrame();
+        State s = state();
+        if (s.clip.isEmpty()) {
+            return;
+        }
+        if (path.isEmpty()) {
+            s.clip.intersectRect(0, 0, 0, 0);
+            return;
+        }
+        Transform2D t = s.transform;
+        collectPath(path, t);
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < pathCollector.count; i++) {
+            float px = pathCollector.xs[i];
+            float py = pathCollector.ys[i];
+            float dx = t.x(px, py);
+            float dy = t.y(px, py);
+            minX = Math.min(minX, dx);
+            minY = Math.min(minY, dy);
+            maxX = Math.max(maxX, dx);
+            maxY = Math.max(maxY, dy);
+        }
+        // The fill's antialiasing fringe reaches past the outline, farthest at a sharp corner, where
+        // it is mitred: as far as a fill's cover reaches.
+        float reach = (FRINGE_MITER_LIMIT + 1) * AA_PAD_DEVICE;
+        s.clip.intersectRect(minX - reach, minY - reach, maxX + reach, maxY + reach);
+        if (s.clip.isEmpty()) {
+            return;
+        }
+        int lx0 = Math.max(0, (int) Math.floor(s.clip.x0));
+        int ly0 = Math.max(0, (int) Math.floor(s.clip.y0));
+        int lx1 = Math.min(fbWidth, (int) Math.ceil(s.clip.x1));
+        int ly1 = Math.min(fbHeight, (int) Math.ceil(s.clip.y1));
+        if (lx1 <= lx0 || ly1 <= ly0) {
+            s.clip.intersectRect(0, 0, 0, 0);
+            return;
+        }
+        if (layers == null) {
+            layers = new GlLayerPool();
+        }
+        batch.flush();
+        if (openLayers == 0) {
+            baseFramebuffer = Gl.glGetInteger(org.lwjgl.opengl.GL33C.GL_DRAW_FRAMEBUFFER_BINDING);
+        }
+        int lw = lx1 - lx0;
+        int lh = ly1 - ly0;
+        GlLayerPool.Picture picture = layers.take(lw, lh, fbWidth, fbHeight);
+        if (picture == null) {
+            bindTarget(innermostLayer());
+            return; // the bounds clip, a region that holds the path's
+        }
+        // A state of the canvas's own over the picture, drawing on the same pixels as this one, under
+        // this one's mask, and under no clip but the picture's rectangle.
+        save();
+        State m = state();
+        m.layer = picture;
+        m.layerX = lx0;
+        m.layerY = ly0;
+        m.layerWidth = lw;
+        m.layerHeight = lh;
+        m.layerOpacity = 1f;
+        m.opacity = 1f;
+        m.blendMode = limn.graphics.BlendMode.NORMAL;
+        m.clip.resetTo(lx0, ly0, lx1, ly1);
+        openLayers++;
+        bindTarget(m);
+        Gl.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        Gl.glScissor(0, 0, lw, lh);
+        Gl.glClearColor(0f, 0f, 0f, 0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        Gl.glDisable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
+        fillPath(path, Color.WHITE);
+        batch.flush();
+        m.layer = null;
+        m.dropMask();
+        depth--;
+        openLayers--;
+        bindTarget(innermostLayer());
+        if (s.ownsMask) {
+            layers.give(s.mask);
+        }
+        s.mask = picture;
+        s.maskX = lx0;
+        s.maskY = ly0;
+        s.maskWidth = lw;
+        s.maskHeight = lh;
+        s.ownsMask = true;
     }
 
     // ----------------------------------------------------------------- shapes
@@ -3174,8 +3339,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      */
     private boolean emitFlatRect(State s, float x, float y, float x1, float y1, Paint paint) {
         Transform2D t = s.transform;
-        if (!(paint instanceof Color c) || s.clip.radius > 0 || t.m01 != 0 || t.m10 != 0) {
-            return false;
+        if (!(paint instanceof Color c) || s.clip.radius > 0 || t.m01 != 0 || t.m10 != 0 || s.mask != null
+                || GlBlend.shaderRule(s.blendMode, true) != GlBlend.RULE_NONE) {
+            return false; // the flat program reads no mask and computes no rule
         }
         float ax = t.x(x, y);
         float bx = t.x(x1, y1);
