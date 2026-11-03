@@ -73,6 +73,24 @@ What PDF cannot hold is drawn another way:
 - A glass or blur effect is its plain tint.
 - A video or a 3D view is left out, with a warning. Print a still image of it instead.
 
+## On a server
+
+A program with no window draws documents too: a report a server writes as PDF, a batch job's
+images. Where the machine has no display, Linux with neither `DISPLAY` nor `WAYLAND_DISPLAY`, a
+container, a CI job or a Windows service, the backend starts without one by itself; elsewhere
+`-Dlimn.backend.headless=true` asks for it. Such a backend opens no window (`canOpenWindows()` is
+false) and draws with the same canvas a window draws with, on the GPU where the system lets the
+process reach it and on the processor otherwise, so a page comes out as it does on a desktop. Its
+event loop has no window to wait for, so it runs until the program says it is done:
+
+```java
+backend.setLoopLifetime(LoopLifetime.UNTIL_QUIT);
+document.writePdf(file).onSuccess(done -> backend.stop()).start();
+backend.runEventLoop();
+```
+
+`Images.render` draws a picture the same way, with or without a window open.
+
 ## Printing it
 
 {% snippet guide:print-print %}

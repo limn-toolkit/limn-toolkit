@@ -14,8 +14,9 @@ Windows and Linux JVMs refuse it; [Packaging](/docs/packaging/) shows where it g
 of launcher.
 
 **On Linux, the message says "neither DISPLAY nor WAYLAND_DISPLAY is set".** There is no display
-server: a shell over SSH, a container, a CI job. Give it one with `xvfb-run`, or run the program
-from a desktop session.
+server: a shell over SSH, a container, a CI job. The backend started without one, as it does there,
+and opens no window; it still draws images and documents (see [Printing](/docs/printing/#on-a-server)).
+For windows, give it a display with `xvfb-run`, or run the program from a desktop session.
 
 **The message says "Limn needs an OpenGL 3.3 core context".** The machine's own OpenGL gave the
 window nothing, or nothing new enough. Where the refusal is one it can route around, a Windows

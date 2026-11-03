@@ -226,6 +226,30 @@ final class AngleFallback {
     }
 
     /**
+     * Moves the process onto ANGLE for a backend that makes no window, a Windows service's: its
+     * pictures off screen are drawn with ANGLE's context on Direct3D 11, which needs none.
+     *
+     * @return whether ANGLE is loaded and the process is on its profile
+     */
+    static boolean takeWithoutWindows() {
+        if (off() || !AngleLibrary.platformHasFallback() || !AngleLibrary.load()) {
+            failure = off() ? "-D" + PROPERTY + "=off" : AngleLibrary.failure();
+            return false;
+        }
+        if (!taken) {
+            taken = true;
+            leaveDesktopBinding();
+            Gl.use(GlesGl.INSTANCE);
+            long display = EglContext.angleDisplay();
+            if (display != NULL) {
+                EglProgramCache.install(display);
+            }
+            LOG.log(System.Logger.Level.INFO, "OpenGL context: {0}, with no window; OpenGL ES 3.0", describe());
+        }
+        return true;
+    }
+
+    /**
      * Destroys LWJGL's desktop OpenGL binding before the process takes the ES one: only one of the
      * two can exist, and creating the second while the first stands throws. The backend's own WGL
      * context loads the desktop binding before it asks for a context, so on a machine whose OpenGL

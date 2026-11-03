@@ -803,7 +803,10 @@ are built.
   `GlClipBlendTest` and `GlReadBackTest`, 27, pass on Windows on the Parallels driver and on ANGLE
   over Direct3D 11, and on Fedora's Mesa: a picture drawn off screen inside a frame leaves the frame
   as it was on all three.
-- **What is left.** Every stage of section 7 is built. Not proposed, and still not: a canvas over an
-  image on any thread (question 4) and constructive geometry (question 6), each waiting for an
-  application that asks.
+- **What is left.** Every stage of section 7 is built. Not proposed, and still not: constructive
+  geometry (question 6), waiting for an application that asks. Question 4's "CPU canvas" was the
+  wrong shape for its need: [ADR 086](086-a-backend-without-a-display-draws-with-the-same-canvas.md)
+  measured that a picture with no window, and a backend with no display, need a context and not a
+  second rasterizer, since the software fallbacks run this canvas on the processor, and built that;
+  drawing off the UI thread stays apart.
 

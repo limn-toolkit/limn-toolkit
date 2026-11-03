@@ -1,0 +1,103 @@
+package limn.backend.lwjgl;
+
+import limn.backend.WindowConfig;
+import limn.graphics.BlendMode;
+import limn.graphics.Canvas;
+import limn.graphics.Color;
+import limn.graphics.Gradient;
+import limn.graphics.Image;
+import limn.graphics.Images;
+import limn.print.Document;
+import limn.print.Paper;
+import limn.scene.Constraints;
+import limn.scene.Size;
+import limn.scene.Widget;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * A program, not a test: what a server does with the toolkit, run in a process of its own by
+ * {@link HeadlessBackendTest} and on the guests by hand. It starts the backend and opens no window,
+ * draws a picture, and writes a document whose layer an eraser crosses, then prints one line per
+ * finding, and {@code OK} when every one held. With no argument the backend is expected to have
+ * started without a display, and to refuse a window; with {@code display}, to have one, and to draw
+ * all the same with no window open.
+ */
+public final class HeadlessDrawing {
+
+    private HeadlessDrawing() {
+    }
+
+    /** A red card with a round hole erased out of it, inside a layer of its own. */
+    private static final class Erased extends Widget<Erased> {
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(80, 60);
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            canvas.saveLayer(0, 0, 80, 60, 1);
+            canvas.fillRect(0, 0, 80, 60, Color.rgb(0xCC2020));
+            canvas.setBlendMode(BlendMode.DESTINATION_OUT);
+            canvas.fillCircle(40, 30, 20, Color.BLACK);
+            canvas.restore();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        boolean ok = true;
+        boolean display = args.length > 0 && args[0].equals("display");
+        LwjglBackend backend = new LwjglBackend("Headless drawing");
+        try {
+            System.out.println("canOpenWindows " + backend.canOpenWindows());
+            ok &= backend.canOpenWindows() == display;
+            if (!display) {
+                try {
+                    backend.createWindow(WindowConfig.of("never", 100, 100));
+                    System.out.println("a window was opened");
+                    ok = false;
+                } catch (IllegalStateException refused) {
+                    System.out.println("window refused: " + refused.getMessage());
+                }
+            }
+            Image image = Images.render(40, 30, 2, c -> {
+                c.fillCircle(20, 15, 10, Gradient.linear(10, 0, 30, 0, Color.rgb(0xCC2020), Color.rgb(0xCC2020)));
+                c.setBlendMode(BlendMode.DESTINATION_OUT);
+                c.fillCircle(20, 15, 4, Color.BLACK);
+            });
+            byte[] p = image.pixels();
+            int disc = (30 * 80 + 26) * 4;
+            int hole = (30 * 80 + 40) * 4;
+            System.out.println("image " + image.width() + "x" + image.height() + ", disc " + (p[disc] & 0xff) + "/"
+                    + (p[disc + 3] & 0xff) + ", hole alpha " + (p[hole + 3] & 0xff));
+            ok &= image.width() == 80 && (p[disc] & 0xff) == 0xCC && (p[disc + 3] & 0xff) == 255
+                    && (p[hole + 3] & 0xff) == 0;
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            AtomicReference<Object> done = new AtomicReference<>();
+            backend.setLoopLifetime(limn.backend.LoopLifetime.UNTIL_QUIT);
+            Document.of(Paper.A4).title("Headless").add(new Erased()).writePdf(bytes)
+                    .onSuccess(v -> {
+                        done.set(v);
+                        backend.stop();
+                    })
+                    .onFailure(e -> {
+                        done.set(e);
+                        backend.stop();
+                    })
+                    .start();
+            backend.runEventLoop();
+            String pdf = bytes.toString(StandardCharsets.ISO_8859_1);
+            boolean picture = pdf.contains("/Subtype/Image");
+            System.out.println("pdf " + bytes.size() + " bytes, " + (done.get() instanceof Throwable t ? "failed: " + t
+                    : "written") + ", the erased layer " + (picture ? "as a picture" : "NOT as a picture"));
+            ok &= !(done.get() instanceof Throwable) && picture;
+        } finally {
+            backend.close();
+        }
+        System.out.println(ok ? "OK" : "FAILED");
+        System.exit(ok ? 0 : 1);
+    }
+}

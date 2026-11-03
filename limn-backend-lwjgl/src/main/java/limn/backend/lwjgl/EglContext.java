@@ -247,6 +247,49 @@ final class EglContext implements WindowContext {
         }
     }
 
+    /**
+     * With ANGLE, an OpenGL ES 3.0 context on a one-pixel surface off any window: what the backend
+     * draws pictures off screen with where it may make no window at all, a Windows service's session
+     * among them, where making a window's OpenGL context ends the process. Every picture is drawn
+     * into a framebuffer of its own, so the surface is never drawn on. Left not current. The caller
+     * has loaded ANGLE and moved the process onto the ES profile.
+     *
+     * @return the context, or null if ANGLE gave none
+     */
+    static @Nullable EglContext onAnglePbuffer() {
+        long display = angleDisplay();
+        if (display == NULL) {
+            return null;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer wanted = stack.ints(
+                    EGL10.EGL_SURFACE_TYPE, EGL10.EGL_PBUFFER_BIT,
+                    EGL12.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+                    EGL10.EGL_RED_SIZE, 8, EGL10.EGL_GREEN_SIZE, 8, EGL10.EGL_BLUE_SIZE, 8,
+                    EGL10.EGL_ALPHA_SIZE, 8, EGL10.EGL_DEPTH_SIZE, 24, EGL10.EGL_STENCIL_SIZE, 8,
+                    EGL10.EGL_NONE);
+            PointerBuffer configs = stack.mallocPointer(1);
+            IntBuffer count = stack.mallocInt(1);
+            if (!EGL10.eglChooseConfig(display, wanted, configs, count) || count.get(0) == 0) {
+                return null;
+            }
+            long config = configs.get(0);
+            long surface = EGL10.eglCreatePbufferSurface(display, config,
+                    stack.ints(EGL10.EGL_WIDTH, 1, EGL10.EGL_HEIGHT, 1, EGL10.EGL_NONE));
+            if (surface == NULL) {
+                return null;
+            }
+            EGL12.eglBindAPI(EGL_OPENGL_ES_API);
+            long context = EGL10.eglCreateContext(display, config, EGL10.EGL_NO_CONTEXT,
+                    stack.ints(EGL_CONTEXT_MAJOR_VERSION, 3, EGL10.EGL_NONE));
+            if (context == NULL) {
+                EGL10.eglDestroySurface(display, surface);
+                return null;
+            }
+            return new EglContext(NULL, display, config, NULL, surface, true, context);
+        }
+    }
+
     /** @return ANGLE's display on Direct3D 11, made and initialised on first use */
     static long angleDisplay() {
         if (angleDisplay != NULL) {

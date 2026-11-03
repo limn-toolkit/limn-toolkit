@@ -64,7 +64,10 @@ public final class Images {
      * {@code scale} pixels each, transparent where it draws nothing: a thumbnail, a chart exported as
      * a picture, a drawing kept to be shown again as an image. The canvas is the running backend's,
      * so the image is what a window would show, its antialiasing, text and every paint and blend mode
-     * included. Inside a frame too: what the frame queued is drawn first, and the frame goes on.
+     * included. Inside a frame too: what the frame queued is drawn first, and the frame goes on. With
+     * no window open, and in a backend started without a display, a server's or a service's, the
+     * backend draws it with a context of its own, on the GPU where the system lets the process reach
+     * one and on the processor otherwise.
      *
      * @param width   in units
      * @param height  in units
@@ -73,9 +76,9 @@ public final class Images {
      * @param painter draws it; the canvas is valid only during the call
      * @return the image, straight alpha
      * @throws IllegalArgumentException for a size or a scale not above 0, or not finite
-     * @throws IllegalStateException    off the UI thread, or with no backend that draws off a window
-     *                                  (none started, or no window open whose context can draw), or
-     *                                  for a size the device refuses
+     * @throws IllegalStateException    off the UI thread, with no backend started, on a machine where
+     *                                  no OpenGL context can be had at all, or for a size the device
+     *                                  refuses
      */
     public static Image render(float width, float height, float scale, java.util.function.Consumer<Canvas> painter) {
         java.util.Objects.requireNonNull(painter, "painter");
@@ -89,8 +92,7 @@ public final class Images {
         Image image = limn.graphics.internal.Offscreen.current().paint(pw, ph, scale, painter);
         if (image == null) {
             throw new IllegalStateException("no image of " + pw + " x " + ph + " pixels could be drawn: no backend "
-                    + "that draws off a window is running, no window is open whose context can draw, or the device "
-                    + "refuses the size");
+                    + "is running, this machine gives the process no OpenGL context, or the device refuses the size");
         }
         return image;
     }

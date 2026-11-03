@@ -87,6 +87,12 @@ Maven Central say which number that was.
 - `limn.backend.spi.OffscreenPainter`, an optional service of `BackendServices`: draws into a
   picture off any window, which `Images.render` answers and a printed document asks for a layer
   drawn under a Porter-Duff rule. The record's constructor of eleven services stays (ADR 085).
+- A backend without a display: on Linux with neither `DISPLAY` nor `WAYLAND_DISPLAY`, in a Windows
+  service's session, or anywhere with `-Dlimn.backend.headless=true`, the backend starts, opens no
+  window (`Backend.canOpenWindows()` answers false, and a window asked for is refused saying why),
+  and draws pictures and documents with the same canvas, on the GPU where the system lets the process
+  reach one and on the processor otherwise. `Images.render` and a document's Porter-Duff layers draw
+  with no window open too, with a context of the backend's own (ADR 086).
 - `ShapedText.outline(x, y)`: the text as a `Path2D`, every glyph's outline where `drawText` draws
   it, read from the backend as a printed page reads them, so text can be stroked, dashed, filled
   with any paint, used as a clip or tested for a hit; a colour emoji, a picture, is left out (ADR
@@ -111,6 +117,9 @@ Maven Central say which number that was.
   segments meet and where it crosses itself, as it is in a printed document. It was a capsule per
   segment, darker at every joint. An opaque round stroke is drawn as before, in the frame's one
   draw; a translucent one, or one in another blend mode, takes three (ADR 085).
+- A machine with no display no longer stops the backend at its start: it starts without one (ADR
+  086). `-Dlimn.backend.headless=false` makes it fail as before, for an application that must have
+  a window.
 - `Canvas.clipRect` and `clipRoundRect` under a transform that turns or leans the axes clip by the
   turned shape on screen, as a path clip; they clipped by the device box round its corners, so
   what was drawn showed in the box's corners (ADR 085).

@@ -363,9 +363,17 @@ public final class LwjglBackend implements BackendPeer {
             this.applicationName = name;
         }
         boolean initialized;
+        String headlessMode = System.getProperty(HEADLESS_PROPERTY, "auto").trim().toLowerCase(java.util.Locale.ROOT);
+        headless = "true".equals(headlessMode) || ("auto".equals(headlessMode) && headlessByDefault(
+                Platform.current().os(), System.getenv("DISPLAY"), System.getenv("WAYLAND_DISPLAY"),
+                Platform.current().isWindows() && WindowsSession.isServices()));
         try {
-            selectPlatform();
-            if (Platform.current().isMacOs()) {
+            if (headless) {
+                startWithoutDisplay();
+            } else {
+                selectPlatform();
+            }
+            if (Platform.current().isMacOs() && !headless) {
                 // Before the library builds the system's menus, which read the numbers' locale.
                 MacApplication.numbersInTheCLocale();
                 MacApplication.followSystemLanguage();
@@ -382,6 +390,18 @@ public final class LwjglBackend implements BackendPeer {
             // window, which is only ever a fallback's (ADR 003 §4.3); set before init or never.
             AngleFallback.initHints();
             initialized = glfwInit();
+            if (!initialized && !headless && "auto".equals(headlessMode)) {
+                // No display the windowing library could reach: started without one, to draw
+                // pictures and documents, rather than not at all. A window asked for says why.
+                String why = GraphicsProbe.lastError();
+                headless = true;
+                startWithoutDisplay();
+                initialized = glfwInit();
+                if (initialized) {
+                    LOG.log(Level.WARNING, "started without a display, so no window can be opened: {0}{1}",
+                            why, startupAdvice());
+                }
+            }
         } catch (UnsatisfiedLinkError missing) {
             throw nativesMissing(missing);
         }
@@ -406,10 +426,10 @@ public final class LwjglBackend implements BackendPeer {
         });
         uiRuntime = UiRuntime.create(this::wakeLoop);
         uiRuntime.bindToCurrentThread();
-        if (Platform.current().isMacOs()) {
+        if (Platform.current().isMacOs() && !headless) {
             MacQuitCommand.route(quitCommand); // GLFW made its delegate in glfwInit
         }
-        if (Platform.current().isMacOs() && !macAgent
+        if (Platform.current().isMacOs() && !macAgent && !headless
                 && !"false".equalsIgnoreCase(System.getProperty("limn.macos.systemMenuBar"))) {
             try {
                 macMenuBar = new MacMenuBar(this, uiRuntime::post);
@@ -448,6 +468,48 @@ public final class LwjglBackend implements BackendPeer {
         followSystemPreferences();
         LOG.log(Level.INFO, "GLFW {0} initialized; UI thread = ''{1}''",
                 glfwGetVersionString(), Thread.currentThread().getName());
+    }
+
+    /**
+     * Whether the backend starts without a display: {@code true} to start so on any machine,
+     * {@code false} never to (a machine with no display then fails to start, as it always did), and
+     * {@code auto}, the default, to start so where no display can be had: Linux with neither
+     * {@code DISPLAY} nor {@code WAYLAND_DISPLAY}, a Windows service's session, or any machine where
+     * the windowing library finds no display to start on. A backend started without one opens no
+     * window and no tray, and draws pictures ({@link limn.graphics.Images#render}) and documents with
+     * the same canvas a window draws with, on the GPU where the system lets a process without a
+     * display reach it and on the processor otherwise.
+     */
+    public static final String HEADLESS_PROPERTY = "limn.backend.headless";
+
+    /** Whether this backend started without a display. */
+    private boolean headless;
+
+    /**
+     * Whether a machine is one with no display, by what it says of itself.
+     *
+     * @param servicesSession on Windows, whether the process runs in session 0, a service's, where
+     *                        making a window's OpenGL context ends the process
+     */
+    static boolean headlessByDefault(Platform.Os os, @Nullable String display, @Nullable String waylandDisplay,
+                                     boolean servicesSession) {
+        return switch (os) {
+            case LINUX -> isUnset(display) && isUnset(waylandDisplay);
+            case WINDOWS -> servicesSession;
+            default -> false;
+        };
+    }
+
+    /**
+     * Readies the windowing library for a backend without a display: its null platform, whose events
+     * and timers work with no display, on Linux and macOS, where its EGL makes a context from Mesa's
+     * driver or llvmpipe; on Windows its own platform, whose events work in a service's session, as
+     * long as no window is made.
+     */
+    private static void startWithoutDisplay() {
+        if (!Platform.current().isWindows()) {
+            glfwInitHint(GLFW_PLATFORM, org.lwjgl.glfw.GLFW.GLFW_PLATFORM_NULL);
+        }
     }
 
     /**
@@ -846,9 +908,20 @@ public final class LwjglBackend implements BackendPeer {
     }
 
     @Override
+    public boolean canOpenWindows() {
+        return !headless;
+    }
+
+    @Override
     public WindowPeer createWindow(WindowConfig config) {
         uiRuntime.checkUiThread();
         ensureOpen();
+        if (headless) {
+            String advice = Platform.current().isLinux() ? startupAdvice() : "";
+            throw new IllegalStateException("this backend started without a display, so it opens no window; "
+                    + "it draws pictures (Images.render) and documents" + advice
+                    + "; -D" + HEADLESS_PROPERTY + "=false makes a machine with no display fail to start instead");
+        }
         if (firstWindowTitle == null) {
             // Before the window exists, so the name its own bridge is opened with is already this.
             firstWindowTitle = config.title();
@@ -1600,8 +1673,20 @@ public final class LwjglBackend implements BackendPeer {
                 return picture;
             }
         }
-        return null;
+        if (offscreen == null) {
+            offscreen = new OffscreenContext(fontStore, headless);
+        }
+        limn.graphics.Image picture = offscreen.paint(width, height, scale, painter);
+        if (picture == null && !offscreenFailureLogged) {
+            offscreenFailureLogged = true;
+            LOG.log(Level.WARNING, "no picture can be drawn off screen: {0}", offscreen.failure());
+        }
+        return picture;
     }
+
+    /** The backend's own context for pictures off screen, made when no window can draw one. */
+    private @org.jspecify.annotations.Nullable OffscreenContext offscreen;
+    private boolean offscreenFailureLogged;
 
     /** @return the windows that are open, for the menu bar's rule of which bar is shown */
     List<LwjglWindow> openWindows() {
@@ -1655,6 +1740,9 @@ public final class LwjglBackend implements BackendPeer {
     @Override
     public TrayPeer createTray(String id, TrayHost host) {
         uiRuntime.checkUiThread();
+        if (headless) {
+            return TrayPeer.NONE; // no display, so no tray to show an icon in
+        }
         TrayPeer made = platformTray(id, host);
         if (made == TrayPeer.NONE) {
             return made;
@@ -1716,6 +1804,10 @@ public final class LwjglBackend implements BackendPeer {
             macMenuBar.dispose();
         }
         trays.clear();
+        if (offscreen != null) {
+            offscreen.dispose();
+            offscreen = null;
+        }
         if (systemClipboard != null) {
             // Its thread, and what it holds of the display while that is still open (on Wayland,
             // the pointer, keyboard and pinch of its own on GLFW's connection).
