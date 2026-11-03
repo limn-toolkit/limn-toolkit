@@ -134,6 +134,12 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A looping video's soundtrack plays every pass as cleanly as the first. From the second pass on
+  it clicked, with a short gap after every fifth of a second, and on some machines it got worse
+  with each repeat. The track runs out a little before the pictures rewind the file, and every
+  read that came back empty in between cost the audio engine one of the three buffers it streams
+  through, never made again. Those buffers now wait for the rewind and are filled when it comes.
+  A looping track that is still empty after two seconds ends, as one that does not loop does.
 - A `LineChart`'s area whose values change sign covers the region between the line and the
   baseline on both sides, and each side fades from its own farthest value to the baseline. It was
   drawn as stray triangles, a wedge from the baseline up to the highest value and the parts under
