@@ -424,6 +424,11 @@ public final class LwjglBackend implements BackendPeer {
                 window.refreshRateMayHaveChanged();
             }
         });
+        lossWatch.forgetOthersWith(() -> {
+            if (offscreen != null) {
+                offscreen.forgetLost(!windows.isEmpty());
+            }
+        });
         uiRuntime = UiRuntime.create(this::wakeLoop);
         uiRuntime.bindToCurrentThread();
         if (Platform.current().isMacOs() && !headless) {

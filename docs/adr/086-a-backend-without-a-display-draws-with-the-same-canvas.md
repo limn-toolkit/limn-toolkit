@@ -100,3 +100,14 @@ the pixels and the file:
 
 `HeadlessBackendTest` runs the program in a JVM of its own both ways on the build machine, and holds
 which machines start without a display by themselves.
+
+**A lost device** (ADR 082). The backend's context is lost with the windows' at a virtual machine's
+resume, and on Windows the windows' contexts are made again with the system's OpenGL unloaded from the
+process, which a context left holding it would keep loaded. So the loss watch lets the backend's
+context go at every sign that the machine was away, windows open or none, and before every rebuild;
+the context is made again on the next picture, and ANGLE's display with it where no window holds it.
+`OffscreenAcrossRebuild`, a program run on Windows 11 in the user's session with
+`-Dlimn.backend.rebuildContextAfter=1`, draws a picture with no window open, opens a window, has every
+context made again by the path a loss takes, and draws a second picture after the window closes: the
+windows' contexts were made again on the first attempt, `opengl32.dll` unloaded, and both pictures
+were right.

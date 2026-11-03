@@ -194,6 +194,28 @@ final class OffscreenContext {
         Gl.api().setCapabilities(capabilities);
     }
 
+    /**
+     * Lets go of a context that may be lost with the device, at a sign that the machine was away or
+     * before the windows' contexts are made again: made anew on the next picture. ANGLE's display goes
+     * with it where no window holds it, since a lost device leaves it unable to make a context.
+     *
+     * @param windowsOpen whether windows of the application's are open, whose rebuild resets ANGLE's
+     *                    display itself
+     */
+    void forgetLost(boolean windowsOpen) {
+        if (!attempted || capabilities == null) {
+            attempted = false;
+            return;
+        }
+        boolean angle = eglContext != null;
+        forget();
+        if (angle && !windowsOpen) {
+            EglContext.resetAngleDisplay();
+        }
+        System.getLogger(OffscreenContext.class.getName()).log(System.Logger.Level.INFO,
+                "the context pictures off screen are drawn with is made again at its next use");
+    }
+
     /** Forgets the context and its canvas without a GL call, their binding being gone. */
     private void forget() {
         if (canvas != null) {
