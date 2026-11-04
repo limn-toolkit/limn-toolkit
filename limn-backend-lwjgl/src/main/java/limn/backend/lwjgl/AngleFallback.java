@@ -103,6 +103,15 @@ final class AngleFallback {
     }
 
     /**
+     * Whether ANGLE may answer a process that found no accelerated context for pictures off screen,
+     * as it answers a window's refused creation: not when it is off, and not once a window has a
+     * native context, after which the process never switches.
+     */
+    static boolean answersWithoutWindows() {
+        return !off() && !nativeContextMade && AngleLibrary.platformHasFallback();
+    }
+
+    /**
      * Whether a native creation that failed with {@code code} on {@code os} is one ANGLE answers.
      *
      * @param os   the platform, a parameter so that every branch can be tested anywhere

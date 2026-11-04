@@ -107,7 +107,16 @@ Maven Central say which number that was.
   reach one and on the processor otherwise. `Images.render` and a document's Porter-Duff layers draw
   with no window open too, with a context of the backend's own (ADR 086). Such a backend reports no
   UI task as slow: it has no frame to hold back, and a server drawing a picture per request logged
-  every one.
+  every one. Its loop waits for work: on a machine with no display the windowing library's wait
+  returns at once, and a server doing nothing took a whole processor.
+- On macOS, a process that draws with ANGLE draws pictures off screen with it too, on Metal;
+  ANGLE's display was asked for on Direct3D 11, which macOS has not, so no picture had a context
+  there: in a macOS virtual machine, whose windows take ANGLE, `Images.render` failed once a window
+  was open. Pictures off screen also take a window's order now, an accelerated OpenGL, then ANGLE
+  on Metal, then Apple's software renderer, which they went to straight from the first: a virtual
+  machine's OpenGL is the software renderer while its Metal runs on the host's GPU, and a 512-pixel
+  avatar drawn there with no window open took 23.5 ms and takes 1.3. `-Dlimn.backend.angle=off`
+  keeps the software renderer, and `=force` takes ANGLE off screen as it does for windows.
 - `Images.render` waits for a face still loading in the background when the text it draws needs
   one, and draws again: a window heals the boxes drawn in the meantime at its next frame, and a
   picture kept them, so the first picture a server drew in a script the default face lacks came
@@ -137,13 +146,16 @@ Maven Central say which number that was.
   fragment shader takes its derivatives over 2 x 2 blocks of pixels, and that renderer took them
   differently in a block two pieces shared, which moved the antialiasing of the corner pixels
   there. Every edge a piece adds now lies on the edge of the target's blocks.
-- The PNG encoder deflates each picture twice, its rows as they are and filtered, and keeps the
-  smaller, at level 4 where it used level 6: a drawing of flat colours and smooth ramps, an avatar,
-  an icon, deflates smaller unfiltered, a photograph or a screenshot filtered. Over avatars,
-  screenshots, photographs and a logo the files came out 4.4% larger in all and took half the time
-  (2.17 s down to 1.04); a 512-pixel avatar is 19% smaller and takes 13% longer. Each row is now
-  consumed before the next is handed to the compressor, which could hold part of one back and
-  lose it to the next row.
+- The PNG encoder writes the rows as they are in one pass at level 4 unless asked otherwise, as
+  the platform's own writer does: it deflated every picture twice, its rows as they are and
+  filtered, keeping the smaller, which took about twice the time on every picture, an empty one
+  included. A server answering 256-pixel avatars in a container of two processors spent 3.8 ms of
+  processor on each request and spends 1.3, and answers 499 a second where it answered 287.
+  `ImageEncodeOptions` gains the knobs: `withCompression(0..9)` and `withFiltering(...)`, `NONE`
+  (the default), `ADAPTIVE` (each row with the filter that looks smallest, the smaller file for a
+  photograph or a screenshot) or `SMALLER` (both, keeping the smaller file). The quality still
+  changes nothing in a PNG. Each row is now consumed before the next is handed to the compressor,
+  which could hold part of one back and lose it to the next row.
 - `Images.render` keeps the framebuffer it draws into for the next picture of the same size, and
   reads the picture back in one pass that divides only the pixels neither opaque nor clear: a
   512-pixel picture took 1.28 ms on a GPU and takes 0.94. The framebuffer kept holds 8 bytes a

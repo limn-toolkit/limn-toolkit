@@ -162,6 +162,11 @@ In a container, or under any limit on the processors a process may use, set `LP_
 that limit: `llvmpipe` starts one thread per processor of the machine, and more threads than the
 limit stall the whole process. [On a server](/docs/printing/#on-a-server) has the numbers.
 
+In a macOS virtual machine, OpenGL is often only `Apple Software Renderer` while Metal runs on the
+host's GPU. Windows and pictures there are drawn through ANGLE on Metal by themselves, and the log
+says `ANGLE on Metal (fallback)`: a 512-pixel picture took 23.5 ms on the software renderer and takes
+1.3. `-Dlimn.backend.angle=off` keeps the software renderer.
+
 ## A popup opens inside the window on Linux
 
 Under Wayland, an application cannot place a window of its own at a screen position, so combo box

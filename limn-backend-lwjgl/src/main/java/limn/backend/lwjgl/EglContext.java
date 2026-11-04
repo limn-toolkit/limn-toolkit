@@ -60,6 +60,8 @@ final class EglContext implements WindowContext {
     private static final int EGL_PLATFORM_ANGLE_ANGLE = 0x3202;
     private static final int EGL_PLATFORM_ANGLE_TYPE_ANGLE = 0x3203;
     private static final int EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE = 0x3208;
+    /** ANGLE on Metal, macOS's: {@code EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE} from ANGLE's eglext_angle.h. */
+    private static final int EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE = 0x3489;
     private static final int EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY_EXT = 0x3138;
     private static final int EGL_LOSE_CONTEXT_ON_RESET_EXT = 0x31BF;
     /** EGL 1.5's name for the strategy, which Mesa takes for desktop OpenGL contexts. */
@@ -290,7 +292,11 @@ final class EglContext implements WindowContext {
         }
     }
 
-    /** @return ANGLE's display on Direct3D 11, made and initialised on first use */
+    /**
+     * @return ANGLE's display on the platform's own API, Direct3D 11 on Windows and Metal on macOS,
+     *         made and initialised on first use. It asked for Direct3D 11 everywhere, so on macOS
+     *         no picture off screen had a context once the process drew with ANGLE
+     */
     static long angleDisplay() {
         if (angleDisplay != NULL) {
             return angleDisplay;
@@ -300,7 +306,9 @@ final class EglContext implements WindowContext {
             return NULL;
         }
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            IntBuffer attributes = stack.ints(EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE,
+            int type = limn.backend.Platform.current().isMacOs() ? EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE
+                    : EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE;
+            IntBuffer attributes = stack.ints(EGL_PLATFORM_ANGLE_TYPE_ANGLE, type,
                     EGL10.EGL_NONE);
             long display = JNI.invokePPP(EGL_PLATFORM_ANGLE_ANGLE, NULL,
                     org.lwjgl.system.MemoryUtil.memAddress(attributes), platformDisplay);

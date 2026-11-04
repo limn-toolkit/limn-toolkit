@@ -39,12 +39,6 @@ public final class PngEncoder implements ImageEncoder {
 
     private static final byte[] NO_DATA = new byte[0];
 
-    /**
-     * Pinned rather than {@link Deflater#DEFAULT_COMPRESSION}: the default is a property of the
-     * runtime, and a runtime that changed it would silently change every byte this class emits.
-     */
-    private static final int DEFLATE_LEVEL = 4;
-
     /** Deflated output is emitted in IDAT chunks of at most this size; PNG allows any number. */
     private static final int IDAT_CHUNK = 1 << 16;
 
@@ -70,7 +64,7 @@ public final class PngEncoder implements ImageEncoder {
         out.write(SIGNATURE);
         writeHeader(out, width, height);
         if (!image.isAnimated()) {
-            writePicture(image.pixels(), width, height, (data, offset, length) -> writeChunk(out, "IDAT", data, offset, length));
+            writePicture(image.pixels(), width, height, options, (data, offset, length) -> writeChunk(out, "IDAT", data, offset, length));
             writeChunk(out, "IEND", NO_DATA, 0, 0);
             return;
         }
@@ -99,9 +93,9 @@ public final class PngEncoder implements ImageEncoder {
             writeChunk(out, "fcTL", frame, 0, frame.length);
             byte[] part = crop(pixels, width, box);
             if (i == 0) {
-                writePicture(part, box[2], box[3], (data, offset, length) -> writeChunk(out, "IDAT", data, offset, length));
+                writePicture(part, box[2], box[3], options, (data, offset, length) -> writeChunk(out, "IDAT", data, offset, length));
             } else {
-                writePicture(part, box[2], box[3], (data, offset, length) -> {
+                writePicture(part, box[2], box[3], options, (data, offset, length) -> {
                     byte[] numbered = new byte[4 + length];
                     putInt(numbered, 0, sequence[0]++);
                     System.arraycopy(data, offset, numbered, 4, length);
@@ -119,28 +113,35 @@ public final class PngEncoder implements ImageEncoder {
     }
 
     /**
-     * Deflates a picture twice, its rows unfiltered and filtered, and hands out the smaller, in chunks
-     * of at most {@link #IDAT_CHUNK}. Neither wins everywhere: a drawing of flat colour and smooth
-     * diagonal ramps, an avatar or an icon, deflates smaller unfiltered, since a row repeats the one
-     * above it shifted and the compressor finds that, while a photograph or a screen of text and
-     * shading deflates smaller filtered. Measured over avatars, interface captures, photographs and a
-     * logo, the smaller of the two at level 6 was 1.2% under the filtered stream alone and took 37%
-     * longer; at level 4 it was 4.5% over and took half the time, and an avatar came out a quarter
-     * smaller than the filtered stream at either level.
+     * Deflates a picture as the options say, its rows as they are, filtered, or both keeping the
+     * smaller, and hands it out in chunks of at most {@link #IDAT_CHUNK}. Neither wins everywhere:
+     * a drawing of flat colour and smooth diagonal ramps, an avatar or an icon, deflates smaller as
+     * it is, since a row repeats the one above it shifted and the compressor finds that, while a
+     * photograph or a screen of text and shading deflates smaller filtered. Measured over avatars,
+     * interface captures, photographs and a logo at level 4, the smaller of the two was 4.4% under
+     * the rows as they are and took about twice their time.
      */
-    private static void writePicture(byte[] pixels, int width, int height, Chunks chunks) throws IOException {
-        byte[] filtered = deflated(pixels, width, height, true);
-        byte[] plain = deflated(pixels, width, height, false);
-        byte[] smaller = plain.length < filtered.length ? plain : filtered;
+    private static void writePicture(byte[] pixels, int width, int height, ImageEncodeOptions options,
+                                     Chunks chunks) throws IOException {
+        int level = options.compression();
+        byte[] smaller = switch (options.filtering()) {
+            case NONE -> deflated(pixels, width, height, false, level);
+            case ADAPTIVE -> deflated(pixels, width, height, true, level);
+            case SMALLER -> {
+                byte[] filtered = deflated(pixels, width, height, true, level);
+                byte[] plain = deflated(pixels, width, height, false, level);
+                yield plain.length < filtered.length ? plain : filtered;
+            }
+        };
         for (int at = 0; at < smaller.length; at += IDAT_CHUNK) {
             chunks.write(smaller, at, Math.min(IDAT_CHUNK, smaller.length - at));
         }
     }
 
     /** The picture's rows, each after its filter byte, deflated: filtered row by row, or as they are. */
-    private static byte[] deflated(byte[] pixels, int width, int height, boolean filtered) {
+    private static byte[] deflated(byte[] pixels, int width, int height, boolean filtered, int level) {
         int stride = width * BYTES_PER_PIXEL;
-        Deflater deflater = new Deflater(DEFLATE_LEVEL);
+        Deflater deflater = new Deflater(level);
         if (filtered) {
             // Filtered rows are mostly small values; this strategy is zlib's for such data.
             deflater.setStrategy(Deflater.FILTERED);

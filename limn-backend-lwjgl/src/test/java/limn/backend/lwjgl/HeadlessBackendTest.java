@@ -35,6 +35,26 @@ class HeadlessBackendTest {
     }
 
     @Test
+    void withoutADisplayOnAngleItDrawsPicturesAndDocuments() throws Exception {
+        // A process that never opens a window makes ANGLE's display itself: on macOS it asked for
+        // Direct3D 11, which macOS has not, and no picture had a context.
+        Assumptions.assumeTrue(Platform.current().isMacOs() || Platform.current().isWindows(),
+                "ANGLE is the fallback on macOS and Windows only");
+        String output = run(List.of("-D" + LwjglBackend.HEADLESS_PROPERTY + "=true",
+                "-Dlimn.backend.angle=force"), List.of(), false);
+        assertTrue(output.contains("ANGLE"), "drawn with ANGLE:\n" + output);
+        assertTrue(output.contains("\nOK"), output);
+    }
+
+    @Test
+    void withoutADisplayTheLoopWaitsForWorkInsteadOfTurning() throws Exception {
+        // The windowing library's platform of none waits for nothing: the loop took a whole
+        // processor doing nothing, half of a server's container of two.
+        String output = run(List.of("-D" + LwjglBackend.HEADLESS_PROPERTY + "=true"), List.of("idle"));
+        assertTrue(output.contains("\nOK"), output);
+    }
+
+    @Test
     void withADisplayItDrawsThemWithNoWindowOpen() throws Exception {
         Assumptions.assumeFalse(Platform.current().isLinux() && System.getenv("DISPLAY") == null
                 && System.getenv("WAYLAND_DISPLAY") == null, "no display here");
@@ -57,6 +77,14 @@ class HeadlessBackendTest {
 
     /** Runs {@link HeadlessDrawing} in a JVM of its own; skips the test where no context can be had. */
     private String run(List<String> properties, List<String> args) throws Exception {
+        return run(properties, args, true);
+    }
+
+    /**
+     * @param mayLackAContext whether a machine that gives no context skips the test; not where the
+     *                        context is the one the test is about
+     */
+    private String run(List<String> properties, List<String> args, boolean mayLackAContext) throws Exception {
         List<String> command = new ArrayList<>();
         command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
         if (Platform.current().isMacOs()) {
@@ -80,7 +108,7 @@ class HeadlessBackendTest {
         String output = new String(Files.readAllBytes(log), java.nio.charset.Charset.forName(
                 System.getProperty("native.encoding", java.nio.charset.Charset.defaultCharset().name())));
         assertTrue(finished, "the child never finished:\n" + output);
-        Assumptions.assumeFalse(output.contains("no picture can be drawn off screen"),
+        Assumptions.assumeFalse(mayLackAContext && output.contains("no picture can be drawn off screen"),
                 () -> "no context can be had here:\n" + output);
         assertEquals(0, child.exitValue(), output);
         return output;

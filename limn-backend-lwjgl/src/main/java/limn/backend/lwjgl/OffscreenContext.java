@@ -101,8 +101,15 @@ final class OffscreenContext {
         }
         attempted = true;
         boolean made = switch (Platform.get()) {
-            // Once the process draws with ANGLE it has no desktop binding to reach CGL through.
-            case MACOSX -> Gl.api() == GlesGl.INSTANCE ? angle() : cgl(false) || cgl(true);
+            // Once the process draws with ANGLE it has no desktop binding to reach CGL through; and
+            // -Dlimn.backend.angle=force asks for ANGLE here as it does for a window. Otherwise in a
+            // window's order: an accelerated renderer, then ANGLE on Metal, then Apple's software
+            // one. A virtual machine has no accelerated OpenGL while its Metal runs on the host's
+            // GPU, and the software renderer drew a 512-pixel picture there in 22.7 ms, ANGLE in 1.6.
+            case MACOSX -> Gl.api() == GlesGl.INSTANCE || AngleFallback.forced() ? angle()
+                    : cgl(false) || (AngleFallback.answersWithoutWindows() && angle())
+                    // ANGLE refused after the process moved onto it: no desktop binding is left.
+                    || (!AngleFallback.taken() && cgl(true));
             case WINDOWS -> (headless || AngleFallback.taken() || AngleFallback.forced()) ? angle()
                     : hiddenWindow() || angle();
             default -> hiddenWindow();

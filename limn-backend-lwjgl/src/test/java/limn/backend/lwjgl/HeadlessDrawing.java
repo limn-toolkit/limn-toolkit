@@ -50,6 +50,10 @@ public final class HeadlessDrawing {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length > 0 && args[0].equals("idle")) {
+            idle();
+            return;
+        }
         boolean ok = true;
         boolean display = args.length > 0 && args[0].equals("display");
         LwjglBackend backend = new LwjglBackend("Headless drawing");
@@ -118,6 +122,55 @@ public final class HeadlessDrawing {
         // System.exit would end the process first, and once hid a crash at that thread's end.
         if (!ok) {
             System.exit(1);
+        }
+    }
+
+    /**
+     * The loop with nothing to do, as a server's between requests: it must wait, not turn, and
+     * still wake for a task posted from another thread and for a delayed one.
+     */
+    private static void idle() throws Exception {
+        LwjglBackend backend = new LwjglBackend("Headless idle");
+        java.lang.management.ThreadMXBean threads = java.lang.management.ManagementFactory.getThreadMXBean();
+        long[] woken = new long[2];
+        long[] posted = new long[2];
+        try {
+            backend.setLoopLifetime(limn.backend.LoopLifetime.UNTIL_QUIT);
+            Thread other = new Thread(() -> {
+                try {
+                    Thread.sleep(1500);
+                    posted[0] = System.nanoTime();
+                    limn.concurrent.Ui.post(() -> {
+                        woken[0] = System.nanoTime();
+                        posted[1] = System.nanoTime();
+                        limn.concurrent.Ui.postDelayed(() -> {
+                            woken[1] = System.nanoTime();
+                            backend.stop();
+                        }, 300);
+                    });
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }, "poster");
+            other.start();
+            long cpuBefore = threads.getCurrentThreadCpuTime();
+            long wallBefore = System.nanoTime();
+            backend.runEventLoop();
+            long cpu = threads.getCurrentThreadCpuTime() - cpuBefore;
+            long wall = System.nanoTime() - wallBefore;
+            other.join();
+            long postLatency = (woken[0] - posted[0]) / 1_000_000;
+            long delayed = (woken[1] - posted[1]) / 1_000_000;
+            System.out.println("idle loop: " + cpu / 1_000_000 + " ms of processor in " + wall / 1_000_000
+                    + " ms; a post from another thread ran after " + postLatency + " ms, a task delayed 300 ms after "
+                    + delayed + " ms");
+            boolean ok = cpu < wall / 10 && woken[0] != 0 && postLatency < 250 && delayed >= 290 && delayed < 800;
+            System.out.println(ok ? "OK" : "FAILED");
+            if (!ok) {
+                System.exit(1);
+            }
+        } finally {
+            backend.close();
         }
     }
 }

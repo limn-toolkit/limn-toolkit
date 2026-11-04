@@ -431,6 +431,10 @@ public final class LwjglBackend implements BackendPeer {
         });
         uiRuntime = UiRuntime.create(this::wakeLoop);
         uiRuntime.bindToCurrentThread();
+        loopThread = Thread.currentThread();
+        // On Windows a backend with no display is in a service's session, on the system's own
+        // platform, whose wait and wake work with no window.
+        parksItself = headless && !Platform.current().isWindows();
         if (headless) {
             // A slow task is reported because it holds a frame back, and a backend with no display
             // has no frame to hold: what runs on its UI thread is drawing, which belongs there, and
@@ -777,6 +781,17 @@ public final class LwjglBackend implements BackendPeer {
     private volatile boolean parkedInPump;
 
     /**
+     * Whether the loop waits on its own instead of in the windowing library: where the backend
+     * started without a display on the library's platform of none, whose wait returns at once and
+     * whose wake does nothing. Waiting there, the loop turned without end and took a whole processor
+     * from a server doing nothing, half of what a container of two allowed it.
+     */
+    private volatile boolean parksItself;
+
+    /** The thread the loop runs on, which {@link #wakeLoop()} unparks when {@link #parksItself}. */
+    private volatile @org.jspecify.annotations.Nullable Thread loopThread;
+
+    /**
      * Wakes the sleeping event loop. Safe from any thread.
      *
      * <p>Unconditionally from a foreign thread, because that is where the race is real: the loop
@@ -797,7 +812,12 @@ public final class LwjglBackend implements BackendPeer {
             return;
         }
         if (parkedInPump || !uiRuntime.isUiThread()) {
-            glfwPostEmptyEvent();
+            if (parksItself) {
+                // A permit the next park takes at once: a wake before the loop parks is not lost.
+                java.util.concurrent.locks.LockSupport.unpark(loopThread);
+            } else {
+                glfwPostEmptyEvent();
+            }
         }
     }
 
@@ -1062,7 +1082,15 @@ public final class LwjglBackend implements BackendPeer {
                     try {
                         parkedInPump = true;
                         try {
-                            if (framePending || sleepBudgetNanos == 0) {
+                            if (parksItself) {
+                                // No native event can come; the wait ends at a deadline or a post.
+                                if (!framePending && sleepBudgetNanos < 0) {
+                                    java.util.concurrent.locks.LockSupport.park(this);
+                                } else if (!framePending && sleepBudgetNanos > 0) {
+                                    java.util.concurrent.locks.LockSupport.parkNanos(this,
+                                            Math.min(sleepBudgetNanos, (long) (MAX_WAIT_SECONDS * 1e9)));
+                                }
+                            } else if (framePending || sleepBudgetNanos == 0) {
                                 glfwPollEvents();
                             } else if (sleepBudgetNanos < 0) {
                                 glfwWaitEvents();
