@@ -459,6 +459,22 @@ final class GlBatch implements AutoCloseable {
      * @param width  its width in device pixels
      * @param height its height
      */
+    /**
+     * @return 0 or 1: the parity of the device columns where the target's pixel blocks begin, the
+     *         2 x 2 blocks a fragment shader takes its derivatives over, counted from its left edge
+     */
+    int blockColumnParity() {
+        return targetX & 1;
+    }
+
+    /**
+     * @return 0 or 1: the parity of the device rows, top-down, where the target's pixel blocks
+     *         begin, the target counting its rows up from its bottom edge
+     */
+    int blockRowParity() {
+        return (targetY + targetHeight) & 1;
+    }
+
     void setTarget(boolean layer, int x, int y, int width, int height) {
         inLayer = layer;
         targetX = x;

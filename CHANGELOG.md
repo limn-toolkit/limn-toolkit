@@ -119,6 +119,18 @@ Maven Central say which number that was.
   its program compiles, 40 to 60 ms with llvmpipe on two processors; a program unused for 30
   seconds is let go, and `-Dlimn.backend.softwareProgramIdle=<seconds>` changes that (0 keeps
   them all).
+- On Apple's software renderer, a Mac with no GPU, a rounded rectangle drawn in pieces no longer
+  differs from its single quad by up to 12 levels in 255 beside the edges its pieces add: a
+  fragment shader takes its derivatives over 2 x 2 blocks of pixels, and that renderer took them
+  differently in a block two pieces shared, which moved the antialiasing of the corner pixels
+  there. Every edge a piece adds now lies on the edge of the target's blocks.
+- The PNG encoder deflates each picture twice, its rows as they are and filtered, and keeps the
+  smaller, at level 4 where it used level 6: a drawing of flat colours and smooth ramps, an avatar,
+  an icon, deflates smaller unfiltered, a photograph or a screenshot filtered. Over avatars,
+  screenshots, photographs and a logo the files came out 4.4% larger in all and took half the time
+  (2.17 s down to 1.04); a 512-pixel avatar is 19% smaller and takes 13% longer. Each row is now
+  consumed before the next is handed to the compressor, which could hold part of one back and
+  lose it to the next row.
 - `Images.render` keeps the framebuffer it draws into for the next picture of the same size, and
   reads the picture back in one pass that divides only the pixels neither opaque nor clear: a
   512-pixel picture took 1.28 ms on a GPU and takes 0.94. The framebuffer kept holds 8 bytes a

@@ -299,6 +299,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     private float cutY1;
     private float cutCentreX;
     private float cutCentreY;
+    /** The parity of the device columns and rows where the target's 2 x 2 pixel blocks begin. */
+    private int pieceColumnParity;
+    private int pieceRowParity;
 
     GlCanvas(FontStore fontStore) {
         this.fontStore = fontStore;
@@ -3122,11 +3125,12 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      * known. On a renderer that runs it on the CPU (macOS's software fallback, a VM with no GPU)
      * that is the cost: a one-point border around a card shaded every pixel of the card to discard
      * all but its edge, as much as the card's fill. Such a renderer also takes its derivatives
-     * beside a primitive's edge from something other than the primitive's plane, so there the
-     * antialiasing beside a piece's edge moves, as it always did beside the quad's diagonal. The
-     * quad's own edges keep the positions it had, and every edge a piece adds lies on a whole
-     * device pixel, so no pixel centre sits on one and no piece is a sliver whose interpolation the
-     * rasterizer's snapping would skew.
+     * beside a primitive's edge from something other than the primitive's plane, as it always did
+     * beside the quad's diagonal, so every edge a piece adds lies on the edge of the target's 2 x 2
+     * pixel blocks, the blocks derivatives are taken over: none lies in two pieces, and the
+     * antialiasing beside a piece's edge is the quad's. The quad's own edges keep the positions it
+     * had, and every edge a piece adds lies on a whole device pixel, so no pixel centre sits on one
+     * and no piece is a sliver whose interpolation the rasterizer's snapping would skew.
      *
      * <p>Where the interior starts: outside the four corner squares, which are as large as the
      * largest radius, the distance field is the distance to the nearest edge, and the shader's
@@ -3218,7 +3222,13 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             return true;
         }
         // The band's inner edge and the corner squares' inner edge on each side, each moved onto
-        // the device grid towards the interior, which only ever widens the pieces around it.
+        // the grid of the target's 2 x 2 pixel blocks towards the interior, which only ever widens
+        // the pieces around it: a fragment shader takes its derivatives over such a block, and a
+        // renderer running it on the CPU (Apple's software renderer) took them differently in a
+        // block two pieces share, which moved the antialiasing beside a piece's edge by up to 12
+        // levels in 255 against the single quad's.
+        pieceColumnParity = batch.blockColumnParity();
+        pieceRowParity = batch.blockRowParity();
         pieceBoundary(t, cx, cy, true, 1, -bandX, true);
         pieceBoundary(t, cx, cy, true, 2, -cornerX, true);
         pieceBoundary(t, cx, cy, true, 3, cornerX, false);
@@ -3395,8 +3405,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
 
     /**
      * Sets boundary {@code index} of the current shape's pieces, on the x axis or the y axis, to the
-     * whole device pixel nearest {@code local} on the side of increasing local coordinates when
-     * {@code forward} holds and decreasing ones otherwise.
+     * edge of the target's 2 x 2 pixel blocks nearest {@code local} on the side of increasing local
+     * coordinates when {@code forward} holds and decreasing ones otherwise, so that no block lies in
+     * two pieces.
      */
     private void pieceBoundary(Transform2D t, float cx, float cy, boolean xAxis, int index, float local,
                                boolean forward) {
@@ -3404,7 +3415,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         float origin = xAxis ? t.tx : t.ty;
         float centre = xAxis ? cx : cy;
         float device = scale * (centre + local) + origin;
-        float snapped = (float) (forward == scale > 0 ? Math.ceil(device) : Math.floor(device));
+        int parity = xAxis ? pieceColumnParity : pieceRowParity;
+        float snapped = (float) (forward == scale > 0
+                ? 2 * Math.ceil((device - parity) / 2) + parity
+                : 2 * Math.floor((device - parity) / 2) + parity);
         float snappedLocal = (snapped - origin) / scale - centre;
         if (xAxis) {
             pieceDevX[index] = snapped;
