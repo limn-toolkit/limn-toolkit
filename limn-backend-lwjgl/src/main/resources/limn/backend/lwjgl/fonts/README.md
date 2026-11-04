@@ -11,7 +11,8 @@ with the font instead of with this toolkit (ADR 036), under the classpath path `
 
 | Artifact | Role | Arrives |
 | --- | --- | --- |
-| `limn-fonts-roboto` | Roboto Regular/Bold/Italic/Bold-Italic — the default UI family and last resort | **with the backend** (required runtime dependency; FontStore refuses to start without it) |
+| `limn-fonts-roboto` | Roboto in twelve faces, Thin to Black, upright and italic — the default UI family and last resort | **with the backend** (required runtime dependency; FontStore refuses to start without it) |
+| `limn-fonts-roboto-mono` | Roboto Mono, upright and italic variable faces (weights 100 to 700) — `Font.MONOSPACE_FAMILY` | with the backend (default runtime dependency; ADR 084) |
 | `limn-fonts-noto-scripts` | Arabic, Hebrew, Devanagari, Thai (Regular + Bold) | with the backend (default runtime dependency; ADR 006/032) |
 | `limn-fonts-noto-cjk` | Han + Kana + Hangul, ≈16 MB | the application opts in |
 | `limn-fonts-noto-emoji` | colour emoji, ≈10 MB | the application opts in |

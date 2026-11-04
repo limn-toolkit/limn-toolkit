@@ -46,6 +46,30 @@ class VendoredFontsTest {
                 "2b4076dd3f5a7fadfca760ef45557a0d437af983284652fc149535c5bd93d493");
         assertRequired("Roboto-BoldItalic.ttf",
                 "03ccd7a9d4493577d5b7da5440d01a24bd4f6bf05f48c2e114ef24b752859323");
+        assertRequired("Roboto-Thin.ttf",
+                "6662f2a2dfd4e0d6d1dd04f8cb3e5c0c6de519c1c557fd39f3e0fc1eef96a266");
+        assertRequired("Roboto-ThinItalic.ttf",
+                "67da63cc898177497af4d7328b83ce9a322c188b2ca0e6053b98ab42362fefad");
+        assertRequired("Roboto-Light.ttf",
+                "a08729d794801eaa158c53b1558f4cc351c3b1791eb3d22faf7058b2b7df9c8c");
+        assertRequired("Roboto-LightItalic.ttf",
+                "cbc8f4ad3302f8c0a7e7b8b3d2dc53ef529a406162b276287f9949ad8864eaa4");
+        assertRequired("Roboto-Medium.ttf",
+                "b398bb9c791ddb08f1063d9c874f98e8aadb99132043b2d272a9276cf90c465a");
+        assertRequired("Roboto-MediumItalic.ttf",
+                "823e1a6c4c9f157359076ae78e244611e946b2900e72101bc9fb8a134d8ff4e2");
+        assertRequired("Roboto-Black.ttf",
+                "50f0aab10018fc1892ccf1a371f7bb94dd929210c23b651c96232d5b1779a5b2");
+        assertRequired("Roboto-BlackItalic.ttf",
+                "4634ff2ffd78abc3be7d5d52e754b15d23cc812c83529a499b8458949e6b331e");
+    }
+
+    @Test
+    void theShippedRobotoMonoFacesAreTheOnesTheFetchScriptPins() throws Exception {
+        assertPinned("RobotoMono-Variable.ttf",
+                "66a80e79d17e4c7cabd162e2916578a4cc08fd19eef6e2a643305eae9c567b2b");
+        assertPinned("RobotoMono-VariableItalic.ttf",
+                "49ac343bb7b070071e53f0a8a501d68d140ed98ebd0a43b6b8fb96cf22f09ff7");
     }
 
     @Test

@@ -14,7 +14,8 @@ glavo-webp = "0.2.0"
 # this toolkit (ADR 036). Bumping one of these swaps megabytes of binary nobody reviews in a
 # one-line diff; VendoredFontsTest is what makes that diff fail until the new build's digests
 # and ComplexScriptFallbackTest's layout facts are re-verified against it.
-limn-fonts-roboto = "2.138.0"
+limn-fonts-roboto = "2.138.1"
+limn-fonts-roboto-mono = "3.001.0"
 limn-fonts-noto-cjk = "2.004.2"
 limn-fonts-noto-emoji = "2.057.0"
 limn-fonts-noto-scripts = "1.0.3"
@@ -61,6 +62,7 @@ lwjgl-stb = { module = "org.lwjgl:lwjgl-stb" }
 lwjgl-harfbuzz = { module = "org.lwjgl:lwjgl-harfbuzz" }
 lwjgl-tinyfd = { module = "org.lwjgl:lwjgl-tinyfd" }
 limn-fonts-roboto = { module = "io.github.limn-toolkit:limn-fonts-roboto", version.ref = "limn-fonts-roboto" }
+limn-fonts-roboto-mono = { module = "io.github.limn-toolkit:limn-fonts-roboto-mono", version.ref = "limn-fonts-roboto-mono" }
 limn-fonts-noto-cjk = { module = "io.github.limn-toolkit:limn-fonts-noto-cjk", version.ref = "limn-fonts-noto-cjk" }
 limn-fonts-noto-emoji = { module = "io.github.limn-toolkit:limn-fonts-noto-emoji", version.ref = "limn-fonts-noto-emoji" }
 limn-fonts-noto-scripts = { module = "io.github.limn-toolkit:limn-fonts-noto-scripts", version.ref = "limn-fonts-noto-scripts" }

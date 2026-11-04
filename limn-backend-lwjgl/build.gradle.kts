@@ -50,6 +50,10 @@ dependencies {
     // (decision 125): javac resolves an application module's whole graph, so the jar has to be on
     // the application's compile path too. It has no classes, so that costs nothing.
     api(libs.limn.fonts.roboto)
+    // Roboto Mono backs Font.MONOSPACE_FAMILY (ADR 084), 272 KB; without it the family is the
+    // default one. runtimeOnly, as the script faces are: nothing requires its module, and on the
+    // module path it resolves with the automatic Roboto module that is required.
+    runtimeOnly(libs.limn.fonts.roboto.mono)
     runtimeOnly(libs.limn.fonts.noto.scripts)
 
     implementation(platform(libs.lwjgl.bom))

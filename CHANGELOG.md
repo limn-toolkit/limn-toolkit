@@ -42,7 +42,9 @@ Maven Central say which number that was.
 - `Font` carries a weight from 1 to 1000 (`withWeight`, `Font.REGULAR`, `Font.BOLD`), drawn by the
   family's face nearest it in the order a style sheet searches. A variable face is drawn at the
   weight itself, to the nearest ten, anywhere in its range: shaped and rasterized by HarfBuzz at
-  that instance, and outlined at it on a printed page.
+  that instance, and outlined at it on a printed page. Roboto, the default family, now comes in
+  all twelve of its faces, Thin, Light, Regular, Medium, Bold and Black, each upright and italic,
+  so the weights 100, 300, 400, 500, 700 and 900 each have a face of their own.
 - `Ink`, what styled text is drawn in, asked for on every paint: a `Color` is its own ink and a
   `Tone` is one, so text styled in a tone follows a change of palette.
 - `Label.setIconPosition`: the icon before the text (the default), after it, above it or below it.
