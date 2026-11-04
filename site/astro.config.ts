@@ -113,6 +113,7 @@ export default defineConfig({
             { slug: "docs/accessibility" },
             { slug: "docs/images-and-media" },
             { slug: "docs/animations" },
+            { slug: "docs/drawing" },
             { slug: "docs/custom-widgets" },
           ],
         },

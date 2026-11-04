@@ -23,40 +23,10 @@ setters every widget has return your type: `new Rating().setTooltip("Stars")` is
 them; `constrain` clamps to what was allowed. `onPaint` draws in the widget's own coordinates,
 from `(0, 0)` to `width()` by `height()`.
 
-The `Canvas` draws more than circles. Rectangles, rounded or not, and ellipses are filled or
-stroked, lines are drawn, text and images are placed, and any other outline is a `Path2D`, built
-with `moveTo`, `lineTo`, `quadTo`, `cubicTo` and `close`, then filled with `fillPath` or stroked
-with `drawPath`. Its fill rule, `FillRule.NON_ZERO` unless `setFillRule` says `EVEN_ODD`,
-decides what a fill encloses: a subpath turning the other way inside another is a hole, and an
-outline may cross itself, as a star drawn in one stroke does. A path also takes arcs (`arc`, `arcTo` for a rounded corner between two lines,
-`ellipticalArcTo` as SVG draws one) and whole shapes (`addRect`, `addRoundRect`, `addEllipse`,
-`addPath` with an `Affine2D` to place a copy), and `Path2D.parse` reads the path data an icon or
-a drawing program writes, `"M9 2h6v7h7v6h-7v7H9v-7H2V9h7z"`. It answers in Java, with no canvas:
-`bounds()`, and `contains(x, y)` for a hit test on what it fills. A line is a `Stroke`: its width,
-its ends (`BUTT`, `ROUND`, `SQUARE`), its corners (`MITER` with a limit, `ROUND`, `BEVEL`) and a
-dash pattern, passed with the call as a paint is, so
-`drawPath(path, Stroke.of(2).withCap(Stroke.Cap.ROUND).withDash(0, 6), paint)` is a dotted line,
-and `drawLine`, `drawRect`, `drawRoundRect`, `drawCircle` and `drawEllipse` take one too; a
-translucent line is painted once where it crosses itself. `Stroke.of(2).outline(path)` is the
-region a two-unit line along it covers, so `contains` on that tests a hit on the line.
-Whatever takes a colour takes a `Paint`: a `Color`; a two-colour `LinearGradient` or
-`RadialGradient`; a `Gradient` of any number of colours, linear, radial from a focus or sweeping
-round a centre, padded, repeated or reflected past its ends and placed under a matrix of its own;
-or an `ImagePaint`, a picture repeated, mirrored or laid once under a matrix, which fills text and
-strokes as it fills shapes. A shaped line's `outline(x, y)` is its text as a path, to stroke, to
-clip by or to test for a hit. A drawing made once and shown many times is a `Picture`, recorded
-with `Picture.record` and drawn with `drawPicture`; `Images.render` draws one into an image. `drawShadow(shape, shadow)` casts a `Shadow` under a rounded rectangle;
-`save`, `translate`, `rotate`, `scale` and `restore` move the coordinates, `rotate(angle, cx, cy)`
-turns about a point, `shear` leans, and `concat` draws through any `Affine2D`; `transform()`
-answers the matrix in force, which `invert()` turns into the way back from the canvas's
-coordinates to the drawing's. `clipRect`,
-`clipRoundRect` and `clipPath`, which takes any path under its fill rule, cut what follows, a
-turned rectangle by its turned edges; `setBlendMode` draws in `BlendMode.ADDITIVE`, for light,
-`MULTIPLY`, for shade, `SCREEN`, `DARKEN` or `LIGHTEN`; and `saveLayer` paints a group into a
-picture of its own, composited at one opacity, so overlapping parts do not show through each
-other. Inside a layer the Porter-Duff rules mean what their names say, since its picture starts
-transparent: a draw in `DESTINATION_OUT` erases what the group drew, by as much as its paint is
-opaque, and one in `SOURCE_IN` paints only over it, as a gradient filling a shape drawn before.
+The `Canvas` draws more than circles: rectangles, ellipses and any outline as a `Path2D`, lines of
+any width, ends, corners and dashes, gradients and image patterns, under transforms, clips and
+layers with blend modes, text as a path, and drawings recorded once as a `Picture`.
+[Drawing](/docs/drawing/) shows each, with the picture it draws.
 A widget that paints outside its box says how far, as [A layout of your own](#a-layout-of-your-own)
 explains.
 

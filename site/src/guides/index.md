@@ -33,8 +33,9 @@ is what to do when your users are not all reading English, and [Accessibility](/
 is what a screen reader says about your window and the one call that makes it say the right
 thing. [Images and media](/docs/images-and-media/)
 covers pictures, video and the 3D viewport, [Animations](/docs/animations/) covers making
-something move, and [Your own widgets](/docs/custom-widgets/) covers a control the toolkit does
-not have.
+something move, [Drawing](/docs/drawing/) covers the canvas a widget paints with, its shapes,
+paths, lines, gradients, clips and layers, and [Your own widgets](/docs/custom-widgets/) covers a
+control the toolkit does not have.
 
 ## Coming from another toolkit
 

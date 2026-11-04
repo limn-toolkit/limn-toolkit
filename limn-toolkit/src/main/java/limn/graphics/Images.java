@@ -72,6 +72,9 @@ public final class Images {
      * backend draws it with a context of its own, on the GPU where the system lets the process reach
      * one and on the processor otherwise.
      *
+     * <p>Each call waits for the device to finish the picture and reads it back, a cost of its own
+     * besides the drawing: on a Mac about 0.3 ms whatever the picture holds, most of it the wait.
+     *
      * @param width   in units
      * @param height  in units
      * @param scale   pixels to a unit: the image is {@code ceil(width * scale)} by

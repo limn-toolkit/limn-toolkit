@@ -105,9 +105,15 @@ The UI thread draws one picture at a time, in the order they were asked for. A p
 in a script the default face lacks waits for the face, which loads once, in the background, so the
 first picture of a server is drawn with every letter in place.
 
+Every picture costs a round trip to the GPU besides its drawing: the backend hands the drawing
+over and waits for the pixels, then reads them back and turns them into straight alpha. On a Mac
+that is about 0.3 ms whatever the picture holds, 0.17 of it the wait alone; a 256-pixel avatar
+takes 0.35 ms, of which drawing it is about 0.14. A picture is returned finished, so each call
+pays it once.
+
 With no GPU, as in most containers, Linux draws with Mesa's software rasterizer, which runs the
-canvas's shaders on the processor: a 512-pixel picture with a gradient and text takes about 3 ms
-on two processors, where a GPU takes about one. There the canvas compiles its program with
+canvas's shaders on the processor: a 512-pixel picture with a gradient and text takes about 2 ms
+on two processors, where a GPU takes under one. There the canvas compiles its program with
 only the parts a drawing uses, so the first picture that needs a new combination, a radial
 gradient, an image, a shadow, takes some tens of milliseconds more (40 to 60 ms on two
 processors), once; [It runs, but slowly](/docs/troubleshooting/#it-runs-but-slowly) says how long
@@ -117,8 +123,7 @@ That rasterizer starts one thread for each processor of the machine, not of the 
 container allowed 2 processors of a host's 18, its 18 threads use up the quota under load and the
 whole process stands still for part of every scheduling period. Set `LP_NUM_THREADS` in the
 container's environment to the number of processors it allows, `LP_NUM_THREADS=2` for 2; a server
-drawing 256-pixel avatars on 2 processors answered 250 a second with 18 threads and 307 to 310
-with 2. A desktop needs nothing: there the machine's processors are the process's.
+drawing 256-pixel avatars on 2 processors answered 370 a second with 18 threads and 499 with 2. A desktop needs nothing: there the machine's processors are the process's.
 
 The backend keeps the framebuffer of the last picture for the next one of the same size, up to
 2048 by 2048 pixels: a server drawing the same size again and again makes it once. It holds 8 bytes
