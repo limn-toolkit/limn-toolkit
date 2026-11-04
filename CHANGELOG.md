@@ -104,11 +104,6 @@ Maven Central say which number that was.
   backend closed, and a destructor EGL had left with the UI thread ran into unmapped code when that
   thread ended. The library now stays in the process to its end, on Wayland too, where the windowing
   library loads it the same way.
-- On Linux the software rasterizer (Mesa's llvmpipe) gets as many threads as the process has
-  processors, unless `LP_NUM_THREADS` is set: it started one per processor of the machine, and in a
-  container allowed two processors of eighteen its threads used up the quota under load and the
-  whole process stood still for part of each scheduling period. A server drawing 256-pixel
-  avatars there answers 307 to 310 a second with two threads where it answered 250 with eighteen.
 - Drawing on the processor, where there is no GPU (Mesa's llvmpipe in a container, Apple's software
   renderer in a virtual machine), is several times faster. Such a renderer runs every branch of the
   canvas's fragment program for every pixel, the shadow's and the glass's included, so each flush
@@ -117,7 +112,9 @@ Maven Central say which number that was.
   interior of a solid fill or of a linear two-stop gradient is drawn by the flat program, its
   colours given at the corners. A 512-pixel avatar, a disc with a gradient and two letters, took
   19 ms on two processors and takes 2.8, every pixel within one level of what it was, and a server
-  drawing 256-pixel avatars there answered 110 a second and now 308 to 322. On a GPU each flush
+  drawing 256-pixel avatars there answered 110 a second and now 250, or 308 to 322 with
+  `LP_NUM_THREADS` set to the processors its container allows (see the printing guide's "On a
+  server"). On a GPU each flush
   keeps the one program it had. The first frame needing a new combination of parts pauses while
   its program compiles, 40 to 60 ms with llvmpipe on two processors; a program unused for 30
   seconds is let go, and `-Dlimn.backend.softwareProgramIdle=<seconds>` changes that (0 keeps

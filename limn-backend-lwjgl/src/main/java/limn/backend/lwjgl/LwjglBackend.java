@@ -368,9 +368,6 @@ public final class LwjglBackend implements BackendPeer {
                 Platform.current().os(), System.getenv("DISPLAY"), System.getenv("WAYLAND_DISPLAY"),
                 Platform.current().isWindows() && WindowsSession.isServices()));
         try {
-            if (Platform.current().isLinux()) {
-                fitSoftwareRasterizerThreads();
-            }
             if (headless) {
                 startWithoutDisplay();
             } else {
@@ -1895,32 +1892,6 @@ public final class LwjglBackend implements BackendPeer {
         GLFWErrorCallback previous = glfwSetErrorCallback(null);
         if (previous != null) {
             previous.free();
-        }
-    }
-
-    /**
-     * Gives Mesa's software rasterizer, llvmpipe, as many threads as the process has processors,
-     * unless {@code LP_NUM_THREADS} says otherwise: left alone it starts one per processor of the
-     * machine, and in a container allowed two of a host's eighteen its eighteen threads exhausted the
-     * quota and stopped the whole process for most of each scheduling period, a picture taking 55 ms
-     * where it took 18. The Java runtime counts the processors a container allows; Mesa reads the
-     * variable when it makes its first context, which is after this, before the windowing library
-     * starts.
-     */
-    private static void fitSoftwareRasterizerThreads() {
-        if (System.getenv("LP_NUM_THREADS") != null) {
-            return;
-        }
-        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
-            // RTLD_DEFAULT, the null handle, which the checked dlsym refuses.
-            long setenv = org.lwjgl.system.linux.DynamicLinkLoader.ndlsym(0L,
-                    org.lwjgl.system.MemoryUtil.memAddress(stack.ASCII("setenv")));
-            if (setenv == 0L) {
-                return;
-            }
-            String threads = Integer.toString(Runtime.getRuntime().availableProcessors());
-            org.lwjgl.system.JNI.invokePPI(org.lwjgl.system.MemoryUtil.memAddress(stack.ASCII("LP_NUM_THREADS")),
-                    org.lwjgl.system.MemoryUtil.memAddress(stack.ASCII(threads)), 0, setenv);
         }
     }
 

@@ -158,6 +158,10 @@ compiled: 40 to 60 ms on two processors with `llvmpipe`, once. A program no fram
 for as long as the window lives. A GPU draws with one program that has every part, and none of this
 applies.
 
+In a container, or under any limit on the processors a process may use, set `LP_NUM_THREADS` to
+that limit: `llvmpipe` starts one thread per processor of the machine, and more threads than the
+limit stall the whole process. [On a server](/docs/printing/#on-a-server) has the numbers.
+
 ## A popup opens inside the window on Linux
 
 Under Wayland, an application cannot place a window of its own at a screen position, so combo box

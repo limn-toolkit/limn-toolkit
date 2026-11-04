@@ -63,9 +63,6 @@ class HeadlessBackendTest {
             command.add("-XstartOnFirstThread");
         }
         command.add("-Dlimn.macos.agent=true");
-        // Fewer processors than the machine has, as a container allows: a software rasterizer's
-        // threads must follow the process's count (HeadlessDrawing counts them).
-        command.add("-XX:ActiveProcessorCount=2");
         command.addAll(properties);
         command.add("-XX:ErrorFile=" + directory.resolve("hs_err_pid%p.log"));
         command.add("-cp");
