@@ -148,6 +148,16 @@ the application; `-Dlimn.backend.angle=force` takes the same path on a machine w
 works, to see the application as such a user does. If the driver is the real one,
 [Performance](/docs/performance/) says what a frame costs and how to keep it small.
 
+On a software renderer (`llvmpipe`, or `Apple Software Renderer` on a Mac with no GPU) the canvas
+draws with programs compiled with only the parts a frame uses, because such a renderer runs every
+branch of a program for every pixel, used or not. The first frame that needs a new combination, a
+gradient of a new kind, an image, a shadow, a blurred backdrop, pauses while its program is
+compiled: 40 to 60 ms on two processors with `llvmpipe`, once. A program no frame has drawn with for
+30 seconds is let go at the next frame, and compiled again when it is needed;
+`-Dlimn.backend.softwareProgramIdle=<seconds>` changes how long it is kept, and `0` keeps every one
+for as long as the window lives. A GPU draws with one program that has every part, and none of this
+applies.
+
 ## A popup opens inside the window on Linux
 
 Under Wayland, an application cannot place a window of its own at a screen position, so combo box

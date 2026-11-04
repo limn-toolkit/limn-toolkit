@@ -5,6 +5,9 @@
 // premultiplied alpha (blend: ONE, ONE_MINUS_SRC_ALPHA).
 // PORTABILITY RULE (ADR 001): GLSL ES 3.00-compatible subset only (fwidth is
 // core in ES 3.00; the port swaps #version and adds precision qualifiers).
+// PARTS: each LIMN_* name guards a part some draws need (GlBatch.PART_*). A GPU compiles them all;
+// a renderer that runs this shader on the CPU runs every branch for every pixel, taken or not,
+// so there each flush compiles only the parts its primitives use.
 
 in vec2 v_local;
 in vec2 v_halfSize;
@@ -269,8 +272,11 @@ void main() {
     vec2 clipCenter = (v_clip.xy + v_clip.zw) * 0.5;
     vec2 clipHalf = (v_clip.zw - v_clip.xy) * 0.5;
     float dClip;
+#ifdef LIMN_ROUND_CLIP
     if (clipRadius <= 0.0) {
+#endif
         dClip = sdRoundRect(fragDev - clipCenter, clipHalf, vec4(0.0));
+#ifdef LIMN_ROUND_CLIP
     } else {
         vec2 roundCenter = (v_roundClip.xy + v_roundClip.zw) * 0.5;
         vec2 roundHalf = (v_roundClip.zw - v_roundClip.xy) * 0.5;
@@ -282,11 +288,15 @@ void main() {
             dClip = max(sdRoundRect(fragDev - clipCenter, clipHalf, vec4(0.0)), dRound);
         }
     }
+#endif
     float clipCoverage = 1.0 - smoothstep(-0.5, 0.5, dClip);
+#ifdef LIMN_MASK
     if (u_maskOn != 0) {
         clipCoverage *= maskAt(fragDev);
     }
+#endif
 
+#ifdef LIMN_SHADOW
     if (kind > 8.5) {
         // Shadow: the shape blurred, with no blur pass. The blur of a straight edge is the
         // error function of the distance to it, and a rounded rectangle's distance field is
@@ -302,15 +312,19 @@ void main() {
         float erfAx = 1.0 - (((((1.061405429 * tt - 1.453152027) * tt) + 1.421413741) * tt
                 - 0.284496736) * tt + 0.254829592) * tt * exp(-ax * ax);
         float aShadow = 0.5 * (1.0 - sign(x) * erfAx) * v_colorA.a * clipCoverage;
+#ifdef LIMN_RULE
         if (u_rule != 0) {
             float aOwn = 0.5 * (1.0 - sign(x) * erfAx) * v_colorA.a;
             o_color = ruled(vec4(v_colorA.rgb * aOwn, aOwn), clipCoverage);
             return;
         }
+#endif
         o_color = vec4(v_colorA.rgb * aShadow, aShadow);
         return;
     }
+#endif
 
+#ifdef LIMN_BACKDROP
     if (kind >= 7.5) {
         // Backdrop effect: the shape's own SDF gives both its coverage and, through
         // its gradient, the surface normal the refracting variant needs. Nothing
@@ -483,14 +497,18 @@ void main() {
             sampled += (backdropAt(uv + step1 * 4.0) + backdropAt(uv - step1 * 4.0)) * 0.04;
         }
         float aGlass = coverGlass * v_colorB.w;
+#ifdef LIMN_RULE
         if (u_rule != 0) {
             o_color = ruled(vec4(mix(sampled, v_colorA.rgb, v_colorA.a) * v_colorB.w, v_colorB.w), coverGlass);
             return;
         }
+#endif
         o_color = vec4(mix(sampled, v_colorA.rgb, v_colorA.a) * aGlass, aGlass);
         return;
     }
+#endif
 
+#ifdef LIMN_IMAGES
     if (kind >= 4.5) {
         vec4 texel = texture(u_atlas, v_uv);
         if (kind >= 6.5) {
@@ -502,11 +520,13 @@ void main() {
             // (applied display-referred; drawSurface always sends white).
             float tintScale = v_colorA.a * clipCoverage;
             vec3 c = displayTransform(texel.rgb / max(texel.a, 1e-4));
+#ifdef LIMN_RULE
             if (u_rule != 0) {
                 o_color = ruled(vec4(c * v_colorA.rgb * texel.a * v_colorA.a, texel.a * v_colorA.a),
                         clipCoverage);
                 return;
             }
+#endif
             o_color = vec4(c * v_colorA.rgb * texel.a * tintScale, texel.a * tintScale);
         } else if (kind >= 5.5) {
             // Image mask (icon): the texel's alpha is the coverage; paint it in
@@ -514,11 +534,13 @@ void main() {
             // the theme this way, unlike the modulate branch below, where a
             // black mask (texel.rgb == 0) would stay black.
             float a = texel.a * v_colorA.a * clipCoverage;
+#ifdef LIMN_RULE
             if (u_rule != 0) {
                 // The mask is the shape: its alpha covers, as a fill's edge does.
                 o_color = ruled(vec4(v_colorA.rgb * v_colorA.a, v_colorA.a), texel.a * clipCoverage);
                 return;
             }
+#endif
             o_color = vec4(v_colorA.rgb * a, a);
         } else {
             // Image: PREMULTIPLIED RGBA texel (images premultiply at upload
@@ -527,18 +549,22 @@ void main() {
             // of transparent texels into every edge sample (color halos).
             // The tint (v_colorA) stays straight; output premultiplied.
             float tintScale = v_colorA.a * clipCoverage;
+#ifdef LIMN_RULE
             if (u_rule != 0) {
                 // An image is a paint over its whole quad: a transparent texel is a transparent
                 // source, which a rule such as source draws as it is.
                 o_color = ruled(vec4(texel.rgb * v_colorA.rgb * v_colorA.a, texel.a * v_colorA.a), clipCoverage);
                 return;
             }
+#endif
             o_color = vec4(texel.rgb * v_colorA.rgb * tintScale, texel.a * tintScale);
         }
         return;
     }
+#endif
 
     float coverage = clipCoverage;
+#ifdef LIMN_SHAPES
     if (kind < 1.5) {
         float d = (kind < 0.5) ? sdRoundRect(v_local, v_halfSize, v_radii)
                                : sdEllipse(v_local, v_halfSize);
@@ -550,9 +576,14 @@ void main() {
             d = abs(d) - strokeHW;
         }
         coverage *= 1.0 - smoothstep(-aa, aa, d);
-    } else if (kind >= 3.5) {
+    } else
+#endif
+#ifdef LIMN_GLYPHS
+    if (kind >= 3.5) {
         coverage *= texture(u_atlas, v_uv).r; // glyph: stb-rasterized coverage
-    } else if (kind >= 2.5) {
+    } else
+#endif
+    if (kind >= 2.5) {
         coverage *= clamp(v_radii.x, 0.0, 1.0); // fringe ramp: 1 at contour, 0 outside
     }
 
@@ -560,28 +591,42 @@ void main() {
     // bleeds a transparent stop's RGB into every intermediate color (a fade
     // to Color.TRANSPARENT, black at alpha 0, would darken through gray).
     vec4 a = vec4(v_colorA.rgb * v_colorA.a, v_colorA.a);
-    vec4 color;
+    vec4 color = a;
     if (paintType < 0.5) {
         color = a;
-    } else if (paintType < 1.5) {
+    }
+#ifdef LIMN_LINEAR
+    else if (paintType < 1.5) {
         vec4 b = vec4(v_colorB.rgb * v_colorB.a, v_colorB.a);
         vec2 dir = v_grad.zw - v_grad.xy;
         float len2 = max(dot(dir, dir), 1e-6);
         float t = clamp(dot(v_local - v_grad.xy, dir) / len2, 0.0, 1.0);
         color = mix(a, b, t);
-    } else if (paintType < 2.5) {
+    }
+#endif
+#ifdef LIMN_RADIAL
+    else if (paintType < 2.5) {
         vec4 b = vec4(v_colorB.rgb * v_colorB.a, v_colorB.a);
         float t = clamp(length(v_local - v_grad.xy) / max(v_grad.z, 1e-6), 0.0, 1.0);
         color = mix(a, b, t);
-    } else if (paintType < 3.5) {
+    }
+#endif
+#ifdef LIMN_GRADIENT
+    else if (paintType < 3.5) {
         color = gradientAt();
-    } else {
+    }
+#endif
+#ifdef LIMN_IMAGE_PAINT
+    else {
         color = imageAt();
     }
+#endif
 
+#ifdef LIMN_RULE
     if (u_rule != 0) {
         o_color = ruled(color, coverage);
         return;
     }
+#endif
     o_color = color * coverage;
 }

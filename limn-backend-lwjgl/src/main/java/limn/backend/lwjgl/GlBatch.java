@@ -117,19 +117,131 @@ final class GlBatch implements AutoCloseable {
     private static final int INITIAL_VERTICES = 4096;
     private static final int INITIAL_INDICES = INITIAL_VERTICES * 3 / 2;
 
-    private final ShaderProgram program;
-    private final int uniformViewport;
-    private final int uniformOrigin;
-    private final int uniformWindow;
-    private final int uniformExposure;
-    private final int uniformMaskOn;
-    private final int uniformMaskRect;
-    private final int uniformRule;
+    /*
+     * The canvas program's parts: canvas.frag compiles each only under its LIMN_* name. A draw
+     * needs some of them, by its kind, its paint and its clip; the program with all of them is
+     * the one every draw takes on a GPU, where a branch no pixel of a group takes costs nothing.
+     * A renderer that runs fragment shaders on the processor runs every branch for every pixel
+     * instead, so there a flush takes the program with only the parts its primitives used: on
+     * Mesa's llvmpipe a 512-pixel disc with a gradient and two letters took 41 ms with all of
+     * them and 9.7 ms with its own. The price is paid once per combination, at the first flush
+     * that needs it: compiling the program, and llvmpipe's compiling of its code at the first
+     * draw, 40 to 60 ms on two processors, during that frame. The union of a flush's parts, not
+     * each primitive's, keeps the frame's one draw call.
+     */
+    static final int PART_SHAPES = 1;        // kinds 0, 1: rounded rectangle and ellipse
+    static final int PART_GLYPHS = 1 << 1;   // kind 4
+    static final int PART_IMAGES = 1 << 2;   // kinds 5, 6, 7: image, image mask, HDR surface
+    static final int PART_BACKDROP = 1 << 3; // kind 8
+    static final int PART_SHADOW = 1 << 4;   // kind 9
+    static final int PART_LINEAR = 1 << 5;   // paint 1
+    static final int PART_RADIAL = 1 << 6;   // paint 2
+    static final int PART_GRADIENT = 1 << 7; // paint 3
+    static final int PART_IMAGE_PAINT = 1 << 8; // paint 4
+    static final int PART_ROUND_CLIP = 1 << 9;
+    static final int PART_MASK = 1 << 10;
+    static final int PART_RULE = 1 << 11;
+    private static final String[] PART_NAMES = {
+        "LIMN_SHAPES", "LIMN_GLYPHS", "LIMN_IMAGES", "LIMN_BACKDROP", "LIMN_SHADOW", "LIMN_LINEAR",
+        "LIMN_RADIAL", "LIMN_GRADIENT", "LIMN_IMAGE_PAINT", "LIMN_ROUND_CLIP", "LIMN_MASK", "LIMN_RULE",
+    };
+    static final int ALL_PARTS = (1 << PART_NAMES.length) - 1;
+
+    /** The canvas program with some of its parts, and its uniforms' locations. */
+    private static final class MainProgram implements AutoCloseable {
+        final ShaderProgram program;
+        final int viewport;
+        final int origin;
+        final int window;
+        final int exposure;
+        final int maskOn;
+        final int maskRect;
+        final int rule;
+
+        /**
+         * @param parts the parts compiled in; with all of them every uniform must be found, and
+         *              with fewer the ones a missing part alone read are left out (location -1,
+         *              which a uniform call ignores)
+         */
+        MainProgram(int parts) {
+            java.util.List<String> defines = new java.util.ArrayList<>();
+            for (int i = 0; i < PART_NAMES.length; i++) {
+                if ((parts & (1 << i)) != 0) {
+                    defines.add(PART_NAMES[i]);
+                }
+            }
+            program = ShaderProgram.fromResources("/limn/backend/lwjgl/shaders/canvas.vert",
+                    "/limn/backend/lwjgl/shaders/canvas.frag", defines);
+            boolean all = parts == ALL_PARTS;
+            viewport = location("u_viewport", all);
+            origin = location("u_origin", all);
+            window = location("u_window", all);
+            exposure = location("u_exposure", all);
+            maskOn = location("u_maskOn", all);
+            maskRect = location("u_maskRect", all);
+            rule = location("u_rule", all);
+            program.use();
+            glUniform1i(location("u_atlas", all), 0);
+            glUniform1i(location("u_mask", all), 1);
+            glUniform1i(location("u_dst", all), 2);
+            glUniform1i(location("u_stops", all), 3);
+            glUniform1i(location("u_paint", all), 4);
+        }
+
+        private int location(String name, boolean required) {
+            return required ? program.uniformLocation(name) : program.optionalUniformLocation(name);
+        }
+
+        @Override
+        public void close() {
+            program.close();
+        }
+    }
+
+    private final MainProgram program;
+    /**
+     * The programs with fewer parts, made as flushes ask for them, each with the time a flush last
+     * drew with it; see {@link #parted}.
+     */
+    private final java.util.Map<Integer, MainProgram> partedPrograms = new java.util.HashMap<>();
+    private final java.util.Map<Integer, Long> partedLastUse = new java.util.HashMap<>();
+    private long lastIdleSweep;
+
+    /**
+     * {@code -Dlimn.backend.softwareProgramIdle=<seconds>}: how long a program with fewer parts goes
+     * undrawn before the next flush lets it go, 30 by default; 0 keeps every one for the context's
+     * life. Each is compiled the first time a flush needs its parts, which on a software renderer
+     * costs milliseconds, and holds the renderer's compiled code until it goes.
+     */
+    static final String IDLE_PROPERTY = "limn.backend.softwareProgramIdle";
+    private static final long IDLE_NANOS = idleNanos();
+
+    private static long idleNanos() {
+        String value = System.getProperty(IDLE_PROPERTY);
+        if (value == null || value.isBlank()) {
+            return 30_000_000_000L;
+        }
+        try {
+            double seconds = Double.parseDouble(value.trim());
+            return seconds > 0 ? (long) (seconds * 1_000_000_000L) : 0;
+        } catch (NumberFormatException notANumber) {
+            return 30_000_000_000L;
+        }
+    }
+    /**
+     * Whether a flush takes the program with only the parts its primitives used rather than the one
+     * with all of them: where the renderer runs fragment shaders on the processor. Set by the canvas.
+     */
+    boolean parted;
+    /** The parts the registers' primitive needs, and the parts the geometry queued needs. */
+    private int shapeParts = ALL_PARTS;
+    private int clipParts;
+    private int queuedParts;
     private final int vao;
     private final int vbo;
     private final int ebo;
 
-    /** Floats per flat vertex: device position, then straight-alpha colour. */
+    /** Floats per flat vertex: device position, then premultiplied colour. */
     static final int FLAT_VERTEX_FLOATS = 6;
     private final ShaderProgram flatProgram;
     private final int flatUniformViewport;
@@ -208,16 +320,7 @@ final class GlBatch implements AutoCloseable {
     private float round0, round1, round2, round3;
 
     GlBatch() {
-        program = ShaderProgram.fromResources(
-                "/limn/backend/lwjgl/shaders/canvas.vert",
-                "/limn/backend/lwjgl/shaders/canvas.frag");
-        uniformViewport = program.uniformLocation("u_viewport");
-        uniformOrigin = program.uniformLocation("u_origin");
-        uniformWindow = program.uniformLocation("u_window");
-        uniformExposure = program.uniformLocation("u_exposure");
-        uniformMaskOn = program.uniformLocation("u_maskOn");
-        uniformMaskRect = program.uniformLocation("u_maskRect");
-        uniformRule = program.uniformLocation("u_rule");
+        program = new MainProgram(ALL_PARTS);
         vao = glGenVertexArrays();
         vbo = glGenBuffers();
         ebo = glGenBuffers();
@@ -237,12 +340,6 @@ final class GlBatch implements AutoCloseable {
         attribute(9, 2, stride, 30);  // a_uv
         attribute(10, 4, stride, 32); // a_roundClip
         glBindVertexArray(0);
-        program.use();
-        glUniform1i(program.uniformLocation("u_atlas"), 0);
-        glUniform1i(program.uniformLocation("u_mask"), 1);
-        glUniform1i(program.uniformLocation("u_dst"), 2);
-        glUniform1i(program.uniformLocation("u_stops"), 3);
-        glUniform1i(program.uniformLocation("u_paint"), 4);
 
         flatProgram = ShaderProgram.fromResources(
                 "/limn/backend/lwjgl/shaders/canvas_flat.vert",
@@ -390,6 +487,26 @@ final class GlBatch implements AutoCloseable {
         this.strokeHalfWidth = strokeHalfWidth;
         this.kind = shapeKind;
         this.paintType = paint;
+        this.shapeParts = partsOf(shapeKind, paint);
+    }
+
+    /** The canvas program's parts a primitive of {@code kind} drawn with {@code paint} needs. */
+    static int partsOf(int kind, int paint) {
+        int parts = switch (kind) {
+            case 0, 1 -> PART_SHAPES;
+            case 4 -> PART_GLYPHS;
+            case 5, 6, 7 -> PART_IMAGES;
+            case 8 -> PART_BACKDROP;
+            case 9 -> PART_SHADOW;
+            default -> 0; // plain and fringe, which every program draws
+        };
+        return parts | switch (paint) {
+            case 1 -> PART_LINEAR;
+            case 2 -> PART_RADIAL;
+            case 3 -> PART_GRADIENT;
+            case 4 -> PART_IMAGE_PAINT;
+            default -> 0;
+        };
     }
 
     void setColors(float aR, float aG, float aB, float aA,
@@ -425,6 +542,7 @@ final class GlBatch implements AutoCloseable {
         round2 = clip.roundX1;
         round3 = clip.roundY1;
         clipRadius = clip.radius;
+        clipParts = clip.radius > 0 ? PART_ROUND_CLIP : 0;
     }
 
     /**
@@ -1014,6 +1132,7 @@ final class GlBatch implements AutoCloseable {
             twoPassBox[at + 2] = Math.max(twoPassBox[at + 2], posX);
             twoPassBox[at + 3] = Math.max(twoPassBox[at + 3], posY);
         }
+        queuedParts |= shapeParts | clipParts;
         vertices.put(posX).put(posY)
                 .put(localX).put(localY)
                 .put(halfW).put(halfH)
@@ -1038,6 +1157,20 @@ final class GlBatch implements AutoCloseable {
      * is drawn first, so paint order holds.
      */
     void flatRect(float x0, float y0, float x1, float y1, float r, float g, float b, float a) {
+        float pr = r * a;
+        float pg = g * a;
+        float pb = b * a;
+        shadedRect(x0, y0, x1, y1, pr, pg, pb, a, pr, pg, pb, a, pr, pg, pb, a, pr, pg, pb, a);
+    }
+
+    /**
+     * A rectangle for the flat program whose four corners have colours of their own, premultiplied,
+     * in the order (x0, y0), (x1, y0), (x1, y1), (x0, y1), interpolated between them: a linear
+     * gradient's interior.
+     */
+    void shadedRect(float x0, float y0, float x1, float y1,
+                    float r00, float g00, float b00, float a00, float r10, float g10, float b10, float a10,
+                    float r11, float g11, float b11, float a11, float r01, float g01, float b01, float a01) {
         if (indices.position() > 0) {
             flushMain();
         }
@@ -1047,12 +1180,12 @@ final class GlBatch implements AutoCloseable {
         if (byRuns()) {
             beginTwoPassPrimitive(flatVertexCount, x0, y0, x1, y1, 0);
         }
-        flatVertex(x0, y0, r, g, b, a);
-        flatVertex(x1, y0, r, g, b, a);
-        flatVertex(x1, y1, r, g, b, a);
-        flatVertex(x0, y0, r, g, b, a);
-        flatVertex(x1, y1, r, g, b, a);
-        flatVertex(x0, y1, r, g, b, a);
+        flatVertex(x0, y0, r00, g00, b00, a00);
+        flatVertex(x1, y0, r10, g10, b10, a10);
+        flatVertex(x1, y1, r11, g11, b11, a11);
+        flatVertex(x0, y0, r00, g00, b00, a00);
+        flatVertex(x1, y1, r11, g11, b11, a11);
+        flatVertex(x0, y1, r01, g01, b01, a01);
     }
 
     private void flatVertex(float x, float y, float r, float g, float b, float a) {
@@ -1311,12 +1444,15 @@ final class GlBatch implements AutoCloseable {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STREAM_DRAW);
 
-        program.use();
-        glUniform2f(uniformViewport, targetWidth, targetHeight);
-        glUniform2f(uniformOrigin, targetX, targetY);
-        glUniform2f(uniformWindow, fbWidth, fbHeight);
-        glUniform1f(uniformExposure, exposure);
-        applyMaskAndRule(uniformMaskOn, uniformMaskRect, uniformRule);
+        MainProgram main = programFor(queuedParts | (maskTexture != 0 ? PART_MASK : 0)
+                | (rule != GlBlend.RULE_NONE ? PART_RULE : 0));
+        queuedParts = 0;
+        main.program.use();
+        glUniform2f(main.viewport, targetWidth, targetHeight);
+        glUniform2f(main.origin, targetX, targetY);
+        glUniform2f(main.window, fbWidth, fbHeight);
+        glUniform1f(main.exposure, exposure);
+        applyMaskAndRule(main.maskOn, main.maskRect, main.rule);
         if (stopsTexture != 0) {
             glActiveTexture(GL_TEXTURE3);
             glBindTexture(GL_TEXTURE_2D, stopsTexture);
@@ -1345,6 +1481,45 @@ final class GlBatch implements AutoCloseable {
         vertices.clear();
         indices.clear();
         vertexCount = 0;
+    }
+
+    /** The program a flush of geometry needing {@code parts} draws with; see {@link #parted}. */
+    private MainProgram programFor(int parts) {
+        if (!parted || parts == ALL_PARTS) {
+            return program;
+        }
+        long now = System.nanoTime();
+        letIdleProgramsGo(now, IDLE_NANOS);
+        MainProgram made = partedPrograms.get(parts);
+        if (made == null) {
+            made = new MainProgram(parts);
+            partedPrograms.put(parts, made);
+        }
+        partedLastUse.put(parts, now);
+        return made;
+    }
+
+    /**
+     * Deletes the programs with fewer parts no flush has drawn with for {@code idle} nanoseconds,
+     * looking at most once a second; none when {@code idle} is 0.
+     */
+    void letIdleProgramsGo(long now, long idle) {
+        if (idle <= 0 || now - lastIdleSweep < 1_000_000_000L) {
+            return;
+        }
+        lastIdleSweep = now;
+        partedLastUse.entrySet().removeIf(entry -> {
+            if (now - entry.getValue() < idle) {
+                return false;
+            }
+            partedPrograms.remove(entry.getKey()).close();
+            return true;
+        });
+    }
+
+    /** @return how many programs with fewer parts this batch holds; for tests */
+    int partedProgramCount() {
+        return partedPrograms.size();
     }
 
     private void flushFlat() {
@@ -1401,6 +1576,9 @@ final class GlBatch implements AutoCloseable {
         glDeleteBuffers(ebo);
         glDeleteVertexArrays(vao);
         program.close();
+        partedPrograms.values().forEach(MainProgram::close);
+        partedPrograms.clear();
+        partedLastUse.clear();
         glDeleteBuffers(flatVbo);
         glDeleteVertexArrays(flatVao);
         flatProgram.close();

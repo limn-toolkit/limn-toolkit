@@ -91,61 +91,155 @@ final class GlOffscreen {
 
     private static @Nullable Image draw(GlCanvas canvas, int width, int height, float scale,
                                         Consumer<Canvas> painter) {
-        int largest = Math.min(Gl.glGetInteger(GL_MAX_TEXTURE_SIZE), Gl.glGetInteger(GL_MAX_RENDERBUFFER_SIZE));
-        if (width > largest || height > largest) {
-            return null;
+        Target target = canvas.offscreenTarget;
+        if (target == null || target.width != width || target.height != height) {
+            target = Target.make(width, height);
+            if (target == null) {
+                return null;
+            }
         }
-        int texture = Gl.glGenTextures();
-        int fbo = Gl.glGenFramebuffers();
-        int depthStencil = Gl.glGenRenderbuffers();
+        boolean keep = (long) width * height <= keptPixels;
+        if (keep && target != canvas.offscreenTarget) {
+            if (canvas.offscreenTarget != null) {
+                canvas.offscreenTarget.delete();
+            }
+            canvas.offscreenTarget = target;
+        }
         ByteBuffer pixels = null;
         try {
+            Gl.glBindFramebuffer(GL_FRAMEBUFFER, target.framebuffer);
+            Gl.glViewport(0, 0, width, height);
+            canvas.beginFrame(width, height, scale);
+            canvas.clear(Color.TRANSPARENT); // colour and stencil: a target kept from the last picture
+            try {
+                painter.accept(canvas);
+            } finally {
+                canvas.endFrame();
+            }
+            int size = width * height * 4;
+            pixels = MemoryUtil.memAlloc(size);
+            Gl.glPixelStorei(GL_PACK_ALIGNMENT, 1);
+            Gl.glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+            return new Image(width, height, straightTopDown(pixels, width, height));
+        } finally {
+            if (pixels != null) {
+                MemoryUtil.memFree(pixels);
+            }
+            if (!keep) {
+                target.delete();
+                if (canvas.offscreenTarget == target) {
+                    canvas.offscreenTarget = null;
+                }
+            }
+        }
+    }
+
+    /** A pixel's four bytes as one int, R in its low byte, alike on every machine: read, and written. */
+    private static final java.lang.invoke.VarHandle READ = java.lang.invoke.MethodHandles
+            .byteBufferViewVarHandle(int[].class, java.nio.ByteOrder.LITTLE_ENDIAN);
+    private static final java.lang.invoke.VarHandle PIXEL = java.lang.invoke.MethodHandles
+            .byteArrayViewVarHandle(int[].class, java.nio.ByteOrder.LITTLE_ENDIAN);
+
+    /**
+     * Pixels read bottom-up and premultiplied as an image's: top-down with straight alpha. An opaque
+     * pixel and a clear one are the same either way and are moved whole, and in a picture most are
+     * one or the other; only the rest are divided by their alpha.
+     */
+    static byte[] straightTopDown(ByteBuffer read, int width, int height) {
+        byte[] rgba = new byte[width * height * 4];
+        int row = width * 4;
+        for (int y = 0; y < height; y++) {
+            int from = (height - 1 - y) * row;
+            int to = y * row;
+            for (int i = 0; i < row; i += 4) {
+                int pixel = (int) READ.get(read, from + i);
+                int a = pixel >>> 24;
+                if (a == 0) {
+                    continue; // already zero
+                }
+                if (a != 255) {
+                    int r = Math.min(255, ((pixel & 0xff) * 255 + a / 2) / a);
+                    int g = Math.min(255, (((pixel >>> 8) & 0xff) * 255 + a / 2) / a);
+                    int b = Math.min(255, (((pixel >>> 16) & 0xff) * 255 + a / 2) / a);
+                    pixel = a << 24 | b << 16 | g << 8 | r;
+                }
+                PIXEL.set(rgba, to + i, pixel);
+            }
+        }
+        return rgba;
+    }
+
+    /**
+     * {@code -Dlimn.backend.keptPicturePixels=<pixels>}: the largest picture, as its width times its
+     * height in pixels, whose framebuffer a canvas keeps for the next picture of the same size;
+     * 4194304 (2048 x 2048) by default, 0 to keep none. Making a texture, a framebuffer and a depth
+     * and stencil buffer for every picture cost a third of a 512-pixel picture's time on a GPU, and
+     * a server draws the same size again and again; a kept one holds 8 bytes a pixel, 32 MB at the
+     * default's largest, until a picture of another size replaces it or the backend stops. A
+     * picture larger than this has its framebuffer made and let go of each time.
+     */
+    static final String KEPT_PROPERTY = "limn.backend.keptPicturePixels";
+    /** Read from {@link #KEPT_PROPERTY} once; tests set it. */
+    static long keptPixels = keptPixels();
+
+    private static long keptPixels() {
+        String value = System.getProperty(KEPT_PROPERTY);
+        if (value == null || value.isBlank()) {
+            return 2048L * 2048;
+        }
+        try {
+            return Math.max(0, Long.parseLong(value.trim()));
+        } catch (NumberFormatException notANumber) {
+            return 2048L * 2048;
+        }
+    }
+
+    /** A picture's framebuffer: its colour texture and its depth and stencil buffer, of one size. */
+    static final class Target {
+        final int width;
+        final int height;
+        final int texture;
+        final int framebuffer;
+        final int depthStencil;
+
+        private Target(int width, int height, int texture, int framebuffer, int depthStencil) {
+            this.width = width;
+            this.height = height;
+            this.texture = texture;
+            this.framebuffer = framebuffer;
+            this.depthStencil = depthStencil;
+        }
+
+        /** @return the target, or null when the device refuses the size */
+        static @Nullable Target make(int width, int height) {
+            int largest = Math.min(Gl.glGetInteger(GL_MAX_TEXTURE_SIZE), Gl.glGetInteger(GL_MAX_RENDERBUFFER_SIZE));
+            if (width > largest || height > largest) {
+                return null;
+            }
+            int texture = Gl.glGenTextures();
+            int framebuffer = Gl.glGenFramebuffers();
+            int depthStencil = Gl.glGenRenderbuffers();
+            Target made = new Target(width, height, texture, framebuffer, depthStencil);
             Gl.glActiveTexture(GL_TEXTURE0);
             Gl.glBindTexture(GL_TEXTURE_2D, texture);
             Gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, (ByteBuffer) null);
             Gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             Gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            Gl.glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+            Gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
             Gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
             Gl.glBindRenderbuffer(GL_RENDERBUFFER, depthStencil);
             Gl.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
             Gl.glBindRenderbuffer(GL_RENDERBUFFER, 0);
             Gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, depthStencil);
             if (Gl.glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+                made.delete();
                 return null;
             }
-            Gl.glViewport(0, 0, width, height);
-            canvas.beginFrame(width, height, scale);
-            canvas.clear(Color.TRANSPARENT);
-            try {
-                painter.accept(canvas);
-            } finally {
-                canvas.endFrame();
-            }
-            pixels = MemoryUtil.memAlloc(width * height * 4);
-            Gl.glPixelStorei(GL_PACK_ALIGNMENT, 1);
-            Gl.glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-            // Read bottom-up and premultiplied; an image is top-down with straight alpha.
-            byte[] rgba = new byte[width * height * 4];
-            int row = width * 4;
-            for (int y = 0; y < height; y++) {
-                int from = (height - 1 - y) * row;
-                int to = y * row;
-                for (int i = 0; i < row; i += 4) {
-                    int a = pixels.get(from + i + 3) & 0xff;
-                    for (int c = 0; c < 3; c++) {
-                        int v = pixels.get(from + i + c) & 0xff;
-                        rgba[to + i + c] = (byte) (a == 0 ? 0 : Math.min(255, (v * 255 + a / 2) / a));
-                    }
-                    rgba[to + i + 3] = (byte) a;
-                }
-            }
-            return new Image(width, height, rgba);
-        } finally {
-            if (pixels != null) {
-                MemoryUtil.memFree(pixels);
-            }
-            Gl.glDeleteFramebuffers(fbo);
+            return made;
+        }
+
+        void delete() {
+            Gl.glDeleteFramebuffers(framebuffer);
             Gl.glDeleteTextures(texture);
             Gl.glDeleteRenderbuffers(depthStencil);
         }

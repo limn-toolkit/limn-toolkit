@@ -72,6 +72,12 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      */
     private static final float MIN_HOLE_DEVICE_PIXELS = 256;
     /**
+     * The half widths of the arms of the largest cross inside a circle of radius one: cos and sin of
+     * half of atan(2), where the cross's area 8ab - 4a^2 with a^2 + b^2 = 1 peaks.
+     */
+    private static final float DISC_CROSS_LONG = (float) Math.cos(Math.atan(2) / 2);
+    private static final float DISC_CROSS_SHORT = (float) Math.sin(Math.atan(2) / 2);
+    /**
      * The smallest part of a solid fill's interior, in device pixels, drawn with the flat program
      * (see {@code emitFlatInterior}); 64 x 64, a 32-point square at 2x.
      */
@@ -258,6 +264,13 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      */
     boolean flatInteriors;
     /**
+     * Whether each flush draws with the canvas program compiled with only the parts its primitives
+     * use (see {@link GlBatch#parted}): only where the renderer runs fragment shaders on the CPU,
+     * read from the context by the rule that chooses {@link #flatInteriors}. Tests set it to take
+     * either path on whatever device they run on.
+     */
+    boolean partedPrograms;
+    /**
      * Whether a picture seen in perspective is drawn at its natural size rather than at its near
      * edge's magnification (see {@link #pictureScale}): only where the renderer runs fragment shaders
      * on the CPU, read from the context when the canvas is built, by the rule that chooses
@@ -300,6 +313,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
                 Gl.glGetString(org.lwjgl.opengl.GL33C.GL_RENDERER));
         flatInteriors = software;
         depthAtNaturalSize = software;
+        partedPrograms = software;
     }
 
     /**
@@ -314,6 +328,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         if (offscreen != null) {
             offscreen.contextLost();
         }
+        offscreenTarget = null; // its names went with the context
         batch = null;
         atlas.contextLost();
         imageTextures.contextLost();
@@ -339,6 +354,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             batch = new GlBatch(); // the first frame in a new context
             readRenderer();
         }
+        batch.parted = partedPrograms;
         fbWidth = framebufferWidth;
         fbHeight = framebufferHeight;
         scale = contentScale;
@@ -419,6 +435,20 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     }
 
     private GlCanvas offscreen;
+    /** The framebuffer the last picture off screen was drawn into, kept for the next of its size. */
+    GlOffscreen.@org.jspecify.annotations.Nullable Target offscreenTarget;
+
+    /** Lets go of the programs with fewer parts idle for {@code idle} nanoseconds at {@code now}; for tests. */
+    void letIdleProgramsGo(long now, long idle) {
+        if (batch != null) {
+            batch.letIdleProgramsGo(now, idle);
+        }
+    }
+
+    /** @return how many programs with fewer parts this canvas's batch holds; for tests */
+    int partedProgramCount() {
+        return batch != null ? batch.partedProgramCount() : 0;
+    }
 
     /** Draws what this frame queued, before a picture off screen takes the context for a while. */
     void flushForOffscreen() {
@@ -500,6 +530,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         if (offscreen != null) {
             offscreen.dispose();
             offscreen = null;
+        }
+        if (offscreenTarget != null) {
+            offscreenTarget.delete();
+            offscreenTarget = null;
         }
         if (gl3d != null) {
             gl3d.dispose(); // context is current here (LwjglWindow.destroy)
@@ -2230,8 +2264,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         if (radius <= 0) {
             return;
         }
-        emitSdfQuad(KIND_ROUND_RECT, cx, cy, radius, radius,
-                radius, radius, radius, radius, -1, 1, 0, paint);
+        if (!emitRoundRectPieces(state(), cx, cy, radius, radius,
+                radius, radius, radius, radius, -1, paint)) {
+            emitSdfQuad(KIND_ROUND_RECT, cx, cy, radius, radius,
+                    radius, radius, radius, radius, -1, 1, 0, paint);
+        }
     }
 
     @Override
@@ -2239,8 +2276,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         if (radius <= 0 || strokeWidth <= 0) {
             return;
         }
-        emitSdfQuad(KIND_ROUND_RECT, cx, cy, radius, radius,
-                radius, radius, radius, radius, strokeWidth / 2f, 1, 0, paint);
+        if (!emitRoundRectPieces(state(), cx, cy, radius, radius,
+                radius, radius, radius, radius, strokeWidth / 2f, paint)) {
+            emitSdfQuad(KIND_ROUND_RECT, cx, cy, radius, radius,
+                    radius, radius, radius, radius, strokeWidth / 2f, 1, 0, paint);
+        }
     }
 
     @Override
@@ -3145,25 +3185,48 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         batch.ensure(4 * 11, 6 * 11);
 
         float reach = stroke + (1 + RING_MARGIN_DEVICE) / t.minScale() + 1e-4f;
-        float corner = Math.max(Math.max(Math.max(tl, tr), Math.max(br, bl)), reach);
-        float holeW = 2 * (halfW - reach);
-        float holeH = 2 * (halfH - reach);
-        float holeDevice = (holeW * holeH - 4 * (corner - reach) * (corner - reach))
-                * Math.abs(t.m00 * t.m11);
-        if (corner > halfW || corner > halfH || !(holeDevice >= MIN_HOLE_DEVICE_PIXELS)) {
+        // Each axis's two inner boundaries: where the band's inner edge and where the corner
+        // squares' inner edge lie, from the centre. A circle has no straight edge, its corner
+        // squares are the whole box, so its interior is instead the cross with the largest area
+        // inside the circle the ramp leaves alone: its arms' half widths a and b with a^2 + b^2 on
+        // that circle, at the angle whose double has tangent 2, 79% of the circle against 64% for
+        // the square inside it.
+        float bandX;
+        float cornerX;
+        float bandY;
+        float cornerY;
+        float holeDevice;
+        if (halfW == halfH && tl == halfW && tr == halfW && br == halfW && bl == halfW) {
+            float inside = halfW - reach;
+            bandX = bandY = DISC_CROSS_LONG * inside;
+            cornerX = cornerY = DISC_CROSS_SHORT * inside;
+            holeDevice = inside > 0
+                    ? (8 * bandX * cornerX - 4 * cornerX * cornerX) * Math.abs(t.m00 * t.m11) : 0;
+        } else {
+            float corner = Math.max(Math.max(Math.max(tl, tr), Math.max(br, bl)), reach);
+            float holeW = 2 * (halfW - reach);
+            float holeH = 2 * (halfH - reach);
+            holeDevice = corner > halfW || corner > halfH ? 0
+                    : (holeW * holeH - 4 * (corner - reach) * (corner - reach)) * Math.abs(t.m00 * t.m11);
+            bandX = halfW - reach;
+            cornerX = halfW - corner;
+            bandY = halfH - reach;
+            cornerY = halfH - corner;
+        }
+        if (!(holeDevice >= MIN_HOLE_DEVICE_PIXELS)) {
             piece(0, 0, 5, 5); // no interior worth leaving out
             return true;
         }
         // The band's inner edge and the corner squares' inner edge on each side, each moved onto
         // the device grid towards the interior, which only ever widens the pieces around it.
-        pieceBoundary(t, cx, cy, true, 1, -halfW + reach, true);
-        pieceBoundary(t, cx, cy, true, 2, -halfW + corner, true);
-        pieceBoundary(t, cx, cy, true, 3, halfW - corner, false);
-        pieceBoundary(t, cx, cy, true, 4, halfW - reach, false);
-        pieceBoundary(t, cx, cy, false, 1, -halfH + reach, true);
-        pieceBoundary(t, cx, cy, false, 2, -halfH + corner, true);
-        pieceBoundary(t, cx, cy, false, 3, halfH - corner, false);
-        pieceBoundary(t, cx, cy, false, 4, halfH - reach, false);
+        pieceBoundary(t, cx, cy, true, 1, -bandX, true);
+        pieceBoundary(t, cx, cy, true, 2, -cornerX, true);
+        pieceBoundary(t, cx, cy, true, 3, cornerX, false);
+        pieceBoundary(t, cx, cy, true, 4, bandX, false);
+        pieceBoundary(t, cx, cy, false, 1, -bandY, true);
+        pieceBoundary(t, cx, cy, false, 2, -cornerY, true);
+        pieceBoundary(t, cx, cy, false, 3, cornerY, false);
+        pieceBoundary(t, cx, cy, false, 4, bandY, false);
         if (!(pieceLocX[1] < pieceLocX[4]) || !(pieceLocY[1] < pieceLocY[4])) {
             piece(0, 0, 5, 5); // the grid swallowed the interior
             return true;
@@ -3218,7 +3281,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      */
     private boolean emitFlatInterior(State s, Paint paint) {
         DeviceClip clip = s.clip;
-        if (!flatInteriors || !(paint instanceof Color c) || clip.radius > 0) {
+        if (!flatInteriors || clip.radius > 0 || !(paint instanceof Color || linearRamp(paint))) {
             return false;
         }
         // The column between the corner squares, or the row between the side bands: the larger.
@@ -3241,6 +3304,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         if (!(fx1 > fx0) || !(fy1 > fy0) || (fx1 - fx0) * (fy1 - fy0) < FLAT_INTERIOR_MIN_DEVICE_PIXELS) {
             return false;
         }
+        if (!(paint instanceof Color) && !shadeCorners(paint, s.opacity, fx0, fy0, fx1, fy1)) {
+            return false; // the ramp turns inside the rectangle: its colours are not its corners'
+        }
         if (column) {
             piece(1, 2, 2, 3);
             piece(3, 2, 4, 3);
@@ -3252,11 +3318,80 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         pieceBetween(px0, px1, fy1, py1);
         pieceBetween(px0, fx0, fy0, fy1);
         pieceBetween(fx1, px1, fy0, fy1);
-        batch.flatRect(fx0, fy0, fx1, fy1, c.r(), c.g(), c.b(), c.a() * s.opacity);
+        if (paint instanceof Color c) {
+            batch.flatRect(fx0, fy0, fx1, fy1, c.r(), c.g(), c.b(), c.a() * s.opacity);
+        } else {
+            float[] k = cornerColors;
+            batch.shadedRect(fx0, fy0, fx1, fy1, k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7],
+                    k[8], k[9], k[10], k[11], k[12], k[13], k[14], k[15]);
+        }
         flatRects++;
         flatPixels += (long) ((fx1 - fx0) * (fy1 - fy0));
         return true;
     }
+
+    /**
+     * Whether {@code paint} is a linear ramp between two colours, whose colour canvas.frag makes a
+     * linear function of the point wherever it lies between the two stops: a {@link LinearGradient},
+     * or a linear {@link limn.graphics.Gradient} of two stops that pads. There its interior can be the
+     * flat program's, the colours given at the corners (see {@link #shadeCorners}).
+     */
+    private static boolean linearRamp(Paint paint) {
+        return paint instanceof LinearGradient
+                || paint instanceof limn.graphics.Gradient g && g.kind() == limn.graphics.Gradient.Kind.LINEAR
+                        && g.positions().length == 2 && g.spread() == limn.graphics.Gradient.Spread.PAD;
+    }
+
+    /**
+     * The colours of a linear ramp at the corners of the device rectangle {@code fx0..fx1} by
+     * {@code fy0..fy1}, premultiplied and at {@code opacity}, into {@link #cornerColors}, as
+     * canvas.frag computes them for the current shape (whose paint {@link #applyPaint} has just
+     * loaded); false where a corner lies past a stop, where the clamp bends the ramp and the corners
+     * no longer give the pixels between them.
+     */
+    private boolean shadeCorners(Paint paint, float opacity, float fx0, float fy0, float fx1, float fy1) {
+        Transform2D t = state().transform;
+        float[] xs = {fx0, fx1, fx1, fx0};
+        float[] ys = {fy0, fy0, fy1, fy1};
+        for (int i = 0; i < 4; i++) {
+            float lx = (xs[i] - t.tx) / t.m00 - cutCentreX;
+            float ly = (ys[i] - t.ty) / t.m11 - cutCentreY;
+            Color a;
+            Color b;
+            float f;
+            if (paint instanceof LinearGradient lg) {
+                float g0x = toLocalX(lg.x0(), lg.y0(), cutCentreX, cutCentreY, 1, 0);
+                float g0y = toLocalY(lg.x0(), lg.y0(), cutCentreX, cutCentreY, 0, 1);
+                float dx = toLocalX(lg.x1(), lg.y1(), cutCentreX, cutCentreY, 1, 0) - g0x;
+                float dy = toLocalY(lg.x1(), lg.y1(), cutCentreX, cutCentreY, 0, 1) - g0y;
+                f = ((lx - g0x) * dx + (ly - g0y) * dy) / Math.max(dx * dx + dy * dy, 1e-6f);
+                a = lg.start();
+                b = lg.end();
+            } else {
+                limn.graphics.Gradient g = (limn.graphics.Gradient) paint;
+                float[] p = g.positions();
+                float along = unitMap[0] * lx + unitMap[1] * ly + unitMap[4];
+                f = p[1] > p[0] ? (along - p[0]) / (p[1] - p[0]) : -1;
+                a = g.colors().get(0);
+                b = g.colors().get(1);
+            }
+            if (!(f >= -RAMP_EDGE_TOLERANCE && f <= 1 + RAMP_EDGE_TOLERANCE)) {
+                return false;
+            }
+            f = Math.max(0, Math.min(1, f));
+            float aa = a.a() * opacity;
+            float ba = b.a() * opacity;
+            cornerColors[i * 4] = a.r() * aa + (b.r() * ba - a.r() * aa) * f;
+            cornerColors[i * 4 + 1] = a.g() * aa + (b.g() * ba - a.g() * aa) * f;
+            cornerColors[i * 4 + 2] = a.b() * aa + (b.b() * ba - a.b() * aa) * f;
+            cornerColors[i * 4 + 3] = aa + (ba - aa) * f;
+        }
+        return true;
+    }
+
+    /** How far past a stop a corner's ramp position may lie and count as on it (float noise). */
+    private static final float RAMP_EDGE_TOLERANCE = 1e-4f;
+    private final float[] cornerColors = new float[16];
 
     /**
      * Sets boundary {@code index} of the current shape's pieces, on the x axis or the y axis, to the

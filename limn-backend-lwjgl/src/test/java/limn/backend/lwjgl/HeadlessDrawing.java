@@ -49,6 +49,23 @@ public final class HeadlessDrawing {
         }
     }
 
+    /** The threads named {@code llvmpipe-N} in this process, on Linux; zero elsewhere or with a GPU. */
+    private static long rasterizerThreads() throws java.io.IOException {
+        java.nio.file.Path tasks = java.nio.file.Path.of("/proc/self/task");
+        if (!java.nio.file.Files.isDirectory(tasks)) {
+            return 0;
+        }
+        try (var list = java.nio.file.Files.list(tasks)) {
+            return list.filter(task -> {
+                try {
+                    return java.nio.file.Files.readString(task.resolve("comm")).startsWith("llvmpipe-");
+                } catch (java.io.IOException ended) {
+                    return false;
+                }
+            }).count();
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         boolean ok = true;
         boolean display = args.length > 0 && args[0].equals("display");
@@ -109,6 +126,14 @@ public final class HeadlessDrawing {
             System.out.println("the first text picture " + (same ? "matches" : "DIFFERS FROM")
                     + " one drawn after the fonts settled");
             ok &= same;
+            // Mesa's software rasterizer, where it drew these, with as many threads as this process
+            // has processors (the test starts it with fewer than the machine's), not one per
+            // processor of the machine, which in a container stalls the whole process.
+            long rasterizerThreads = rasterizerThreads();
+            int processors = Runtime.getRuntime().availableProcessors();
+            System.out.println("software rasterizer threads " + rasterizerThreads + " for " + processors
+                    + " processors");
+            ok &= rasterizerThreads <= processors;
         } finally {
             backend.close();
         }

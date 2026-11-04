@@ -105,6 +105,22 @@ The UI thread draws one picture at a time, in the order they were asked for. A p
 in a script the default face lacks waits for the face, which loads once, in the background, so the
 first picture of a server is drawn with every letter in place.
 
+With no GPU, as in most containers, Linux draws with Mesa's software rasterizer, which runs the
+canvas's shaders on the processor: a 512-pixel picture with a gradient and text takes about 3 ms
+on two processors, where a GPU takes about one. The backend gives that rasterizer as many threads
+as the process has processors, which in a container is what the container allows;
+`LP_NUM_THREADS` set in the environment overrides it. There the canvas compiles its program with
+only the parts a drawing uses, so the first picture that needs a new combination, a radial
+gradient, an image, a shadow, takes some tens of milliseconds more (40 to 60 ms on two
+processors), once; [It runs, but slowly](/docs/troubleshooting/#it-runs-but-slowly) says how long
+such a program is kept.
+
+The backend keeps the framebuffer of the last picture for the next one of the same size, up to
+2048 by 2048 pixels: a server drawing the same size again and again makes it once. It holds 8 bytes
+a pixel, 32 MB at that size, until a picture of another size takes its place or the backend stops;
+`-Dlimn.backend.keptPicturePixels=<width times height>` sets the largest picture whose framebuffer
+is kept, and `0` keeps none.
+
 ## Printing it
 
 {% snippet guide:print-print %}

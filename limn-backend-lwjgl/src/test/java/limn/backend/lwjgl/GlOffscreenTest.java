@@ -17,6 +17,9 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -73,6 +76,37 @@ class GlOffscreenTest {
         assertEquals(0xCC, rgba(image, 40 - 14, 30)[0], "and red, straight alpha");
         assertEquals(0, rgba(image, 40, 30)[3], "the hole the eraser made");
         assertEquals(0, rgba(image, 2, 2)[3], "clear where nothing is drawn");
+    }
+
+    @Test
+    void aCanvasKeepsItsLastPicturesFramebufferUpToTheSizeAllowed() {
+        GlCanvas canvas = new GlCanvas(fonts);
+        long allowed = GlOffscreen.keptPixels;
+        try {
+            GlOffscreen.paint(canvas, 30, 20, 1, c -> c.fillRect(0, 0, 30, 20, Color.rgb(0xCC2020)));
+            GlOffscreen.Target kept = canvas.offscreenTarget;
+            assertNotNull(kept, "kept for the next picture of its size");
+            Image again = GlOffscreen.paint(canvas, 30, 20, 1, c -> c.fillRect(10, 5, 10, 10, Color.rgb(0x2020CC)));
+            assertSame(kept, canvas.offscreenTarget, "the same framebuffer, drawn again");
+            assertEquals(0, rgba(again, 2, 2)[3], "cleared: nothing of the picture before");
+            assertEquals(0x20, rgba(again, 15, 10)[0], "and the new picture in it");
+
+            GlOffscreen.paint(canvas, 40, 20, 1, c -> c.fillRect(0, 0, 40, 20, Color.BLACK));
+            assertNotSame(kept, canvas.offscreenTarget, "another size replaces it");
+
+            GlOffscreen.keptPixels = 40 * 20 - 1;
+            Image larger = GlOffscreen.paint(canvas, 40, 20, 1, c -> c.fillRect(0, 0, 40, 20, Color.WHITE));
+            assertNull(canvas.offscreenTarget, "a picture over the size allowed keeps nothing");
+            assertEquals(255, rgba(larger, 39, 19)[0], "and is drawn all the same");
+            GlOffscreen.paint(canvas, 30, 20, 1, c -> c.fillRect(0, 0, 30, 20, Color.WHITE));
+            assertNotNull(canvas.offscreenTarget, "one under it is kept");
+            GlOffscreen.keptPixels = 0;
+            GlOffscreen.paint(canvas, 30, 20, 1, c -> c.fillRect(0, 0, 30, 20, Color.WHITE));
+            assertNull(canvas.offscreenTarget, "0 keeps none");
+        } finally {
+            GlOffscreen.keptPixels = allowed;
+            canvas.dispose();
+        }
     }
 
     @Test
