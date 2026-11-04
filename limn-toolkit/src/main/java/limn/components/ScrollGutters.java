@@ -154,9 +154,10 @@ public final class ScrollGutters {
 
     /**
      * The strip one axis needs. A hidden bar reserves nothing: nothing will ever be
-     * drawn there, so holding the room open is pure loss.
+     * drawn there, so holding the room open is pure loss. Package-private for the scroll view,
+     * which sizes itself to its content plus the strip that content will need.
      */
-    private static float stripFor(ScrollBar bar, float contentLength, float viewport) {
+    static float stripFor(@Nullable ScrollBar bar, float contentLength, float viewport) {
         if (bar == null || bar.policy() == ScrollBar.Policy.HIDDEN) {
             return 0;
         }

@@ -190,6 +190,67 @@ class PdfWriterTest {
         assertTrue(all.contains("] TJ"), "the text is drawn with text operators");
     }
 
+    /** Every stream of {@code pdf} that inflates, inflated and joined. */
+    private static String inflated(byte[] pdf) {
+        String text = new String(pdf, StandardCharsets.ISO_8859_1);
+        StringBuilder all = new StringBuilder();
+        Matcher stream = Pattern.compile("(?<!end)stream\n").matcher(text);
+        while (stream.find()) {
+            int start = stream.end();
+            int end = text.indexOf("\nendstream", start);
+            byte[] packed = text.substring(start, end).getBytes(StandardCharsets.ISO_8859_1);
+            try {
+                java.util.zip.Inflater inflater = new java.util.zip.Inflater();
+                inflater.setInput(packed);
+                byte[] buffer = new byte[1 << 16];
+                int n = inflater.inflate(buffer);
+                all.append(new String(buffer, 0, n, StandardCharsets.ISO_8859_1));
+            } catch (java.util.zip.DataFormatException notCompressed) {
+                all.append(text, start, end);
+            }
+        }
+        return all.toString();
+    }
+
+    private static int glyphCodes(String content) {
+        Matcher code = Pattern.compile("<[0-9A-F]{2}>").matcher(content);
+        int n = 0;
+        while (code.find()) {
+            n++;
+        }
+        return n;
+    }
+
+    /**
+     * A line painted in three colours writes each glyph once, each range in its colour: a reader
+     * extracting the page reads the sentence once, not once per colour.
+     */
+    @Test
+    void aLinePaintedInRangesWritesEachGlyphOnce() throws IOException {
+        Font font = new Font("Squares", 13, false, false);
+        ShapedText sentence = line("Total R$ 10", font);
+
+        GlyphBank wholeBank = new GlyphBank(SQUARES);
+        RecordingCanvas whole = new RecordingCanvas(794, 1123, 300f / 96, wholeBank);
+        whole.drawText(sentence, 30, 500, Color.BLACK);
+        Recording wholePage = whole.finish();
+        BANKS.put(wholePage, wholeBank);
+
+        GlyphBank rangedBank = new GlyphBank(SQUARES);
+        RecordingCanvas ranged = new RecordingCanvas(794, 1123, 300f / 96, rangedBank);
+        ranged.drawText(sentence, 0, 6, 30, 500, Color.BLACK);
+        ranged.drawText(sentence, 6, 8, 30, 500, Color.rgb(0xCC0000));
+        ranged.drawText(sentence, 8, 11, 30, 500, Color.BLACK);
+        Recording rangedPage = ranged.finish();
+        BANKS.put(rangedPage, rangedBank);
+
+        String once = inflated(write(wholePage));
+        String thrice = inflated(write(rangedPage));
+        assertEquals(glyphCodes(once), glyphCodes(thrice), "the same glyphs, once each");
+        assertTrue(thrice.contains("0.8 0 0 rg") || thrice.contains("0.8 0 0 RG") || thrice.contains(".8 0 0 rg"),
+                "the middle range in its own colour");
+    }
+
     /** Writes the sample page where the build can open it, for a look by eye or by an oracle. */
     @Test
     void writesASampleForOracles() throws IOException {

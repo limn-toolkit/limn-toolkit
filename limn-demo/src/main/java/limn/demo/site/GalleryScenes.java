@@ -2,6 +2,7 @@ package limn.demo.site;
 
 import limn.components.Accelerator;
 import limn.components.Button;
+import limn.components.Tone;
 import limn.components.Checkbox;
 import limn.components.ComboBox;
 import limn.components.SelectionMode;
@@ -55,6 +56,10 @@ import java.time.LocalDate;
 import java.util.Currency;
 
 import limn.graphics.Color;
+import limn.graphics.Font;
+import limn.graphics.ParagraphStyle;
+import limn.graphics.StyledText;
+import limn.graphics.TextStyle;
 import limn.input.Keys;
 import limn.math.Quat;
 import limn.math.Transform3D;
@@ -162,6 +167,8 @@ final class GalleryScenes {
                 // The vocabulary of an ordinary window.
                 new GalleryEntry("button", "Button", "gallery:button", GalleryScenes::button),
                 new GalleryEntry("label", "Label", "gallery:label", GalleryScenes::label),
+                new GalleryEntry("styled-text", "Styled text", "gallery:styled-text",
+                        GalleryScenes::styledText),
                 new GalleryEntry("text-field", "TextField", "gallery:text-field",
                         GalleryScenes::textField),
                 new GalleryEntry("field", "Field", "gallery:field", GalleryScenes::field),
@@ -686,6 +693,37 @@ final class GalleryScenes {
         clipped.setOverflow(Label.Overflow.ELLIPSIS);
         column.add(new SizedBox(260, SizedBox.UNSET, clipped));
         return scene(column);
+    }
+    // #endregion
+
+    // #region gallery:styled-text
+    static Built styledText() {
+        TextStyle figure = TextStyle.of().weight(600);
+        StyledText notice = StyledText.builder()
+                .paragraph(ParagraphStyle.of().text(TextStyle.of().weight(600).scale(1.15f)).space(0, 6))
+                .append("Invoice 4512")
+                .paragraph(ParagraphStyle.of().space(0, 6))
+                .append("Total ").append("R$\u00A01.234,00", figure)
+                .append(", due ").append("tomorrow", TextStyle.of().ink(Tone.WARNING))
+                .append(". Paid in part: ").append("R$\u00A01.500,00", TextStyle.of().strikethrough())
+                .append(" ").append("R$\u00A01.234,00", TextStyle.of().ink(Tone.SUCCESS)).append(".")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER))
+                .append("Check the ").append("tax number", TextStyle.of().underline(TextStyle.Underline.WAVY,
+                        Tone.DANGER)).append(" before sending.")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.NUMBER))
+                .append("Area: 12 m").append("2", TextStyle.of().superscript())
+                .append(", water H").append("2", TextStyle.of().subscript()).append("O.")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET, 1))
+                .append("A ").append("highlighted", TextStyle.of().background(() -> Theme.current().primary())
+                        .ink(() -> Theme.current().onPrimary())).append(" note, ").append("italic", TextStyle.of().italic())
+                .append(" and ").append("light", TextStyle.of().weight(300)).append(".")
+                .paragraph(ParagraphStyle.of().list(ParagraphStyle.ListMarker.BULLET, 1))
+                .append("Reference ").append("INV-4512-B", TextStyle.of().family(Font.MONOSPACE_FAMILY)
+                        .background(() -> Theme.current().surfaceRaised()))
+                .append(", in the monospace family.")
+                .build();
+        Label label = new Label("").setText(notice).setWrap(true);
+        return scene(new SizedBox(340, SizedBox.UNSET, label));
     }
     // #endregion
 

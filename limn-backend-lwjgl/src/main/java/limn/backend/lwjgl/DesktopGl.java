@@ -216,6 +216,11 @@ final class DesktopGl implements GlApi {
     }
 
     @Override
+    public void glColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
+        GL33C.glColorMask(red, green, blue, alpha);
+    }
+
+    @Override
     public void glCompileShader(int shader) {
         GL33C.glCompileShader(shader);
     }
@@ -543,6 +548,21 @@ final class DesktopGl implements GlApi {
     @Override
     public void glShaderSource(int shader, CharSequence string) {
         GL33C.glShaderSource(shader, string);
+    }
+
+    @Override
+    public void glStencilFunc(int func, int ref, int mask) {
+        GL33C.glStencilFunc(func, ref, mask);
+    }
+
+    @Override
+    public void glStencilMask(int mask) {
+        GL33C.glStencilMask(mask);
+    }
+
+    @Override
+    public void glStencilOpSeparate(int face, int sfail, int dpfail, int dppass) {
+        GL33C.glStencilOpSeparate(face, sfail, dpfail, dppass);
     }
 
     @Override

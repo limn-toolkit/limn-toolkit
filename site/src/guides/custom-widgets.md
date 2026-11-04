@@ -23,17 +23,12 @@ setters every widget has return your type: `new Rating().setTooltip("Stars")` is
 them; `constrain` clamps to what was allowed. `onPaint` draws in the widget's own coordinates,
 from `(0, 0)` to `width()` by `height()`.
 
-The `Canvas` draws more than circles. Rectangles, rounded or not, and ellipses are filled or
-stroked, lines are drawn, text and images are placed, and any other outline is a `Path2D`, built
-with `moveTo`, `lineTo`, `quadTo`, `cubicTo` and `close`, then filled with `fillPath` or stroked
-with `drawPath`.
-Whatever takes a colour takes a `Paint`, which is a `Color`, a `LinearGradient` or a
-`RadialGradient`. `drawShadow(shape, shadow)` casts a `Shadow` under a rounded rectangle;
-`save`, `translate`, `rotate`, `scale` and `restore` move the coordinates, and `clipRect` and
-`clipRoundRect` cut what follows; `setBlendMode` draws in `BlendMode.ADDITIVE`, for light, or
-`MULTIPLY`, for shade; and `saveLayer` paints a group into a picture of its own, composited at one
-opacity, so overlapping parts do not show through each other. A widget that paints outside its
-box says how far, as [A layout of your own](#a-layout-of-your-own) explains.
+The `Canvas` draws more than circles: rectangles, ellipses and any outline as a `Path2D`, lines of
+any width, ends, corners and dashes, gradients and image patterns, under transforms, clips and
+layers with blend modes, text as a path, and drawings recorded once as a `Picture`.
+[Drawing](/docs/drawing/) shows each, with the picture it draws.
+A widget that paints outside its box says how far, as [A layout of your own](#a-layout-of-your-own)
+explains.
 
 Sizes, spacing and fonts come from the theme's tokens for the widget's control size, read in
 `onMeasure` and `onPaint`. Do not read them in the constructor: a widget being constructed has

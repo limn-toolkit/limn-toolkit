@@ -14,8 +14,9 @@ Windows and Linux JVMs refuse it; [Packaging](/docs/packaging/) shows where it g
 of launcher.
 
 **On Linux, the message says "neither DISPLAY nor WAYLAND_DISPLAY is set".** There is no display
-server: a shell over SSH, a container, a CI job. Give it one with `xvfb-run`, or run the program
-from a desktop session.
+server: a shell over SSH, a container, a CI job. The backend started without one, as it does there,
+and opens no window; it still draws images and documents (see [Printing](/docs/printing/#on-a-server)).
+For windows, give it a display with `xvfb-run`, or run the program from a desktop session.
 
 **The message says "Limn needs an OpenGL 3.3 core context".** The machine's own OpenGL gave the
 window nothing, or nothing new enough. Where the refusal is one it can route around, a Windows
@@ -146,6 +147,25 @@ The toolkit works there, and every frame costs more, so the fix is the machine's
 the application; `-Dlimn.backend.angle=force` takes the same path on a machine whose own OpenGL
 works, to see the application as such a user does. If the driver is the real one,
 [Performance](/docs/performance/) says what a frame costs and how to keep it small.
+
+On a software renderer (`llvmpipe`, or `Apple Software Renderer` on a Mac with no GPU) the canvas
+draws with programs compiled with only the parts a frame uses, because such a renderer runs every
+branch of a program for every pixel, used or not. The first frame that needs a new combination, a
+gradient of a new kind, an image, a shadow, a blurred backdrop, pauses while its program is
+compiled: 40 to 60 ms on two processors with `llvmpipe`, once. A program no frame has drawn with for
+30 seconds is let go at the next frame, and compiled again when it is needed;
+`-Dlimn.backend.softwareProgramIdle=<seconds>` changes how long it is kept, and `0` keeps every one
+for as long as the window lives. A GPU draws with one program that has every part, and none of this
+applies.
+
+In a container, or under any limit on the processors a process may use, set `LP_NUM_THREADS` to
+that limit: `llvmpipe` starts one thread per processor of the machine, and more threads than the
+limit stall the whole process. [On a server](/docs/printing/#on-a-server) has the numbers.
+
+In a macOS virtual machine, OpenGL is often only `Apple Software Renderer` while Metal runs on the
+host's GPU. Windows and pictures there are drawn through ANGLE on Metal by themselves, and the log
+says `ANGLE on Metal (fallback)`: a 512-pixel picture took 23.5 ms on the software renderer and takes
+1.3. `-Dlimn.backend.angle=off` keeps the software renderer.
 
 ## A popup opens inside the window on Linux
 

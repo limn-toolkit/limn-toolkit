@@ -60,6 +60,11 @@ final class HeadlessGl {
     private static long window;
     /** The CGL context the fallback made current, or 0 while the context is the window's. */
     private static long cglContext;
+    /**
+     * ANGLE's context on Windows, which the backend makes on a window GLFW gave no context of its
+     * own, so that a lost one can be made again on the same window; null on every other path.
+     */
+    private static EglContext eglContext;
     private static Object capabilities;
 
     private HeadlessGl() {
@@ -126,6 +131,33 @@ final class HeadlessGl {
         return GraphicsProbe.isSoftwareRenderer(Gl.glGetString(GL33C.GL_RENDERER));
     }
 
+    /**
+     * Lets the driver finish releasing the names of what was deleted, for a test that asks
+     * {@code glIsTexture} next whether the canvas deleted a texture.
+     *
+     * <p>The specification makes a deleted object's name unused at once. Parallels' Windows driver
+     * ({@code GL_RENDERER} "Parallels using Apple M… (Compat)", OpenGL 4.1 on Metal) keeps answering
+     * {@code glIsTexture} true for a while: for a texture just uploaded, or drawn into through a
+     * framebuffer, until a {@code glFinish}; for one drawn into through a framebuffer and then
+     * sampled by a draw, as a layer's picture is, until the window's next buffer swap, whatever is
+     * unbound or finished before. Measured on that guest on 2026-11-02 with plain GL calls and no
+     * Limn code between them: such a texture, deleted after its framebuffer, still answered true
+     * after the framebuffer, program, vertex array and units were all unbound, after
+     * {@code glFinish} on both sides of the delete and after a second delete, while
+     * {@code glGenTextures} had already handed the same name out again, so the delete had reached
+     * the driver; the swap made it false, and left a texture that was not deleted true. On that
+     * driver only, then, this swaps this class's hidden window, which is the frame boundary a window
+     * passes every frame; every other driver is asked straight away, as the specification allows.
+     */
+    static void settleDeletions() {
+        if (!open() || window == 0L || isEs()) {
+            return;
+        }
+        if (Gl.glGetString(GL33C.GL_RENDERER).startsWith("Parallels")) {
+            GLFW.glfwSwapBuffers(window);
+        }
+    }
+
     /** @return a short description of the device, for a failure message worth reading */
     static String describe() {
         return open()
@@ -189,10 +221,17 @@ final class HeadlessGl {
         }
     }
 
+    /** For a test that made another context current: this class's again, with its capabilities. */
+    static void restoreCurrent() {
+        makeCurrent();
+    }
+
     /** Makes this class's context current again on the calling thread, with its capabilities. */
     private static void makeCurrent() {
         if (cglContext != 0L) {
             CGL.CGLSetCurrentContext(cglContext);
+        } else if (eglContext != null) {
+            eglContext.makeCurrent();
         } else {
             GLFW.glfwMakeContextCurrent(window);
         }
@@ -265,7 +304,14 @@ final class HeadlessGl {
             failure = "ANGLE gave no window: " + AngleFallback.failure();
             return false;
         }
-        GLFW.glfwMakeContextCurrent(window);
+        // On Windows the window has no context of GLFW's: the backend made ANGLE's on it, as it does
+        // for an application's window, and making the window's current there made nothing current.
+        eglContext = AngleFallback.takeOwnContext();
+        if (eglContext != null) {
+            eglContext.makeCurrent();
+        } else {
+            GLFW.glfwMakeContextCurrent(window);
+        }
         capabilities = Gl.api().createCapabilities();
         if (((org.lwjgl.opengles.GLESCapabilities) capabilities).GL_KHR_debug) {
             // ANGLE validates OpenGL ES strictly and says what it refused and why; a test that

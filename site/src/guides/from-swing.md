@@ -25,6 +25,7 @@ page of this guide that says the rest.
 | `JLabel`, `JButton`, `JCheckBox`, `JRadioButton` | `Label`, `Button`, `Checkbox`, `RadioButton` |
 | `JTextField`, `JPasswordField`, `JTextArea` | `TextField`, `PasswordField`, `TextArea` |
 | `JFormattedTextField` | `TextField.setMask(…)`, `Spinner`, `DateField` |
+| a non-editable `JTextPane` with a `StyledDocument` | `Label.setText(StyledText)` |
 | `JComboBox` | `ComboBox`, editable or not |
 | `JList`, `JTable`, `JTree` | `ListView`, `Table`, `Tree` |
 | `JScrollPane`, `JSplitPane`, `JTabbedPane` | `ScrollView`, `SplitPane`, `TabbedPane` |
@@ -365,8 +366,10 @@ plan a migration than in the middle of one.
 - **No mixing.** Limn does not host Swing components, and a Limn scene cannot be put inside a
   `JFrame`. Running both toolkits in one process is not something Limn supports or tests, so a
   migration moves an application, or a separate program of it, at a time.
-- **No rich text.** There is no `JEditorPane` or `JTextPane`: no HTML rendering, no styled
-  document. A `Label` wraps and a `TextArea` edits plain text.
+- **Styled text to show, not to edit.** There is no `JEditorPane` or `JTextPane`: no HTML
+  rendering and no editable styled document. A `Label` shows styled text
+  (`Label.setText(StyledText)`: weights, colours, lines, raised text, aligned and indented
+  paragraphs, lists), and a `TextArea` edits plain text.
 - **No web view.** There is no embedded browser; `window.launcher()` opens a page in the
   user's own.
 - **No internal frames or docking.** There is no `JDesktopPane`. A `SplitPane`, tabs and

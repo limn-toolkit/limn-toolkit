@@ -285,7 +285,28 @@ public final class LineChart extends CartesianChart<LineChart> {
             appendRun(px, py, first, last, true, s.isSmooth(), true);
             appendRun(bx, by, first, last, false, s.isSmooth(), false);
             path.close();
-            canvas.fillPath(path, fillPaint(color, first, last));
+            float base = valuePosition(animationBaseline());
+            boolean before = false;
+            boolean past = false;
+            for (int i = first; i <= last; i++) {
+                float p = isHorizontal() ? px[i] : py[i];
+                before |= p < base;
+                past |= p > base;
+            }
+            if (before && past) {
+                // Values on both sides of the baseline: each side fades from its own farthest value
+                // to the baseline, which one gradient cannot do, so each is filled under its own clip.
+                canvas.save();
+                clipSide(canvas, base, true);
+                canvas.fillPath(path, fillPaint(color, first, last, base, -1));
+                canvas.restore();
+                canvas.save();
+                clipSide(canvas, base, false);
+                canvas.fillPath(path, fillPaint(color, first, last, base, 1));
+                canvas.restore();
+            } else {
+                canvas.fillPath(path, fillPaint(color, first, last, base, 0));
+            }
         }
         if (s.lineWidth() > 0 && last > first) {
             path.reset();
@@ -301,20 +322,31 @@ public final class LineChart extends CartesianChart<LineChart> {
      * sitting low on a tall axis would otherwise be filled entirely out of the pale end of
      * the gradient, which is a fill nobody can see.
      */
-    private LinearGradient fillPaint(Color color, int first, int last) {
+    private LinearGradient fillPaint(Color color, int first, int last, float base, int side) {
         Color near = color.timesAlpha(FILL_TOP_ALPHA);
         Color away = color.timesAlpha(FILL_BOTTOM_ALPHA);
-        float base = valuePosition(animationBaseline());
         float far = base;
         for (int i = first; i <= last; i++) {
             float p = isHorizontal() ? px[i] : py[i];
-            if (Math.abs(p - base) > Math.abs(far - base)) {
+            if ((side == 0 || Math.signum(p - base) == side) && Math.abs(p - base) > Math.abs(far - base)) {
                 far = p;
             }
         }
         return isHorizontal()
                 ? new LinearGradient(far, plotY(), base, plotY(), near, away)
                 : new LinearGradient(plotX(), far, plotX(), base, near, away);
+    }
+
+    /**
+     * Clips to one side of the baseline: the side of lower positions, above it on a chart whose
+     * values rise up the screen and left of it on a horizontal one, or the other.
+     */
+    private void clipSide(Canvas canvas, float base, boolean lower) {
+        if (isHorizontal()) {
+            canvas.clipRect(lower ? 0 : base, 0, lower ? base : width() - base, height());
+        } else {
+            canvas.clipRect(0, lower ? 0 : base, width(), lower ? base : height() - base);
+        }
     }
 
     private void paintMarkers(Canvas canvas, ChartSeries s, Color color, Theme theme,

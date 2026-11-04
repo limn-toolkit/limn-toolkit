@@ -491,7 +491,7 @@ final class Pages {
     }
 
     private void settleScene(Scene scene, long[] now, float width, float height) {
-        RecordingCanvas scratch = new RecordingCanvas(width, height, rasterScale, new GlyphBank(GlyphOutlines.NONE));
+        RecordingCanvas scratch = RecordingCanvas.scratch(width, height, rasterScale);
         for (int frame = 0; frame < 3; frame++) {
             now[0] += SETTLE_NANOS;
             scene.renderFrame(scratch);

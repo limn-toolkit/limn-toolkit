@@ -8286,7 +8286,11 @@ public final class Scene {
         // does not darken the panel halfway through the fade. A canvas layer and not a widget's
         // opacity, since the tooltip is the scene's own painting and not a widget.
         float reach = 1 + style.shadowReach();
-        canvas.saveLayer(x - reach, y - reach, w + 2 * reach, h + 2 * reach, tooltipAlpha);
+        if (tooltipAlpha < 1) {
+            canvas.saveLayer(x - reach, y - reach, w + 2 * reach, h + 2 * reach, tooltipAlpha);
+        } else {
+            canvas.save(); // faded in: drawn straight, as a picture of it at 1 would be
+        }
         for (limn.graphics.Shadow shadow : style.shadows()) {
             canvas.drawShadow(limn.graphics.RoundRect.of(x, y, w, h, style.radius()), shadow);
         }

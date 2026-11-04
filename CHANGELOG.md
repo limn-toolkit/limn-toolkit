@@ -8,14 +8,260 @@ Maven Central say which number that was.
 
 ## After 1.1.0
 
+### Added
+
+- A `Label` shows styled text: `Label.setText(StyledText)`. A `StyledText` is built from pieces,
+  each with the `TextStyle` it differs by (family, size or scale, weight, italic, ink, background,
+  underline single, double, dotted or wavy, strike-through, superscript, subscript, tracking), in
+  paragraphs with a `ParagraphStyle` (alignment including justified, indents, first-line indent,
+  space before and after, line spacing, bulleted and numbered lists by level, the text style the
+  paragraph's pieces inherit). It is never styled by character offsets: a styled piece is an
+  argument of a translated pattern, `StyledText.of(pattern, StyledText.span(amount, style))`, and
+  lands wherever the translation puts its placeholder. A paragraph is shaped as one and split only
+  where the font changes, so a colour changed inside a word, in any script, leaves its glyphs as
+  they are. Wrap, the line limit, the ellipsis, alignment and the page cuts of a printed document
+  work as they do on plain text; a reader hears the plain text with the list markers.
+  `TextStyle.bold()` is at least bold over the text around it, as `Font.bold()` is. It is for
+  showing only: there is no editable styled text. On a canvas of the application's own,
+  `canvas.drawText(styledText, x, y, maxWidth, font, ink)` lays it out and draws it, and
+  `StyledLayout.builder(text, font, ink)` lays it out once to be measured and drawn as often as it
+  shows (ADR 083).
+- A style reads back what it sets, and nothing where it inherits: `TextStyle.family()`, `size()`,
+  `scale()`, `weight()`, `isItalic()`, `ink()`, `background()`, `underlineKind()`,
+  `underlineInk()`, `isStruckThrough()`, `strikethroughInk()`, `baseline()` and `tracking()`
+  (null, or `NaN` for a number, where the text keeps what is around it); `ParagraphStyle`'s
+  `alignment()`, indents, spaces, `lineSpacing()`, `list()`, `level()`, `listNumber()`,
+  `direction()` and `textStyle()`; a `StyledText.Span`'s `text()` and `style()`.
+  `StyledLayout.boxWidth()` answers the width the `paint` overloads that take a box width are
+  given. `Ink.of(paint)` of equal paints are equal inks, so styles built alike with a gradient
+  compare equal, and a label given styled text equal to its own keeps its layout.
+- A wrapping styled label measured at width after width, as a window being resized measures it
+  each frame, shapes its text once and only breaks its lines again; the twenty widths of a test
+  shaped 651 characters and now shape 31. `StyledLayout.relaid(maxWidth, maxLines, ellipsis,
+  ruler)` lays a layout out again at another width with the shaping it already has.
+- `Font` carries a weight from 1 to 1000 (`withWeight`, `Font.REGULAR`, `Font.BOLD`), drawn by the
+  family's face nearest it in the order a style sheet searches. A variable face is drawn at the
+  weight itself, to the nearest ten, anywhere in its range: shaped and rasterized by HarfBuzz at
+  that instance, and outlined at it on a printed page.
+- `Ink`, what styled text is drawn in, asked for on every paint: a `Color` is its own ink and a
+  `Tone` is one, so text styled in a tone follows a change of palette.
+- `Label.setIconPosition`: the icon before the text (the default), after it, above it or below it.
+- `Font.MONOSPACE_FAMILY`, the monospace family: Roboto Mono, upright and italic, drawn at any
+  weight from 100 to 700, from the new `limn-fonts-roboto-mono` artifact, which the backend takes as
+  it takes Roboto. Without that artifact the family is the default one (ADR 084).
+- `ParagraphStyle.direction` fixes a paragraph's direction instead of detecting it, for code and
+  anything else read left to right whatever its first letter; `ParagraphStyle.listNumber` gives a
+  numbered item its own number, and the items after it count on from it. A line separator
+  (U+2028) in styled text breaks the line inside its paragraph, with no paragraph spacing,
+  first-line indent or list marker after it (ADR 084).
+- `TextRuler.shapeRun` shapes one run of a paragraph with the rest of the paragraph as its context,
+  and `TextRuler.decorations` answers where a face puts its underline, strike-through, superscript
+  and subscript (`TextDecorations`), read from its own tables. `Canvas.drawText(ShapedText, start,
+  end, x, y, paint)` paints part of a shaped line; a printed page writes each glyph once whatever
+  number of ranges paint it.
+- `limn.math.Affine2D`, the plane's affine map in double precision: translation, scale, rotation
+  (also about a point), shear, composition, inverse. The canvas takes one, `Canvas.concat`, and
+  answers the one in force, `Canvas.transform()`, from the window's or the page's corner; it also
+  gains `shear` and `rotate(angle, cx, cy)`. A canvas of the application's own gets all four as
+  defaults, `transform()` answering null (ADR 085).
+- `Path2D` takes arcs (`arc`, `arcTo`, `ellipticalArcTo`) and shapes (`addRect`, `addRoundRect`,
+  `addEllipse`, `addCircle`, `addPath` under an `Affine2D`), is copied under a matrix
+  (`transformed`), reads SVG path data (`Path2D.parse`), and answers its `bounds()` and whether it
+  `contains` a point under its `FillRule`, `NON_ZERO` or `EVEN_ODD` (ADR 085).
+- `Stroke`: a line's width, ends (`BUTT`, `ROUND`, `SQUARE`), corners (`MITER` with a limit,
+  `ROUND`, `BEVEL`) and dash pattern with a phase, as a value. `stroke.outline(path)` is the region
+  the line covers, as a path filled under non-zero, which is how a hit on a line is tested (ADR
+  085).
+- The canvas draws a `Stroke`: `drawPath`, `drawLine`, `drawRect`, `drawRoundRect`, `drawCircle`
+  and `drawEllipse` take one in place of a width, with every end, corner, miter limit and dash
+  pattern, on screen and in a printed document, which writes PDF's own line operators. A canvas of
+  the application's own gets them as defaults that fill the stroke's outline. The Showcase has a
+  Drawing page with what a widget that paints for itself has on the canvas (ADR 085).
+- `Canvas.clipPath` clips what follows to the region a path fills under its rule, antialiased at
+  its edge, in whatever blend mode is in force, on screen and in a printed document, which writes
+  PDF's own clip. A canvas of the application's own gets it as a default that clips to the path's
+  bounds (ADR 085).
+- `BlendMode` gains `SCREEN`, `DARKEN`, `LIGHTEN` and the Porter-Duff rules, `CLEAR`, `SOURCE`,
+  `DESTINATION_OVER`, `SOURCE_IN`, `DESTINATION_IN`, `SOURCE_OUT`, `DESTINATION_OUT`,
+  `SOURCE_ATOP`, `DESTINATION_ATOP` and `XOR`: inside a `saveLayer` an eraser
+  (`DESTINATION_OUT`) or a fill over what the layer drew (`SOURCE_IN`). Each acts only where a draw
+  covers, by as much as its antialiased edge covers. A printed document writes screen, darken and
+  lighten as PDF's own, and a layer drawn under a Porter-Duff rule, which PDF has none of, as a
+  picture the backend draws at the page's resolution. The Drawing page shows each (ADR 085).
+- `Gradient`, a paint of any number of colours, each at a position from 0 to 1, two at one position
+  making a hard edge: linear, radial from a focus inside its circle, or a sweep once round a centre
+  from a starting angle; padded, repeated or reflected past its ends, and placed under an
+  `Affine2D` of its own, which makes a radial gradient an ellipse. `ImagePaint` paints with a
+  picture, repeated, mirrored or laid once on each axis, under an `Affine2D`, smooth or pixelated.
+  On screen any number of gradients and pictures share the frame's one draw (one more per picture
+  a frame switches to); a printed document writes PDF's own shadings, a sweep as a mesh of
+  triangles of a degree, and a picture as a tiling pattern. `Paint` permits both: a `switch` over
+  it needs a `default` branch (ADR 085).
+- `limn.backend.spi.OffscreenPainter`, an optional service of `BackendServices`: draws into a
+  picture off any window, which `Images.render` answers and a printed document asks for a layer
+  drawn under a Porter-Duff rule. The record's constructor of eleven services stays (ADR 085).
+- A backend without a display: on Linux with neither `DISPLAY` nor `WAYLAND_DISPLAY`, in a Windows
+  service's session, or anywhere with `-Dlimn.backend.headless=true`, the backend starts, opens no
+  window (`Backend.canOpenWindows()` answers false, and a window asked for is refused saying why),
+  and draws pictures and documents with the same canvas, on the GPU where the system lets the process
+  reach one and on the processor otherwise. `Images.render` and a document's Porter-Duff layers draw
+  with no window open too, with a context of the backend's own (ADR 086). Such a backend reports no
+  UI task as slow: it has no frame to hold back, and a server drawing a picture per request logged
+  every one. Its loop waits for work: on a machine with no display the windowing library's wait
+  returns at once, and a server doing nothing took a whole processor.
+- On macOS, a process that draws with ANGLE draws pictures off screen with it too, on Metal;
+  ANGLE's display was asked for on Direct3D 11, which macOS has not, so no picture had a context
+  there: in a macOS virtual machine, whose windows take ANGLE, `Images.render` failed once a window
+  was open. Pictures off screen also take a window's order now, an accelerated OpenGL, then ANGLE
+  on Metal, then Apple's software renderer, which they went to straight from the first: a virtual
+  machine's OpenGL is the software renderer while its Metal runs on the host's GPU, and a 512-pixel
+  avatar drawn there with no window open took 23.5 ms and takes 1.3. `-Dlimn.backend.angle=off`
+  keeps the software renderer, and `=force` takes ANGLE off screen as it does for windows.
+- `Images.render` waits for a face still loading in the background when the text it draws needs
+  one, and draws again: a window heals the boxes drawn in the meantime at its next frame, and a
+  picture kept them, so the first picture a server drew in a script the default face lacks came
+  out as boxes.
+- A process that ends by returning from `main` after a backend without a display on Linux no longer
+  dies with a segmentation fault: the windowing library unloaded the system's EGL library when the
+  backend closed, and a destructor EGL had left with the UI thread ran into unmapped code when that
+  thread ended. The library now stays in the process to its end, on Wayland too, where the windowing
+  library loads it the same way.
+- Drawing on the processor, where there is no GPU (Mesa's llvmpipe in a container, Apple's software
+  renderer in a virtual machine), is several times faster. Such a renderer runs every branch of the
+  canvas's fragment program for every pixel, the shadow's and the glass's included, so each flush
+  there now draws with the program compiled with only the parts its primitives use; a circle is
+  drawn in pieces like a rounded rectangle, its interior skipping the distance field; and the
+  interior of a solid fill or of a linear two-stop gradient is drawn by the flat program, its
+  colours given at the corners. A 512-pixel avatar, a disc with a gradient and two letters, took
+  19 ms on two processors and takes 2.8, every pixel within one level of what it was, and a server
+  drawing 256-pixel avatars there answered 110 a second and now 250, or 308 to 322 with
+  `LP_NUM_THREADS` set to the processors its container allows (see the printing guide's "On a
+  server"). On a GPU each flush
+  keeps the one program it had. The first frame needing a new combination of parts pauses while
+  its program compiles, 40 to 60 ms with llvmpipe on two processors; a program unused for 30
+  seconds is let go, and `-Dlimn.backend.softwareProgramIdle=<seconds>` changes that (0 keeps
+  them all).
+- On Apple's software renderer, a Mac with no GPU, a rounded rectangle drawn in pieces no longer
+  differs from its single quad by up to 12 levels in 255 beside the edges its pieces add: a
+  fragment shader takes its derivatives over 2 x 2 blocks of pixels, and that renderer took them
+  differently in a block two pieces shared, which moved the antialiasing of the corner pixels
+  there. Every edge a piece adds now lies on the edge of the target's blocks.
+- The PNG encoder writes the rows as they are in one pass at level 4 unless asked otherwise, as
+  the platform's own writer does: it deflated every picture twice, its rows as they are and
+  filtered, keeping the smaller, which took about twice the time on every picture, an empty one
+  included. A server answering 256-pixel avatars in a container of two processors spent 3.8 ms of
+  processor on each request and spends 1.3, and answers 499 a second where it answered 287.
+  `ImageEncodeOptions` gains the knobs: `withCompression(0..9)` and `withFiltering(...)`, `NONE`
+  (the default), `ADAPTIVE` (each row with the filter that looks smallest, the smaller file for a
+  photograph or a screenshot) or `SMALLER` (both, keeping the smaller file). The quality still
+  changes nothing in a PNG. Each row is now consumed before the next is handed to the compressor,
+  which could hold part of one back and lose it to the next row.
+- `Images.render` keeps the framebuffer it draws into for the next picture of the same size, and
+  reads the picture back in one pass that divides only the pixels neither opaque nor clear: a
+  512-pixel picture took 1.28 ms on a GPU and takes 0.94. The framebuffer kept holds 8 bytes a
+  pixel, up to 2048 by 2048 (32 MB); `-Dlimn.backend.keptPicturePixels=<pixels>` sets the largest
+  picture kept, and 0 keeps none.
+- On screen a solid stroke on a rectangle with mitred or round corners, on a rounded rectangle or
+  on a circle is drawn as its outline in the frame's one draw, where it took three through the
+  stencil and four flushes: 500 outlined rectangles were some 1,500 draws a frame. A path clip that
+  is a lone rectangle, rounded rectangle or circle clips as `clipRoundRect` does, with no mask and
+  no flush. Gradients of the same stops share one row of the frame's ramp texture whatever their
+  geometry, and a pixel finds its stretch of a gradient of many stops by halves, where it walked
+  them all. A printed document writes a gradient painted over and over once, its shading, its
+  pattern and its soft mask, where it wrote them again for every primitive.
+- `Images.MAX_PIXELS`, the most pixels a picture `Images.render` draws may have, its bytes in one
+  array: a larger one is refused before anything is drawn, where it overflowed the size of its
+  buffer.
+- `ShapedText.outline(x, y)`: the text as a `Path2D`, every glyph's outline where `drawText` draws
+  it, read from the backend as a printed page reads them, so text can be stroked, dashed, filled
+  with any paint, used as a clip or tested for a hit; a colour emoji, a picture, is left out (ADR
+  085).
+- `Picture`: a drawing recorded once (`Picture.record`) and drawn any number of times on any canvas,
+  `Canvas.drawPicture`, the screen, a printed page or another picture, in that canvas's coordinates
+  and state. `Images.render(width, height, scale, painter)` draws into an image with the backend's
+  canvas, inside a frame too, for a thumbnail, an exported chart or a drawing kept as a picture (ADR
+  085).
+
+### Changed
+
+- `Canvas.fillPath` fills a path under its fill rule, every subpath together, on screen and in a
+  printed document: a subpath turning the other way inside another is a hole under the default
+  `NON_ZERO`, every subpath inside another is one under `EVEN_ODD`, and an outline crossing itself
+  fills what the rule says. Each closed subpath was filled on its own, so a hole was drawn filled
+  and a self-crossing outline as stray triangles. Subpaths that turn the same way, and every path
+  of one outline that does not cross itself, draw as before; the toolkit's own paths are of these.
+  On screen such a path still fills in the frame's one draw, and any other takes three through the
+  stencil, inside a layer too (ADR 085).
+- A translucent stroke, `drawPath` with a width or with a `Stroke`, is painted once where its
+  segments meet and where it crosses itself, as it is in a printed document. It was a capsule per
+  segment, darker at every joint. An opaque round stroke is drawn as before, in the frame's one
+  draw; a translucent one, or one in another blend mode, takes three (ADR 085).
+- A machine with no display no longer stops the backend at its start: it starts without one (ADR
+  086). `-Dlimn.backend.headless=false` makes it fail as before, for an application that must have
+  a window.
+- `Canvas.clipRect` and `clipRoundRect` under a transform that turns or leans the axes clip by the
+  turned shape on screen, as a path clip; they clipped by the device box round its corners, so
+  what was drawn showed in the box's corners (ADR 085).
+- `Canvas.saveLayer` opens a layer at an opacity of 1 too: what is drawn inside may blend with the
+  layer's own picture, which starts transparent, under a Porter-Duff rule, and drawn straight it
+  blended with the window instead. A group faded to 1 that needs no picture of its own is cheaper as
+  a `save`, which is what the toolkit's own fades do at rest, so what they draw costs what it did
+  (ADR 085).
+
+- A `Table` under an unbounded height (in a `ScrollView`, or a column that sets no height) prefers
+  `setVisibleRows` rows of a row of text, the control height or a line of the body text and its
+  padding, whichever is taller (32 points at the default size), where it counted the list's seed
+  (48). A table of that many one-line rows now fits with nothing under its last row, and every
+  table placed so is a third shorter; set `setVisibleRows` higher, or give the table a height, to
+  keep the old size. The preference still stands still as rows of other heights scroll in.
+- `Font`'s record components are `family`, `size`, `weight` and `isItalic`; `isBold()` is now a
+  method answering `weight >= 600`, and `new Font(family, size, bold, italic)` still builds one
+  (bold is 700, else 400). Code that takes a `Font` apart with a record pattern of four
+  components, `Font(var f, var s, var b, var i)`, has to name the weight as an `int`; nothing else
+  changes. `bold()` no longer lightens a font that is heavier than bold.
+
 ### Fixed
 
+- A segment drawn after `close()` starts a subpath of its own at the closed one's start, on screen
+  as `Path2D.contains`, a stroke and a printed page read it. The screen glued it onto the closed
+  subpath, so two triangles sharing a corner were filled as one pentagon.
+- On a renderer with no GPU a frame no longer fails with a buffer overflow when a rounded rectangle
+  drawn in pieces lands near the end of the frame's vertex buffer: its pieces took fourteen quads
+  after reserving room for eleven.
 - A looping video's soundtrack plays every pass as cleanly as the first. From the second pass on
   it clicked, with a short gap after every fifth of a second, and on some machines it got worse
   with each repeat. The track runs out a little before the pictures rewind the file, and every
   read that came back empty in between cost the audio engine one of the three buffers it streams
   through, never made again. Those buffers now wait for the rewind and are filled when it comes.
   A looping track that is still empty after two seconds ends, as one that does not loop does.
+- A `LineChart`'s area whose values change sign covers the region between the line and the
+  baseline on both sides, and each side fades from its own farthest value to the baseline. It was
+  drawn as stray triangles, a wedge from the baseline up to the highest value and the parts under
+  zero partly missing, and what was drawn under zero was all at the faint end of the fade (ADR 085).
+- A filled path covers what its outline encloses, its antialiased edge centred on the outline as a
+  rectangle's or a circle's is. It covered half a device pixel more all round, its edge running a
+  whole pixel outward from the outline, so a path drawn beside the same shape drawn as a shape came
+  out bolder, and a path clip let half a pixel more through. A path whose subpaths overlap or cross,
+  filled through the stencil, covers a quarter of a pixel more, half of what it did (ADR 085).
+- A `LineChart`'s translucent line, as a series is while it fades in or out after its legend entry
+  is toggled and whenever its colour has alpha, is even along its length; it was darker at every
+  point (ADR 085).
+- A `Table`'s widget cell stands where its column's alignment puts the header and the text cells
+  (`Column.align`): at the column's end or centre as well as its start, mirrored right to left. It
+  always stood at the start, so the widgets of a column aligned to its end sat under a header at
+  the other side.
+- A `ScrollView` whose bar reserves its strip (`ScrollGutters.Layout.RESERVED`) and that takes a
+  side from its content, scrolled sideways only in a column that lets it be as tall as its content,
+  is that tall plus the strip. It was the content's height alone, and the strip came out of the
+  content: a single line in it was cut in half by its own scroll bar's gutter.
+- A system font family with many faces draws its Regular when regular is asked for, and its Bold
+  for bold. The face was chosen by the order the font file lists its faces, so a family listing its
+  Medium before its Regular drew the Medium, a family with a "Book" and a "Roman" drew the Book, and
+  a "Demi Bold" listed first stood in for the Bold. Each face's own declared weight and width now
+  decide, as a style sheet's font matching does.
+- Two faces of one system family that are neither bold nor italic, a Regular and a Medium, are two
+  resident faces; the second asked for came back as the first, both being cached under the family
+  and the bold and italic flags.
 
 ## After 1.0.0
 

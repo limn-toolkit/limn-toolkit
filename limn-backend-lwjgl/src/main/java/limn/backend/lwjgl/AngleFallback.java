@@ -103,6 +103,15 @@ final class AngleFallback {
     }
 
     /**
+     * Whether ANGLE may answer a process that found no accelerated context for pictures off screen,
+     * as it answers a window's refused creation: not when it is off, and not once a window has a
+     * native context, after which the process never switches.
+     */
+    static boolean answersWithoutWindows() {
+        return !off() && !nativeContextMade && AngleLibrary.platformHasFallback();
+    }
+
+    /**
      * Whether a native creation that failed with {@code code} on {@code os} is one ANGLE answers.
      *
      * @param os   the platform, a parameter so that every branch can be tested anywhere
@@ -221,6 +230,30 @@ final class AngleFallback {
             }
             LOG.log(System.Logger.Level.WARNING, "OpenGL context: {0}, because the system''s OpenGL did "
                     + "not come back after the device was lost; OpenGL ES 3.0 from here on", describe());
+        }
+        return true;
+    }
+
+    /**
+     * Moves the process onto ANGLE for a backend that makes no window, a Windows service's: its
+     * pictures off screen are drawn with ANGLE's context on Direct3D 11, which needs none.
+     *
+     * @return whether ANGLE is loaded and the process is on its profile
+     */
+    static boolean takeWithoutWindows() {
+        if (off() || !AngleLibrary.platformHasFallback() || !AngleLibrary.load()) {
+            failure = off() ? "-D" + PROPERTY + "=off" : AngleLibrary.failure();
+            return false;
+        }
+        if (!taken) {
+            taken = true;
+            leaveDesktopBinding();
+            Gl.use(GlesGl.INSTANCE);
+            long display = EglContext.angleDisplay();
+            if (display != NULL) {
+                EglProgramCache.install(display);
+            }
+            LOG.log(System.Logger.Level.INFO, "OpenGL context: {0}, with no window; OpenGL ES 3.0", describe());
         }
         return true;
     }

@@ -83,6 +83,18 @@ public final class Recording {
             ops.add(op);
         }
 
+        /** @return how many calls are kept so far */
+        int size() {
+            return ops.size();
+        }
+
+        /** Takes back the calls kept from {@code from} on, and answers them in order. */
+        List<Op> cut(int from) {
+            List<Op> tail = new ArrayList<>(ops.subList(from, ops.size()));
+            ops.subList(from, ops.size()).clear();
+            return tail;
+        }
+
         Recording build() {
             return new Recording(width, height, ops);
         }

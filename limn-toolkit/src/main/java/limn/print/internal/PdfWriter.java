@@ -2,10 +2,13 @@ package limn.print.internal;
 
 import limn.graphics.BlendMode;
 import limn.graphics.Color;
+import limn.graphics.Gradient;
 import limn.graphics.Image;
+import limn.graphics.ImagePaint;
 import limn.graphics.LinearGradient;
 import limn.graphics.Paint;
 import limn.graphics.RadialGradient;
+import limn.math.Affine2D;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
@@ -53,6 +56,14 @@ public final class PdfWriter {
     private final Map<Image, Map<Color, String>> tinted = new IdentityHashMap<>();
     private final Map<Image, Map<Color, String>> masks = new IdentityHashMap<>();
     private final Map<Paint, String> shadings = new HashMap<>();
+    /*
+     * A Gradient's shading, its pattern and its alpha's soft mask, each written once for what it
+     * holds: every primitive painted with a gradient wrote all three anew, and a repeated one's
+     * shading spans the whole page, so a hundred striped chips wrote a hundred page-wide shadings.
+     */
+    private final Map<List<Object>, Integer> gradientShadings = new HashMap<>();
+    private final Map<List<Object>, String> gradientPatterns = new HashMap<>();
+    private final Map<List<Object>, String> gradientMasks = new HashMap<>();
     private int counter;
 
     /**
@@ -126,18 +137,29 @@ public final class PdfWriter {
         String key = Pdf.num(alpha) + "/" + blend;
         String name = states.get(key);
         if (name == null) {
-            String mode = switch (blend) {
-                case MULTIPLY -> "/Multiply";
-                // PDF has no linear add; Screen is the nearest of its separable modes.
-                case ADDITIVE -> "/Screen";
-                default -> "/Normal";
-            };
+            String mode = blendName(blend);
             name = "GS" + (++counter);
             resources.put(name, file.object("<</Type/ExtGState/ca " + Pdf.num(alpha) + "/CA " + Pdf.num(alpha)
                     + "/BM" + mode + ">>"));
             states.put(key, name);
         }
         return name;
+    }
+
+    /**
+     * PDF's name for a blend mode. The Porter-Duff rules are none of PDF's: a layer drawn in one
+     * reaches the page as an image ({@link RecordingCanvas}), and where no picture could be made it
+     * is drawn as normal painting.
+     */
+    private static String blendName(BlendMode blend) {
+        return switch (blend) {
+            case MULTIPLY -> "/Multiply";
+            // PDF has no linear add; Screen is the nearest of its separable modes.
+            case ADDITIVE, SCREEN -> "/Screen";
+            case DARKEN -> "/Darken";
+            case LIGHTEN -> "/Lighten";
+            default -> "/Normal";
+        };
     }
 
     /**
@@ -152,7 +174,7 @@ public final class PdfWriter {
                         + resources.get(shading) + " 0 R>>>>",
                 ("/" + shading + " sh").getBytes(StandardCharsets.ISO_8859_1), true);
         String name = "GS" + (++counter);
-        String mode = blend == BlendMode.MULTIPLY ? "/Multiply" : blend == BlendMode.ADDITIVE ? "/Screen" : "/Normal";
+        String mode = blendName(blend);
         resources.put(name, file.object("<</Type/ExtGState/BM" + mode + "/SMask<</S/Luminosity/G " + group
                 + " 0 R>>>>"));
         return name;
@@ -174,7 +196,11 @@ public final class PdfWriter {
         boolean gray = space.equals("/DeviceGray");
         String c0 = gray ? Pdf.num(start.r()) : rgb(start);
         String c1 = gray ? Pdf.num(end.r()) : rgb(end);
-        String function = "<</FunctionType 2/Domain[0 1]/C0[" + c0 + "]/C1[" + c1 + "]/N 1>>";
+        // Colours run premultiplied, as on screen: a fade to a clear colour keeps the colour. The
+        // alpha mask is the grey one, linear as it is.
+        String function = gray || start.a() == end.a()
+                ? "<</FunctionType 2/Domain[0 1]/C0[" + c0 + "]/C1[" + c1 + "]/N 1>>"
+                : PdfGradients.twoColourFunction(start, end);
         String body;
         if (gradient instanceof LinearGradient l) {
             body = "<</ShadingType 2/ColorSpace" + space + "/Coords[" + Pdf.num(l.x0()) + " " + Pdf.num(l.y0())
@@ -196,13 +222,125 @@ public final class PdfWriter {
     }
 
     /** @return a pattern painting the gradient, placed by {@code matrix} from the pattern space */
-    String pattern(Paint gradient, Affine matrix) throws IOException {
+    String pattern(Paint gradient, Affine2D matrix) throws IOException {
         String shading = shading(gradient);
         String name = "P" + (++counter);
         resources.put(name, file.object("<</PatternType 2/Shading " + resources.get(shading) + " 0 R/Matrix["
                 + Pdf.num(matrix.a()) + " " + Pdf.num(matrix.b()) + " " + Pdf.num(matrix.c()) + " "
                 + Pdf.num(matrix.d()) + " " + Pdf.num(matrix.e()) + " " + Pdf.num(matrix.f()) + "]>>"));
         return name;
+    }
+
+    /**
+     * A pattern painting {@code gradient}, placed by {@code matrix} from the gradient's own space
+     * (its transform included) to the pattern space.
+     *
+     * @param region the corners, x and y of each, of what it may paint, in the gradient's own space
+     */
+    String gradientPattern(Gradient gradient, Affine2D matrix, double[] region) throws IOException {
+        int shading = gradientShading(gradient, false, 1, region);
+        String placed = matrix(matrix);
+        List<Object> key = List.of(shading, placed);
+        String known = gradientPatterns.get(key);
+        if (known != null) {
+            return known;
+        }
+        String name = "P" + (++counter);
+        resources.put(name, file.object("<</PatternType 2/Shading " + shading + " 0 R/Matrix[" + placed + "]>>"));
+        gradientPatterns.put(key, name);
+        return name;
+    }
+
+    /**
+     * A graphics state whose soft mask is {@code gradient}'s alpha times {@code opacity}, drawn as grey
+     * in the user space in force, for a gradient whose colours are not equally opaque.
+     *
+     * @param region as for {@link #gradientPattern}
+     */
+    String gradientMaskedState(Gradient gradient, float opacity, BlendMode blend, double[] region)
+            throws IOException {
+        int shading = gradientShading(gradient, true, opacity, region);
+        List<Object> key = List.of(shading, matrix(gradient.transform()), blendName(blend));
+        String known = gradientMasks.get(key);
+        if (known != null) {
+            return known;
+        }
+        int group = file.stream("/Type/XObject/Subtype/Form/BBox[-100000 -100000 100000 100000]/Matrix["
+                        + matrix(gradient.transform()) + "]/Group<</S/Transparency/CS/DeviceGray>>"
+                        + "/Resources<</Shading<</Sh " + shading + " 0 R>>>>",
+                "/Sh sh".getBytes(StandardCharsets.ISO_8859_1), true);
+        String name = "GS" + (++counter);
+        resources.put(name, file.object("<</Type/ExtGState/BM" + blendName(blend) + "/SMask<</S/Luminosity/G "
+                + group + " 0 R>>>>"));
+        gradientMasks.put(key, name);
+        return name;
+    }
+
+    private int gradientShading(Gradient gradient, boolean gray, float opacity, double[] region) throws IOException {
+        PdfGradients.Shading shading = PdfGradients.shading(gradient, gray, opacity, region);
+        List<Object> key = List.of(shading.dictionary(),
+                shading.mesh() == null ? "" : java.nio.ByteBuffer.wrap(shading.mesh()));
+        Integer known = gradientShadings.get(key);
+        if (known != null) {
+            return known;
+        }
+        int number = shading.mesh() == null ? file.object(shading.dictionary())
+                : file.stream(shading.dictionary().substring(2), shading.mesh(), true);
+        gradientShadings.put(key, number);
+        return number;
+    }
+
+    /**
+     * A tiling pattern painting {@code paint}'s picture, one pixel to one unit of its space, placed by
+     * {@code matrix}: a cell of the picture repeated on an axis it repeats, of the picture and its
+     * mirror on one it mirrors, and of the picture once, with a step past the region, on one it lays
+     * once.
+     *
+     * @param region the corners, x and y of each, of what it may paint, in the picture's space
+     */
+    String imagePattern(ImagePaint paint, Affine2D matrix, double[] region) throws IOException {
+        Image image = paint.image();
+        String xobject = image(image, paint.sampling() == limn.graphics.Sampling.SMOOTH);
+        int w = image.width();
+        int h = image.height();
+        boolean mirrorX = paint.tileX() == ImagePaint.Tile.MIRROR;
+        boolean mirrorY = paint.tileY() == ImagePaint.Tile.MIRROR;
+        double cellW = mirrorX ? 2.0 * w : w;
+        double cellH = mirrorY ? 2.0 * h : h;
+        double span = 0;
+        for (int i = 0; i < region.length; i += 2) {
+            span = Math.max(span, Math.max(Math.abs(region[i]), Math.abs(region[i + 1])));
+        }
+        double far = 2 * span + 2 * Math.max(cellW, cellH) + 1;
+        double stepX = paint.tileX() == ImagePaint.Tile.NONE ? far : cellW;
+        double stepY = paint.tileY() == ImagePaint.Tile.NONE ? far : cellH;
+        StringBuilder ops = new StringBuilder();
+        // An image fills its unit square bottom-up; the picture's space runs down, so each copy is
+        // flipped onto it, and a mirrored one flipped back across its own axis.
+        ops.append("q ").append(w).append(" 0 0 ").append(-h).append(" 0 ").append(h).append(" cm /Im Do Q\n");
+        if (mirrorX) {
+            ops.append("q ").append(-w).append(" 0 0 ").append(-h).append(' ').append(2 * w).append(' ').append(h)
+                    .append(" cm /Im Do Q\n");
+        }
+        if (mirrorY) {
+            ops.append("q ").append(w).append(" 0 0 ").append(h).append(" 0 ").append(h).append(" cm /Im Do Q\n");
+        }
+        if (mirrorX && mirrorY) {
+            ops.append("q ").append(-w).append(" 0 0 ").append(h).append(' ').append(2 * w).append(' ').append(h)
+                    .append(" cm /Im Do Q\n");
+        }
+        String name = "P" + (++counter);
+        resources.put(name, file.stream("/Type/Pattern/PatternType 1/PaintType 1/TilingType 1/BBox[0 0 "
+                        + Pdf.num((float) cellW) + " " + Pdf.num((float) cellH) + "]/XStep " + Pdf.num((float) stepX)
+                        + "/YStep " + Pdf.num((float) stepY) + "/Matrix[" + matrix(matrix)
+                        + "]/Resources<</XObject<</Im " + resources.get(xobject) + " 0 R>>>>",
+                ops.toString().getBytes(StandardCharsets.ISO_8859_1), true));
+        return name;
+    }
+
+    private static String matrix(Affine2D m) {
+        return Pdf.num((float) m.a()) + " " + Pdf.num((float) m.b()) + " " + Pdf.num((float) m.c()) + " "
+                + Pdf.num((float) m.d()) + " " + Pdf.num((float) m.e()) + " " + Pdf.num((float) m.f());
     }
 
     /** @return an image's XObject, written once per image and sampling */

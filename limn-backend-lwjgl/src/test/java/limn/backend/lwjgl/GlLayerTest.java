@@ -265,7 +265,7 @@ class GlLayerTest {
     // ------------------------------------------------------------------ the two ends
 
     @Test
-    void anOpacityOfOneOpensNoLayerAndZeroDrawsNothing() {
+    void anOpacityOfOneOpensALayerAsBelowItAndZeroDrawsNothing() {
         byte[] none = render(c -> { });
         byte[] zero = render(c -> {
             c.saveLayer(0, 0, W_PT, H_PT, 0f);
@@ -281,9 +281,10 @@ class GlLayerTest {
             popup(c);
             c.restore();
         });
-        assertEquals(0, open[0], "at 1 the layer is a save: no picture is made");
-        assertEquals(0, canvas.layerStats().textures(), "and none is held");
-        assertAtMost(0, render(GlLayerTest::popup), one, "the frame of today");
+        // What is drawn inside may blend with the layer's own picture, under a Porter-Duff rule, so
+        // the picture is made at 1 too; under normal drawing it is the frame drawn straight.
+        assertEquals(1, open[0], "at 1 too a picture is made");
+        assertAtMost(2, render(GlLayerTest::popup), one, "the frame drawn straight");
     }
 
     // ------------------------------------------------------------------ a 3D view inside a layer
@@ -355,7 +356,7 @@ class GlLayerTest {
             open[0] = c.openLayers();
             c.restore();
         });
-        assertEquals(0, open[0], "under NORMAL, 1 still opens nothing");
+        assertEquals(1, open[0], "under NORMAL, 1 opens a picture as well");
     }
 
     @Test
@@ -448,6 +449,7 @@ class GlLayerTest {
         assertEquals(2, held.length, "one picture per level of nesting");
         canvas.dispose();
         canvas = null;
+        HeadlessGl.settleDeletions();
         for (int texture : held) {
             assertFalse(Gl.glIsTexture(texture), "texture " + texture + " freed with the window");
         }
@@ -499,6 +501,33 @@ class GlLayerTest {
             c.restore();
         });
         assertAtMost(4, glassOverPage, glassInLayerOverPage, "a glass over the page inside a group");
+    }
+
+    @Test
+    void aGlassAfterAPathClippedDrawReadsTheWholeLayerUnderIt() {
+        // The capture lays the open layers into the glass's copy under the batch's state: the
+        // last draw's path clip, restored since, cut the layer's content down to that clip.
+        java.util.function.Consumer<GlCanvas> content = c -> {
+            c.fillRect(40, 40, 200, 200, Color.rgb(0x204020));
+            c.save();
+            c.clipPath(new limn.graphics.Path2D().addCircle(140, 140, 30));
+            c.fillRect(100, 100, 80, 80, Color.rgb(0xC03030));
+            c.restore();
+        };
+        byte[] bare = render(c -> {
+            bands(c);
+            content.accept(c);
+            c.fillBackdropRoundRect(60, 60, 160, 160, 12, FROST);
+        });
+        freshCanvas();
+        byte[] inLayer = render(c -> {
+            bands(c);
+            c.saveLayer(39, 39, 202, 202, 0.99f);
+            content.accept(c);
+            c.fillBackdropRoundRect(60, 60, 160, 160, 12, FROST);
+            c.restore();
+        });
+        assertAtMost(4, bare, inLayer, "a glass after a clipped draw, in a group at 0.99 against no group");
     }
 
     // ------------------------------------------------------------------ plumbing

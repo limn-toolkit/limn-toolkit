@@ -94,6 +94,7 @@ public final class LwjglBackend implements BackendPeer {
     private final UiRuntime uiRuntime;
     private final FontStore fontStore;
     private final FontOutlines glyphOutlines;
+    private final limn.backend.spi.OffscreenPainter offscreenPainter = this::paintOffscreen;
     private limn.graphics.FontCatalog fontCatalog;
     private limn.graphics.FontLoader fontLoader;
     private final ShapingRuler textRuler;
@@ -362,9 +363,17 @@ public final class LwjglBackend implements BackendPeer {
             this.applicationName = name;
         }
         boolean initialized;
+        String headlessMode = System.getProperty(HEADLESS_PROPERTY, "auto").trim().toLowerCase(java.util.Locale.ROOT);
+        headless = "true".equals(headlessMode) || ("auto".equals(headlessMode) && headlessByDefault(
+                Platform.current().os(), System.getenv("DISPLAY"), System.getenv("WAYLAND_DISPLAY"),
+                Platform.current().isWindows() && WindowsSession.isServices()));
         try {
-            selectPlatform();
-            if (Platform.current().isMacOs()) {
+            if (headless) {
+                startWithoutDisplay();
+            } else {
+                selectPlatform();
+            }
+            if (Platform.current().isMacOs() && !headless) {
                 // Before the library builds the system's menus, which read the numbers' locale.
                 MacApplication.numbersInTheCLocale();
                 MacApplication.followSystemLanguage();
@@ -381,6 +390,18 @@ public final class LwjglBackend implements BackendPeer {
             // window, which is only ever a fallback's (ADR 003 §4.3); set before init or never.
             AngleFallback.initHints();
             initialized = glfwInit();
+            if (!initialized && !headless && "auto".equals(headlessMode)) {
+                // No display the windowing library could reach: started without one, to draw
+                // pictures and documents, rather than not at all. A window asked for says why.
+                String why = GraphicsProbe.lastError();
+                headless = true;
+                startWithoutDisplay();
+                initialized = glfwInit();
+                if (initialized) {
+                    LOG.log(Level.WARNING, "started without a display, so no window can be opened: {0}{1}",
+                            why, startupAdvice());
+                }
+            }
         } catch (UnsatisfiedLinkError missing) {
             throw nativesMissing(missing);
         }
@@ -403,12 +424,27 @@ public final class LwjglBackend implements BackendPeer {
                 window.refreshRateMayHaveChanged();
             }
         });
+        lossWatch.forgetOthersWith(() -> {
+            if (offscreen != null) {
+                offscreen.forgetLost(!windows.isEmpty());
+            }
+        });
         uiRuntime = UiRuntime.create(this::wakeLoop);
         uiRuntime.bindToCurrentThread();
-        if (Platform.current().isMacOs()) {
+        loopThread = Thread.currentThread();
+        // On Windows a backend with no display is in a service's session, on the system's own
+        // platform, whose wait and wake work with no window.
+        parksItself = headless && !Platform.current().isWindows();
+        if (headless) {
+            // A slow task is reported because it holds a frame back, and a backend with no display
+            // has no frame to hold: what runs on its UI thread is drawing, which belongs there, and
+            // a server drawing a picture per request would log every one.
+            uiRuntime.setSlowTaskBudgetMillis(Long.MAX_VALUE);
+        }
+        if (Platform.current().isMacOs() && !headless) {
             MacQuitCommand.route(quitCommand); // GLFW made its delegate in glfwInit
         }
-        if (Platform.current().isMacOs() && !macAgent
+        if (Platform.current().isMacOs() && !macAgent && !headless
                 && !"false".equalsIgnoreCase(System.getProperty("limn.macos.systemMenuBar"))) {
             try {
                 macMenuBar = new MacMenuBar(this, uiRuntime::post);
@@ -437,7 +473,8 @@ public final class LwjglBackend implements BackendPeer {
         glyphOutlines = new FontOutlines(fontStore);
         // Every service at once, through the one call the SPI names (ADR 046 §5).
         new limn.backend.spi.BackendServices(uiRuntime, textRuler, fontCatalog, fontLoader, imageDecoder,
-                svgRenderer, graphics3d, videoSurfaces, audio, audioDecoder, glyphOutlines).install();
+                svgRenderer, graphics3d, videoSurfaces, audio, audioDecoder, glyphOutlines,
+                offscreenPainter).install();
         // Same shape as the font store's background loads: pay the file-dialog
         // library's extract-and-link on a worker now, not on the click that
         // wants a chooser. It buys back milliseconds, not the panel's real
@@ -446,6 +483,48 @@ public final class LwjglBackend implements BackendPeer {
         followSystemPreferences();
         LOG.log(Level.INFO, "GLFW {0} initialized; UI thread = ''{1}''",
                 glfwGetVersionString(), Thread.currentThread().getName());
+    }
+
+    /**
+     * Whether the backend starts without a display: {@code true} to start so on any machine,
+     * {@code false} never to (a machine with no display then fails to start, as it always did), and
+     * {@code auto}, the default, to start so where no display can be had: Linux with neither
+     * {@code DISPLAY} nor {@code WAYLAND_DISPLAY}, a Windows service's session, or any machine where
+     * the windowing library finds no display to start on. A backend started without one opens no
+     * window and no tray, and draws pictures ({@link limn.graphics.Images#render}) and documents with
+     * the same canvas a window draws with, on the GPU where the system lets a process without a
+     * display reach it and on the processor otherwise.
+     */
+    public static final String HEADLESS_PROPERTY = "limn.backend.headless";
+
+    /** Whether this backend started without a display. */
+    private boolean headless;
+
+    /**
+     * Whether a machine is one with no display, by what it says of itself.
+     *
+     * @param servicesSession on Windows, whether the process runs in session 0, a service's, where
+     *                        making a window's OpenGL context ends the process
+     */
+    static boolean headlessByDefault(Platform.Os os, @Nullable String display, @Nullable String waylandDisplay,
+                                     boolean servicesSession) {
+        return switch (os) {
+            case LINUX -> isUnset(display) && isUnset(waylandDisplay);
+            case WINDOWS -> servicesSession;
+            default -> false;
+        };
+    }
+
+    /**
+     * Readies the windowing library for a backend without a display: its null platform, whose events
+     * and timers work with no display, on Linux and macOS, where its EGL makes a context from Mesa's
+     * driver or llvmpipe; on Windows its own platform, whose events work in a service's session, as
+     * long as no window is made.
+     */
+    private static void startWithoutDisplay() {
+        if (!Platform.current().isWindows()) {
+            glfwInitHint(GLFW_PLATFORM, org.lwjgl.glfw.GLFW.GLFW_PLATFORM_NULL);
+        }
     }
 
     /**
@@ -702,6 +781,17 @@ public final class LwjglBackend implements BackendPeer {
     private volatile boolean parkedInPump;
 
     /**
+     * Whether the loop waits on its own instead of in the windowing library: where the backend
+     * started without a display on the library's platform of none, whose wait returns at once and
+     * whose wake does nothing. Waiting there, the loop turned without end and took a whole processor
+     * from a server doing nothing, half of what a container of two allowed it.
+     */
+    private volatile boolean parksItself;
+
+    /** The thread the loop runs on, which {@link #wakeLoop()} unparks when {@link #parksItself}. */
+    private volatile @org.jspecify.annotations.Nullable Thread loopThread;
+
+    /**
      * Wakes the sleeping event loop. Safe from any thread.
      *
      * <p>Unconditionally from a foreign thread, because that is where the race is real: the loop
@@ -722,7 +812,12 @@ public final class LwjglBackend implements BackendPeer {
             return;
         }
         if (parkedInPump || !uiRuntime.isUiThread()) {
-            glfwPostEmptyEvent();
+            if (parksItself) {
+                // A permit the next park takes at once: a wake before the loop parks is not lost.
+                java.util.concurrent.locks.LockSupport.unpark(loopThread);
+            } else {
+                glfwPostEmptyEvent();
+            }
         }
     }
 
@@ -844,9 +939,20 @@ public final class LwjglBackend implements BackendPeer {
     }
 
     @Override
+    public boolean canOpenWindows() {
+        return !headless;
+    }
+
+    @Override
     public WindowPeer createWindow(WindowConfig config) {
         uiRuntime.checkUiThread();
         ensureOpen();
+        if (headless) {
+            String advice = Platform.current().isLinux() ? startupAdvice() : "";
+            throw new IllegalStateException("this backend started without a display, so it opens no window; "
+                    + "it draws pictures (Images.render) and documents" + advice
+                    + "; -D" + HEADLESS_PROPERTY + "=false makes a machine with no display fail to start instead");
+        }
         if (firstWindowTitle == null) {
             // Before the window exists, so the name its own bridge is opened with is already this.
             firstWindowTitle = config.title();
@@ -976,7 +1082,15 @@ public final class LwjglBackend implements BackendPeer {
                     try {
                         parkedInPump = true;
                         try {
-                            if (framePending || sleepBudgetNanos == 0) {
+                            if (parksItself) {
+                                // No native event can come; the wait ends at a deadline or a post.
+                                if (!framePending && sleepBudgetNanos < 0) {
+                                    java.util.concurrent.locks.LockSupport.park(this);
+                                } else if (!framePending && sleepBudgetNanos > 0) {
+                                    java.util.concurrent.locks.LockSupport.parkNanos(this,
+                                            Math.min(sleepBudgetNanos, (long) (MAX_WAIT_SECONDS * 1e9)));
+                                }
+                            } else if (framePending || sleepBudgetNanos == 0) {
                                 glfwPollEvents();
                             } else if (sleepBudgetNanos < 0) {
                                 glfwWaitEvents();
@@ -1582,6 +1696,49 @@ public final class LwjglBackend implements BackendPeer {
         return glCapabilities;
     }
 
+    /**
+     * Draws into a picture off screen: inside a frame in the frame's own context, which stays
+     * current; otherwise in the context of the first open window that can draw. Null with no such
+     * window.
+     */
+    /**
+     * A picture off screen, drawn again once when its text asked for fallback faces still loading:
+     * a window heals such boxes at its next frame, a picture keeps them, and the first picture of a
+     * server is often the first text in a script the default face lacks.
+     */
+    private limn.graphics.@org.jspecify.annotations.Nullable Image paintOffscreen(int width, int height,
+            float scale, java.util.function.Consumer<limn.graphics.Canvas> painter) {
+        limn.graphics.Image picture = paintOffscreenOnce(width, height, scale, painter);
+        return picture != null && fontStore.settleNow() ? paintOffscreenOnce(width, height, scale, painter)
+                : picture;
+    }
+
+    private limn.graphics.@org.jspecify.annotations.Nullable Image paintOffscreenOnce(int width, int height,
+            float scale, java.util.function.Consumer<limn.graphics.Canvas> painter) {
+        if (GlCanvas.current() != null) {
+            return GlOffscreen.paintHere(fontStore, width, height, scale, painter);
+        }
+        for (LwjglWindow window : windows) {
+            limn.graphics.Image picture = window.paintOffscreen(width, height, scale, painter);
+            if (picture != null) {
+                return picture;
+            }
+        }
+        if (offscreen == null) {
+            offscreen = new OffscreenContext(fontStore, headless);
+        }
+        limn.graphics.Image picture = offscreen.paint(width, height, scale, painter);
+        if (picture == null && !offscreenFailureLogged) {
+            offscreenFailureLogged = true;
+            LOG.log(Level.WARNING, "no picture can be drawn off screen: {0}", offscreen.failure());
+        }
+        return picture;
+    }
+
+    /** The backend's own context for pictures off screen, made when no window can draw one. */
+    private @org.jspecify.annotations.Nullable OffscreenContext offscreen;
+    private boolean offscreenFailureLogged;
+
     /** @return the windows that are open, for the menu bar's rule of which bar is shown */
     List<LwjglWindow> openWindows() {
         return windows;
@@ -1634,6 +1791,9 @@ public final class LwjglBackend implements BackendPeer {
     @Override
     public TrayPeer createTray(String id, TrayHost host) {
         uiRuntime.checkUiThread();
+        if (headless) {
+            return TrayPeer.NONE; // no display, so no tray to show an icon in
+        }
         TrayPeer made = platformTray(id, host);
         if (made == TrayPeer.NONE) {
             return made;
@@ -1695,6 +1855,10 @@ public final class LwjglBackend implements BackendPeer {
             macMenuBar.dispose();
         }
         trays.clear();
+        if (offscreen != null) {
+            offscreen.dispose();
+            offscreen = null;
+        }
         if (systemClipboard != null) {
             // Its thread, and what it holds of the display while that is still open (on Wayland,
             // the pointer, keyboard and pinch of its own on GLFW's connection).
@@ -1723,6 +1887,7 @@ public final class LwjglBackend implements BackendPeer {
         Ui.uninstall(uiRuntime);
         limn.graphics.TextRulers.uninstall(textRuler);
         limn.backend.spi.GlyphOutlines.uninstall(glyphOutlines);
+        limn.backend.spi.OffscreenPainter.uninstall(offscreenPainter);
         limn.graphics.Fonts.uninstallCatalog(fontCatalog);
         limn.graphics.Fonts.uninstallLoader(fontLoader);
         limn.graphics.Images.uninstallDecoder(imageDecoder);
@@ -1748,11 +1913,28 @@ public final class LwjglBackend implements BackendPeer {
         if (monitors != null) {
             monitors.free();
         }
+        if (Platform.current().isLinux()) {
+            keepEglLoaded();
+        }
         glfwTerminate();
         GLFWErrorCallback previous = glfwSetErrorCallback(null);
         if (previous != null) {
             previous.free();
         }
+    }
+
+    /**
+     * Keeps the system's EGL library, where the windowing library loaded it (with no display, or on
+     * Wayland), in the process after {@code glfwTerminate} unloads it: the library leaves a destructor
+     * of its own with the UI thread, which ran into unmapped code when that thread ended after a
+     * normal return from {@code main}, and the process died with a segmentation fault at its exit.
+     * {@code RTLD_NOLOAD} loads nothing where the library is not there.
+     */
+    private static void keepEglLoaded() {
+        org.lwjgl.system.linux.DynamicLinkLoader.dlopen("libEGL.so.1",
+                org.lwjgl.system.linux.DynamicLinkLoader.RTLD_NOW
+                        | org.lwjgl.system.linux.DynamicLinkLoader.RTLD_NOLOAD
+                        | org.lwjgl.system.linux.DynamicLinkLoader.RTLD_NODELETE);
     }
 
     private void ensureOpen() {

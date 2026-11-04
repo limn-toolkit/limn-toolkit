@@ -118,7 +118,7 @@ class GlTurnedLayerTest {
     // ------------------------------------------------------------------ clips inside and around
 
     @Test
-    void aClipInsideATurnedPictureIsExactWhereDrawnStraightItIsTheBoundingBox() {
+    void aClipInsideATurnedPictureIsExactAndSoIsOneDrawnStraight() {
         // A scroll view's viewport inside a turned panel, and content running past it.
         Consumer<GlCanvas> view = c -> {
             c.clipRect(CX - 80, CY - 50, 160, 100);
@@ -141,12 +141,15 @@ class GlTurnedLayerTest {
         // itself: turned back, the point lies 107 points above the viewport's middle, past its 50.
         int x = (int) ((CX + 85) * SCALE);
         int y = (int) ((CY - 75) * SCALE);
-        assertEquals(channel(INK, 0), pixel(straight, x, y)[0], 1,
-                "drawn straight, the content shows in the bounding box's corner");
+        // Drawn straight the rectangle is clipped as a turned path, which once was its bounding box.
+        assertEquals(channel(PAGE, 0), pixel(straight, x, y)[0], 1,
+                "drawn straight, nothing shows in the bounding box's corner");
         assertEquals(channel(PAGE, 0), pixel(picture, x, y)[0], 1,
                 "through the picture, nothing shows past the turned viewport");
         assertEquals(coverage(exact), coverage(picture), coverage(exact) * 0.003,
                 "the picture shows exactly the turned viewport");
+        assertEquals(coverage(exact), coverage(straight), coverage(exact) * 0.003,
+                "and so does the straight draw");
     }
 
     @Test
@@ -186,7 +189,7 @@ class GlTurnedLayerTest {
     // ------------------------------------------------------------------ what needs no picture
 
     @Test
-    void aTransformThatKeepsTheAxesIsDrawnStraightWithNoPicture() {
+    void aTransformThatKeepsTheAxesIsDrawnOnThePixelsItLandsOn() {
         Consumer<GlCanvas> card = c -> c.fillRoundRect(40, 30, 120, 80, 10, INK);
         byte[] straight = render(c -> {
             c.translate(31.5f, 12.25f);
@@ -200,9 +203,11 @@ class GlTurnedLayerTest {
             card.accept(c);
             c.restore();
         });
-        assertEquals(0, open[0], "a move and a scale are drawn straight");
-        assertEquals(0, canvas.layerStats().textures(), "and hold no picture");
-        assertAtMost(0, straight, layered, "the same pixels as translate and scale");
+        // A plain layer, as at any opacity: on the pixels the move and the scale put it on, with no
+        // space of its own, so what it draws is what translate and scale draw.
+        assertEquals(1, open[0], "a plain layer");
+        assertEquals(0.0, canvas.lastSpaceScale(), 0, "no space of its own was drawn");
+        assertAtMost(2, straight, layered, "the same pixels as translate and scale");
     }
 
     @Test

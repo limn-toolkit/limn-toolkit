@@ -90,6 +90,108 @@ class ImageEncodingTest {
     }
 
     @Test
+    void byDefaultEveryRowIsWrittenAsItIsAndAFilteringAskedForFiltersThem() {
+        // Rows as they are by default: one pass, as the platform's own writer does, where trying
+        // both took twice its time on every picture a server answered.
+        Image photo = noiseOverRamp(64, 48);
+        assertTrue(filterTypes(Images.encode(photo, ImageFormat.PNG)).stream().allMatch(f -> f == 0),
+                "no row filtered by default");
+        ImageEncodeOptions adaptive = new ImageEncodeOptions(ImageFormat.PNG)
+                .withFiltering(ImageEncodeOptions.Filtering.ADAPTIVE);
+        assertTrue(filterTypes(Images.encode(photo, adaptive)).stream().anyMatch(f -> f != 0),
+                "rows filtered when asked");
+    }
+
+    @Test
+    void everyFilteringAndLevelDecodesToTheSamePixelsAndTheSmallerIsNeverLarger() {
+        for (Image source : new Image[] {gradient(64, 64), noiseOverRamp(64, 48)}) {
+            int none = 0;
+            int adaptive = 0;
+            for (ImageEncodeOptions.Filtering filtering : ImageEncodeOptions.Filtering.values()) {
+                for (int level : new int[] {0, 1, 4, 9}) {
+                    byte[] file = Images.encode(source, new ImageEncodeOptions(ImageFormat.PNG)
+                            .withFiltering(filtering).withCompression(level));
+                    assertArrayEquals(source.pixels(), TestPngReader.decode(file).pixels(), filtering + " " + level);
+                    if (level == 4) {
+                        switch (filtering) {
+                            case NONE -> none = file.length;
+                            case ADAPTIVE -> adaptive = file.length;
+                            case SMALLER -> assertEquals(Math.min(none, adaptive), file.length,
+                                    "the smaller of the two");
+                        }
+                    }
+                }
+            }
+        }
+        Image source = gradient(64, 64);
+        assertTrue(Images.encode(source, new ImageEncodeOptions(ImageFormat.PNG).withCompression(0)).length
+                > Images.encode(source, new ImageEncodeOptions(ImageFormat.PNG).withCompression(9)).length,
+                "level 0 stores, 9 compresses");
+    }
+
+    @Test
+    void aCompressionOutsideZeroToNineIsRefused() {
+        ImageEncodeOptions options = new ImageEncodeOptions(ImageFormat.PNG);
+        assertThrows(IllegalArgumentException.class, () -> options.withCompression(-1));
+        assertThrows(IllegalArgumentException.class, () -> options.withCompression(10));
+        assertEquals(ImageEncodeOptions.DEFAULT_COMPRESSION, options.compression());
+        assertEquals(ImageEncodeOptions.Filtering.NONE, options.filtering());
+    }
+
+    /** A photograph's kind of picture: a ramp with a little noise, which filters well. */
+    private static Image noiseOverRamp(int width, int height) {
+        Random random = new Random(7);
+        byte[] p = new byte[width * height * 4];
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int i = (y * width + x) * 4;
+                p[i] = (byte) (x * 3 + random.nextInt(6));
+                p[i + 1] = (byte) (y * 4 + random.nextInt(6));
+                p[i + 2] = (byte) ((x + y) * 2 + random.nextInt(6));
+                p[i + 3] = (byte) 255;
+            }
+        }
+        return new Image(width, height, p);
+    }
+
+    /** Each row's filter type, read from the file's inflated image data. */
+    private static java.util.List<Integer> filterTypes(byte[] file) {
+        java.io.ByteArrayOutputStream data = new java.io.ByteArrayOutputStream();
+        int width = 0;
+        int height = 0;
+        int at = 8;
+        while (at < file.length) {
+            int length = ((file[at] & 0xff) << 24) | ((file[at + 1] & 0xff) << 16) | ((file[at + 2] & 0xff) << 8)
+                    | (file[at + 3] & 0xff);
+            String type = new String(file, at + 4, 4, java.nio.charset.StandardCharsets.US_ASCII);
+            if (type.equals("IHDR")) {
+                width = ((file[at + 8] & 0xff) << 24) | ((file[at + 9] & 0xff) << 16) | ((file[at + 10] & 0xff) << 8)
+                        | (file[at + 11] & 0xff);
+                height = ((file[at + 12] & 0xff) << 24) | ((file[at + 13] & 0xff) << 16)
+                        | ((file[at + 14] & 0xff) << 8) | (file[at + 15] & 0xff);
+            } else if (type.equals("IDAT")) {
+                data.write(file, at + 8, length);
+            }
+            at += 12 + length;
+        }
+        java.util.zip.Inflater inflater = new java.util.zip.Inflater();
+        inflater.setInput(data.toByteArray());
+        byte[] raw = new byte[height * (1 + width * 4)];
+        try {
+            inflater.inflate(raw);
+        } catch (java.util.zip.DataFormatException e) {
+            throw new AssertionError(e);
+        } finally {
+            inflater.end();
+        }
+        java.util.List<Integer> types = new java.util.ArrayList<>();
+        for (int row = 0; row < height; row++) {
+            types.add(raw[row * (1 + width * 4)] & 0xff);
+        }
+        return types;
+    }
+
+    @Test
     void incompressibleImageSpansSeveralIdatChunks() {
         // Deflated output is emitted in bounded chunks; noise defeats compression, so this crosses
         // the boundary. A reader that assumed one IDAT would fail here, and so would a chunk loop

@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * The offscreen pictures one window's canvas draws its layers into: RGBA8
  * textures, premultiplied as the window's own framebuffer is, each with the framebuffer that draws
- * into it.
+ * into it, and a stencil buffer once a fill inside the layer has needed one ({@link #stencil}).
  *
  * <p><b>Taken and given back.</b> A layer takes a picture when it opens and gives it back when it
  * closes, so siblings share one and what is held at once is one per level of nesting on the path
@@ -47,6 +47,13 @@ final class GlLayerPool {
          * is deleted, whichever layer takes it after.
          */
         int levels;
+        /**
+         * The stencil buffer a fill through the stencil uses inside this picture's layer: none
+         * until one is first drawn there, then kept with the picture, at zero between fills.
+         */
+        private int stencil;
+        /** Whether the driver refused a stencil attachment, so none is asked again. */
+        private boolean stencilRefused;
         private long usedInFrame;
         private boolean taken;
 
@@ -61,6 +68,9 @@ final class GlLayerPool {
             long bytes = 0;
             for (int level = 0; level <= levels; level++) {
                 bytes += (long) Math.max(1, width >> level) * Math.max(1, height >> level) * 4;
+            }
+            if (stencil != 0) {
+                bytes += (long) width * height * 4; // depth and stencil packed in four bytes
             }
             return bytes;
         }
@@ -114,6 +124,44 @@ final class GlLayerPool {
         best.taken = true;
         best.usedInFrame = frame;
         return best;
+    }
+
+    /**
+     * Gives a picture a stencil buffer, which a fill through the stencil needs inside its layer:
+     * made the first time one is drawn there, cleared once, and kept with the picture, every fill
+     * leaving it at zero. Packed with a depth buffer, the one stencil format every driver of both
+     * profiles attaches. Binds the picture's framebuffer, which is the one bound when a layer asks.
+     *
+     * @return whether the picture has one; false where the driver would not attach it, which the
+     *         caller answers by filling each contour on its own
+     */
+    boolean stencil(Picture picture) {
+        if (picture.stencil != 0) {
+            return true;
+        }
+        if (picture.stencilRefused) {
+            return false;
+        }
+        int buffer = Gl.glGenRenderbuffers();
+        Gl.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, buffer);
+        Gl.glRenderbufferStorage(GL33C.GL_RENDERBUFFER, GL33C.GL_DEPTH24_STENCIL8, picture.width, picture.height);
+        Gl.glBindRenderbuffer(GL33C.GL_RENDERBUFFER, 0);
+        Gl.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, picture.framebuffer);
+        Gl.glFramebufferRenderbuffer(GL33C.GL_FRAMEBUFFER, GL33C.GL_DEPTH_STENCIL_ATTACHMENT,
+                GL33C.GL_RENDERBUFFER, buffer);
+        if (Gl.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER) != GL33C.GL_FRAMEBUFFER_COMPLETE) {
+            Gl.glFramebufferRenderbuffer(GL33C.GL_FRAMEBUFFER, GL33C.GL_DEPTH_STENCIL_ATTACHMENT,
+                    GL33C.GL_RENDERBUFFER, 0);
+            Gl.glDeleteRenderbuffers(buffer);
+            picture.stencilRefused = true;
+            return false;
+        }
+        picture.stencil = buffer;
+        // A new buffer holds anything; the whole of it, whatever damage scissor is in force.
+        Gl.glDisable(GL33C.GL_SCISSOR_TEST);
+        Gl.glStencilMask(0xff);
+        Gl.glClear(GL33C.GL_STENCIL_BUFFER_BIT);
+        return true;
     }
 
     /** Gives a picture back for the next layer of this frame, or of the next. */
@@ -200,5 +248,8 @@ final class GlLayerPool {
     private static void delete(Picture p) {
         Gl.glDeleteFramebuffers(p.framebuffer);
         Gl.glDeleteTextures(p.texture);
+        if (p.stencil != 0) {
+            Gl.glDeleteRenderbuffers(p.stencil);
+        }
     }
 }

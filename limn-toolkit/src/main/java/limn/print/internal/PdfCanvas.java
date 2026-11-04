@@ -4,6 +4,9 @@ import limn.backend.spi.GlyphOutlines;
 import limn.graphics.BlendMode;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
+import limn.graphics.Gradient;
+import limn.graphics.ImagePaint;
+import limn.graphics.FillRule;
 import limn.graphics.Font;
 import limn.graphics.GpuSurface;
 import limn.graphics.Image;
@@ -16,7 +19,9 @@ import limn.graphics.RoundRect;
 import limn.graphics.Sampling;
 import limn.graphics.Shadow;
 import limn.graphics.ShapedText;
+import limn.graphics.Stroke;
 import limn.graphics.TextMetrics;
+import limn.math.Affine2D;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
@@ -48,17 +53,26 @@ final class PdfCanvas implements Canvas {
         final StringBuilder ops = new StringBuilder(4096);
         final Set<String> used = new HashSet<>();
         /** What maps this stream's coordinates at its start onto its pattern space. */
-        final Affine base;
+        final Affine2D base;
+        /** What this stream may paint, in its pattern space: the page, or the layer's rectangle. */
+        final float regionX;
+        final float regionY;
+        final float regionW;
+        final float regionH;
 
-        Buffer(Affine base) {
+        Buffer(Affine2D base, float regionX, float regionY, float regionW, float regionH) {
             this.base = base;
+            this.regionX = regionX;
+            this.regionY = regionY;
+            this.regionW = regionW;
+            this.regionH = regionH;
         }
     }
 
     /** What a save keeps, and whether it opened a layer. */
-    private record State(Affine ctm, float opacity, BlendMode blend, Sampling sampling, boolean layer,
+    private record State(Affine2D ctm, float opacity, BlendMode blend, Sampling sampling, boolean layer,
                          float lx, float ly, float lw, float lh, float layerOpacity, BlendMode layerBlend) {
-        State with(Affine moved) {
+        State with(Affine2D moved) {
             return new State(moved, opacity, blend, sampling, layer, lx, ly, lw, lh, layerOpacity, layerBlend);
         }
     }
@@ -68,7 +82,7 @@ final class PdfCanvas implements Canvas {
     private final float height;
     private final Deque<Buffer> buffers = new ArrayDeque<>();
     private final Deque<State> saved = new ArrayDeque<>();
-    private State state = new State(Affine.IDENTITY, 1, BlendMode.NORMAL, Sampling.SMOOTH, false,
+    private State state = new State(Affine2D.IDENTITY, 1, BlendMode.NORMAL, Sampling.SMOOTH, false,
             0, 0, 0, 0, 1, BlendMode.NORMAL);
 
     PdfCanvas(PdfWriter writer, float width, float height, float widthPt, float heightPt) {
@@ -78,8 +92,8 @@ final class PdfCanvas implements Canvas {
         // Document units are 1/96 inch, y down; the page's default space is points, y up.
         double sx = widthPt / width;
         double sy = heightPt / height;
-        Affine base = new Affine(sx, 0, 0, -sy, 0, heightPt);
-        Buffer page = new Buffer(base);
+        Affine2D base = new Affine2D(sx, 0, 0, -sy, 0, heightPt);
+        Buffer page = new Buffer(base, 0, 0, widthPt, heightPt);
         page.ops.append(Pdf.num(sx)).append(" 0 0 ").append(Pdf.num(-sy)).append(" 0 ").append(Pdf.num(heightPt))
                 .append(" cm\n");
         buffers.push(page);
@@ -201,6 +215,34 @@ final class PdfCanvas implements Canvas {
     }
 
     @Override
+    public void shear(float sx, float sy) {
+        concat(Affine2D.shearing(sx, sy));
+    }
+
+    @Override
+    public void concat(Affine2D m) {
+        state = state.with(state.ctm.concat(m));
+        ops().append(Pdf.num(m.a())).append(' ').append(Pdf.num(m.b())).append(' ').append(Pdf.num(m.c()))
+                .append(' ').append(Pdf.num(m.d())).append(' ').append(Pdf.num(m.e())).append(' ')
+                .append(Pdf.num(m.f())).append(" cm\n");
+    }
+
+    @Override
+    public Affine2D transform() {
+        // A layer's form starts its coordinates again where the canvas stood when it was opened,
+        // which is the transform of the state saved beneath it.
+        Affine2D m = state.ctm;
+        State inside = state;
+        for (State beneath : saved) {
+            if (inside.layer) {
+                m = beneath.ctm.concat(m);
+            }
+            inside = beneath;
+        }
+        return m;
+    }
+
+    @Override
     public void setOpacity(float opacity) {
         float clamped = Math.max(0, Math.min(1, opacity));
         state = new State(state.ctm, state.opacity * clamped, state.blend, state.sampling, state.layer, state.lx,
@@ -218,9 +260,9 @@ final class PdfCanvas implements Canvas {
         float clamped = Math.max(0, Math.min(1, opacity));
         // The layer's content is a form drawn where the canvas stands now: its own coordinates start
         // from here, and its pattern space is this space.
-        state = new State(Affine.IDENTITY, 1, BlendMode.NORMAL, state.sampling, true, x, y, w, h, clamped,
+        state = new State(Affine2D.IDENTITY, 1, BlendMode.NORMAL, state.sampling, true, x, y, w, h, clamped,
                 state.blend);
-        buffers.push(new Buffer(Affine.IDENTITY));
+        buffers.push(new Buffer(Affine2D.IDENTITY, x, y, w, h));
     }
 
     @Override
@@ -262,9 +304,19 @@ final class PdfCanvas implements Canvas {
         ops().append(PdfPaths.roundRect(roundRect)).append("W n\n");
     }
 
+    /** PDF's own clip by a path, under the path's rule: {@code W} or {@code W*}, then {@code n}. */
+    @Override
+    public void clipPath(Path2D path) {
+        if (path.isEmpty()) {
+            ops().append("0 0 m h W n\n"); // a clip that encloses nothing
+            return;
+        }
+        ops().append(PdfPaths.whole(path)).append(path.fillRule() == FillRule.EVEN_ODD ? "W* n\n" : "W n\n");
+    }
+
     // ------------------------------------------------------------------ painting
 
-    private enum Mode { FILL, STROKE }
+    private enum Mode { FILL, FILL_EVEN_ODD, STROKE }
 
     /**
      * Paints a path: the colour or the gradient, the opacity in force times the paint's own alpha,
@@ -277,8 +329,12 @@ final class PdfCanvas implements Canvas {
             if (mode == Mode.STROKE) {
                 ops.append(Pdf.num(strokeWidth)).append(" w ").append(cap).append(" J ").append(join).append(" j\n");
             }
-            setPaint(paint, mode == Mode.FILL);
-            ops.append(path).append(mode == Mode.FILL ? "f\n" : "S\n").append("Q\n");
+            setPaint(paint, mode != Mode.STROKE);
+            ops.append(path).append(switch (mode) {
+                case FILL -> "f\n";
+                case FILL_EVEN_ODD -> "f*\n";
+                case STROKE -> "S\n";
+            }).append("Q\n");
         } catch (IOException failed) {
             throw new UncheckedIOException(failed);
         }
@@ -296,6 +352,33 @@ final class PdfCanvas implements Canvas {
                     .append(Pdf.num(color.b())).append(fill ? " rg\n" : " RG\n");
             return;
         }
+        if (paint instanceof Gradient g) {
+            Affine2D placed = out().base.concat(state.ctm).concat(g.transform());
+            double[] region = region(placed);
+            float a = g.colors().get(0).a();
+            boolean even = true;
+            for (Color c : g.colors()) {
+                even &= c.a() == a;
+            }
+            if (!even) {
+                ops.append('/').append(use(writer.gradientMaskedState(g, state.opacity, state.blend, region)))
+                        .append(" gs\n");
+            } else if (a * state.opacity < 1 || state.blend != BlendMode.NORMAL) {
+                ops.append('/').append(use(writer.state(a * state.opacity, state.blend))).append(" gs\n");
+            }
+            String pattern = use(writer.gradientPattern(g, placed, region));
+            ops.append(fill ? "/Pattern cs /" : "/Pattern CS /").append(pattern).append(fill ? " scn\n" : " SCN\n");
+            return;
+        }
+        if (paint instanceof ImagePaint ip) {
+            Affine2D placed = out().base.concat(state.ctm).concat(ip.transform());
+            if (state.opacity < 1 || state.blend != BlendMode.NORMAL) {
+                ops.append('/').append(use(writer.state(state.opacity, state.blend))).append(" gs\n");
+            }
+            String pattern = use(writer.imagePattern(ip, placed, region(placed)));
+            ops.append(fill ? "/Pattern cs /" : "/Pattern CS /").append(pattern).append(fill ? " scn\n" : " SCN\n");
+            return;
+        }
         float a0 = paint instanceof LinearGradient l ? l.start().a() : ((RadialGradient) paint).center().a();
         float a1 = paint instanceof LinearGradient l ? l.end().a() : ((RadialGradient) paint).edge().a();
         if (a0 != a1) {
@@ -304,8 +387,31 @@ final class PdfCanvas implements Canvas {
         } else if (a0 * state.opacity < 1 || state.blend != BlendMode.NORMAL) {
             ops.append('/').append(use(writer.state(a0 * state.opacity, state.blend))).append(" gs\n");
         }
-        String pattern = use(writer.pattern(paint, out().base.times(state.ctm)));
+        String pattern = use(writer.pattern(paint, out().base.concat(state.ctm)));
         ops.append(fill ? "/Pattern cs /" : "/Pattern CS /").append(pattern).append(fill ? " scn\n" : " SCN\n");
+    }
+
+    /**
+     * The corners of what the stream being written may paint, x and y of each, in the space that
+     * {@code placed} maps onto its pattern space.
+     */
+    private double[] region(Affine2D placed) {
+        Buffer b = out();
+        Affine2D back;
+        try {
+            back = placed.invert();
+        } catch (ArithmeticException singular) {
+            return new double[] {0, 0, 0, 0, 0, 0, 0, 0}; // collapsed: it paints nothing
+        }
+        double[] corners = {b.regionX, b.regionY, b.regionX + b.regionW, b.regionY, b.regionX + b.regionW,
+                b.regionY + b.regionH, b.regionX, b.regionY + b.regionH};
+        for (int i = 0; i < corners.length; i += 2) {
+            double x = corners[i];
+            double y = corners[i + 1];
+            corners[i] = back.a() * x + back.c() * y + back.e();
+            corners[i + 1] = back.b() * x + back.d() * y + back.f();
+        }
+        return corners;
     }
 
     @Override
@@ -377,8 +483,12 @@ final class PdfCanvas implements Canvas {
 
     @Override
     public void fillPath(Path2D path, Paint paint) {
-        // Each closed subpath on its own, as the canvas contract fills them (Path2D's notes).
-        PdfPaths.subpaths(path, subpath -> paint(subpath, paint, Mode.FILL, 0, 0, 0));
+        if (path.isEmpty()) {
+            return;
+        }
+        // Every subpath in one fill, under the path's rule, as PDF's own operators read it.
+        paint(PdfPaths.whole(path), paint, path.fillRule() == FillRule.EVEN_ODD ? Mode.FILL_EVEN_ODD : Mode.FILL,
+                0, 0, 0);
     }
 
     @Override
@@ -387,6 +497,81 @@ final class PdfCanvas implements Canvas {
             return;
         }
         paint(PdfPaths.whole(path), paint, Mode.STROKE, strokeWidth, 1, 1);
+    }
+
+    /**
+     * A {@link Stroke} as PDF's own line operators: width, cap, join, miter limit and dash, which
+     * read every value as the stroke does, so the page keeps its curves and a reader draws the line
+     * at any zoom. A pattern the stroke would not follow, past {@link Stroke#MAX_DASHES} dashes, is
+     * written solid, as every canvas draws it.
+     */
+    @Override
+    public void drawPath(Path2D path, Stroke stroke, Paint paint) {
+        if (stroke.width() <= 0 || path.isEmpty()) {
+            return;
+        }
+        try {
+            StringBuilder ops = ops();
+            ops.append("q\n").append(Pdf.num(stroke.width())).append(" w ")
+                    .append(switch (stroke.cap()) {
+                        case BUTT -> 0;
+                        case ROUND -> 1;
+                        case SQUARE -> 2;
+                    }).append(" J ")
+                    .append(switch (stroke.join()) {
+                        case MITER -> 0;
+                        case ROUND -> 1;
+                        case BEVEL -> 2;
+                    }).append(" j ").append(Pdf.num(stroke.miterLimit())).append(" M\n");
+            float[] dashes = stroke.dashes();
+            if (dashes.length > 0 && dashCount(path, dashes) <= Stroke.MAX_DASHES) {
+                ops.append('[');
+                for (int i = 0; i < dashes.length; i++) {
+                    ops.append(i == 0 ? "" : " ").append(Pdf.num(dashes[i]));
+                }
+                ops.append("] ").append(Pdf.num(stroke.dashPhase())).append(" d\n");
+            }
+            setPaint(paint, false);
+            ops.append(PdfPaths.whole(path)).append("S\nQ\n");
+        } catch (IOException failed) {
+            throw new UncheckedIOException(failed);
+        }
+    }
+
+    /** How many dashes the pattern cuts the path into, counted as the stroke counts them. */
+    private static double dashCount(Path2D path, float[] dashes) {
+        double[] length = {0};
+        path.flatten(Stroke.DEFAULT_TOLERANCE, new Path2D.Flattened() {
+            private float x;
+            private float y;
+            private float startX;
+            private float startY;
+
+            @Override
+            public void moveTo(float px, float py) {
+                x = px;
+                y = py;
+                startX = px;
+                startY = py;
+            }
+
+            @Override
+            public void lineTo(float px, float py) {
+                length[0] += Math.hypot(px - x, py - y);
+                x = px;
+                y = py;
+            }
+
+            @Override
+            public void closePath() {
+                lineTo(startX, startY);
+            }
+        });
+        double period = 0;
+        for (float d : dashes) {
+            period += d;
+        }
+        return length[0] / period * (dashes.length / 2.0);
     }
 
     @Override
@@ -419,11 +604,21 @@ final class PdfCanvas implements Canvas {
 
     @Override
     public void drawText(ShapedText text, float x, float y, Paint paint) {
-        if (text.glyphCount() == 0) {
+        drawText(text, 0, Integer.MAX_VALUE, x, y, paint);
+    }
+
+    /**
+     * Writes the glyphs whose clusters start in the range, and only the range's characters as the
+     * text a reader extracts: a line painted in three colours is read once, not three times.
+     */
+    @Override
+    public void drawText(ShapedText text, int charStart, int charEnd, float x, float y, Paint paint) {
+        if (text.glyphCount() == 0 || charStart >= charEnd) {
             return;
         }
         try {
-            new TextWriter(text, x, y, paint).write();
+            new TextWriter(text, Math.max(0, charStart), Math.min(text.text().length(), charEnd), x, y,
+                    paint).write();
         } catch (IOException failed) {
             throw new UncheckedIOException(failed);
         }
@@ -435,8 +630,15 @@ final class PdfCanvas implements Canvas {
     }
 
     /** Writes one shaped line: its glyphs as Type 3 codes, its glyphless clusters as their pieces. */
+    // Where each cluster of the last shaping written ends: a paragraph of many colours is one
+    // shaping written a range per colour, and every range asks the same question of it.
+    private @Nullable ShapedText endsFor;
+    private int[] ends = new int[0];
+
     private final class TextWriter {
         private final ShapedText text;
+        private final int start;
+        private final int end;
         private final float x;
         private final float y;
         private final Paint paint;
@@ -449,8 +651,10 @@ final class PdfCanvas implements Canvas {
         private float pen; // where the last code put the pen, in user space along the line
         private float penY = Float.NaN;
 
-        TextWriter(ShapedText text, float x, float y, Paint paint) {
+        TextWriter(ShapedText text, int start, int end, float x, float y, Paint paint) {
             this.text = text;
+            this.start = start;
+            this.end = end;
             this.x = x;
             this.y = y;
             this.paint = paint;
@@ -463,15 +667,22 @@ final class PdfCanvas implements Canvas {
             ops.append("q\n");
             setPaint(paint, true);
             if (actual) {
-                ops.append("/Span<</ActualText").append(Pdf.text(value)).append(">>BDC\n");
+                ops.append("/Span<</ActualText").append(Pdf.text(value.substring(start, end)))
+                        .append(">>BDC\n");
             }
             int[] ends = clusterEnds();
-            boolean[] first = new boolean[value.length() + 1];
+            boolean[] first = new boolean[end - start + 1]; // by offset from start
             for (ShapedText.Run run : text.runs()) {
+                if (run.charEnd() <= start || run.charStart() >= end) {
+                    continue;
+                }
                 GlyphBank.Face face = glyphs.keptFace(run.faceId());
                 for (int g = run.glyphStart(); g < run.glyphEnd(); g++) {
                     int glyph = text.glyphId(g);
                     int from = text.glyphCluster(g);
+                    if (from < start || from >= end) {
+                        continue; // another range's glyph, written by that range's call
+                    }
                     float gx = text.glyphX(g);
                     float gy = text.glyphY(g);
                     if (glyph == ShapedText.NO_GLYPH || face == null) {
@@ -479,8 +690,8 @@ final class PdfCanvas implements Canvas {
                         continue;
                     }
                     String chars = "";
-                    if (from >= 0 && from < first.length && !first[from]) {
-                        first[from] = true;
+                    if (!first[from - start]) {
+                        first[from - start] = true;
                         int to = Math.min(value.length(), Math.max(from, ends[from]));
                         chars = value.substring(from, to);
                     }
@@ -499,22 +710,33 @@ final class PdfCanvas implements Canvas {
         private boolean needsActualText() {
             int last = -1;
             for (ShapedText.Run run : text.runs()) {
-                if (run.rtl()) {
+                if (run.rtl() && run.charStart() < end && run.charEnd() > start) {
                     return true;
                 }
             }
-            for (int g = 0; g < text.glyphCount(); g++) {
-                int cluster = text.glyphCluster(g);
-                if (cluster <= last || text.glyphId(g) == ShapedText.NO_GLYPH) {
-                    return true;
+            for (ShapedText.Run run : text.runs()) {
+                if (run.charEnd() <= start || run.charStart() >= end) {
+                    continue;
                 }
-                last = cluster;
+                for (int g = run.glyphStart(); g < run.glyphEnd(); g++) {
+                    int cluster = text.glyphCluster(g);
+                    if (cluster < start || cluster >= end) {
+                        continue;
+                    }
+                    if (cluster <= last || text.glyphId(g) == ShapedText.NO_GLYPH) {
+                        return true;
+                    }
+                    last = cluster;
+                }
             }
             return false;
         }
 
-        /** For each char offset that starts a cluster, where the cluster ends. */
+        /** For each char offset that starts a cluster, where the cluster ends; once per shaping. */
         private int[] clusterEnds() {
+            if (endsFor == text) {
+                return ends;
+            }
             String value = text.text();
             int[] ends = new int[value.length() + 1];
             java.util.TreeSet<Integer> starts = new java.util.TreeSet<>();
@@ -534,6 +756,8 @@ final class PdfCanvas implements Canvas {
                     }
                 }
             }
+            endsFor = text;
+            PdfCanvas.this.ends = ends;
             return ends;
         }
 

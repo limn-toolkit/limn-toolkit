@@ -2,6 +2,7 @@ package limn.backend.lwjgl;
 
 import limn.concurrent.UiRuntime;
 import limn.graphics.Color;
+import limn.graphics.Gradient;
 import limn.graphics.LinearGradient;
 import limn.graphics.RoundRect;
 import limn.components.Button;
@@ -138,8 +139,18 @@ class RoundRectPiecesTest {
                 c.fillRoundRectWithBorder(4.25f, 4.5f, 72, 52, 8, FILL, 1, BORDER));
         assertFlatInteriors(0, "a small fill", c -> c.fillRoundRect(4, 4, 30, 30, 4, FILL));
         assertFlatInteriors(0, "a border alone", c -> c.drawRoundRectBorder(4, 4, 72, 52, 8, 1, BORDER));
-        assertFlatInteriors(0, "a gradient", c -> c.fillRoundRect(4, 4, 72, 52, 8,
+        // A linear ramp across the whole shape is linear over its interior: its corners' colours,
+        // interpolated, are canvas.frag's. One whose stops lie inside it bends there, and is not.
+        assertFlatInteriors(1, "a linear ramp across it", c -> c.fillRoundRect(4, 4, 72, 52, 8,
                 new LinearGradient(4, 4, 76, 4, OPAQUE_FILL, FILL)));
+        assertFlatInteriors(1, "a two-stop gradient across it", c -> c.fillRoundRect(4, 4, 72, 52, 8,
+                Gradient.linear(4, 4, 76, 56, OPAQUE_FILL, FILL)));
+        assertFlatInteriors(0, "a ramp whose stops lie inside it", c -> c.fillRoundRect(4, 4, 72, 52, 8,
+                new LinearGradient(30, 4, 50, 4, OPAQUE_FILL, FILL)));
+        assertFlatInteriors(0, "three stops", c -> c.fillRoundRect(4, 4, 72, 52, 8,
+                Gradient.linear(4, 4, 76, 4, OPAQUE_FILL, FILL, OPAQUE_FILL)));
+        assertFlatInteriors(0, "a radial gradient", c -> c.fillRoundRect(4, 4, 72, 52, 8,
+                Gradient.radial(40, 30, 60, OPAQUE_FILL, FILL)));
         assertFlatInteriors(0, "under a rounded clip", c -> {
             c.clipRoundRect(RoundRect.of(0, 0, 90, 60, 6));
             c.fillRoundRect(4, 4, 72, 52, 8, FILL);
@@ -157,11 +168,47 @@ class RoundRectPiecesTest {
                 c.clipRect(0, 0, 60.4f, 44.6f);
                 c.fillRoundRect(2, 2, 70, 50, 12, FILL);
             }, "flat interiors at " + scale + "x");
+            assertSamePixels(scale, c -> {
+                c.fillRoundRect(4.25f, 4.5f, 72, 52, 8, new LinearGradient(4, 4, 76, 4, OPAQUE_FILL, FILL));
+                c.setOpacity(0.7f);
+                c.fillRoundRect(82.5f, 4, 100, 60, 10, Gradient.linear(82, 4, 182, 64, FILL, OPAQUE_FILL));
+                c.fillRect(10, 64, 120, 60, Gradient.linear(10, 64, 10, 124, BORDER, OPAQUE_FILL));
+            }, "flat gradient interiors at " + scale + "x");
         }
 
         canvas.flatInteriors = false;
         assertFlatInteriors(0, "a card's solid fill, on a GPU", c ->
                 c.fillRoundRectWithBorder(4.25f, 4.5f, 72, 52, 8, FILL, 1, BORDER));
+    }
+
+    @Test
+    void noFlatInteriorUnderAPathClipOrARuleTheShaderComputes() {
+        // The flat program reads no mask and computes no rule: under either, a large solid
+        // interior stays the main program's, or it painted past the clip and over the rule.
+        canvas.flatInteriors = true;
+        Consumer<GlCanvas> clipped = c -> {
+            c.clipPath(new limn.graphics.Path2D().addCircle(100, 70, 60));
+            c.fillRoundRect(4, 4, 190, 130, 8, OPAQUE_FILL);
+        };
+        Consumer<GlCanvas> ruled = c -> {
+            c.setBlendMode(limn.graphics.BlendMode.SOURCE_IN);
+            c.fillRoundRect(4, 4, 190, 130, 8, FILL);
+        };
+        assertFlatInteriors(0, "under a path clip", clipped);
+        assertFlatInteriors(0, "under a rule", ruled);
+        for (Consumer<GlCanvas> scene : List.of(clipped, ruled)) {
+            byte[] flatOn = render(2, scene);
+            canvas.flatInteriors = false;
+            byte[] flatOff = render(2, scene);
+            canvas.flatInteriors = true;
+            int differ = 0;
+            for (int i = 0; i < flatOn.length; i++) {
+                if (Math.abs((flatOn[i] & 0xFF) - (flatOff[i] & 0xFF)) > 1) {
+                    differ++;
+                }
+            }
+            assertEquals(0, differ, "bytes that differ from the frame drawn with no flat interiors");
+        }
     }
 
     @Test
@@ -288,6 +335,74 @@ class RoundRectPiecesTest {
         }
         assertTrue(pieces * 4 < quads * 3, "the pieces shaded " + pieces + " samples, the quads "
                 + quads + ": no fewer than three quarters as many");
+    }
+
+    @Test
+    void aCircleIsShadedOnlyAlongItsEdge() {
+        // A circle has no straight edge, so it was always the single quad over its box: a 512-pixel
+        // avatar drawn with llvmpipe spent 30 ms shading a disc a rectangle of its size fills in 2.
+        // Its interior is now the largest cross inside it: left out of a stroke, and drawn plain in
+        // a fill (the flat program's rectangles below), where a sample count cannot tell it apart.
+        float scale = 2;
+        canvas.splitRoundRects = false;
+        long quad;
+        try {
+            quad = samples(scale, c -> c.drawCircle(60.3f, 40.6f, 30, 1, BORDER));
+        } finally {
+            canvas.splitRoundRects = true;
+        }
+        long ring = samples(scale, c -> c.drawCircle(60.3f, 40.6f, 30, 1, BORDER));
+        // The cross covers 79% of the circle inside the ramp, which is 62% of the quad.
+        assertTrue(ring * 2 < quad, "a circle's one-point stroke shaded " + ring + " samples, the quad "
+                + quad);
+    }
+
+    @Test
+    void aCircleDrawsWhatTheQuadDrew() {
+        for (float s : new float[] {1f, 1.25f, 1.5f, 2f, 2.5f}) {
+            for (float offset : new float[] {0f, .25f, .5f, .75f}) {
+                float o = offset;
+                assertSamePixels(s, c -> {
+                    c.fillCircle(22 + o, 22 + o, 18, FILL);
+                    c.fillCircle(64 + o, 22, 18, OPAQUE_FILL);
+                    c.fillCircle(106, 22 + o, 18, new LinearGradient(88, 4, 124, 40, OPAQUE_FILL, FILL));
+                    c.drawCircle(148 + o, 22 + o, 17, 1, BORDER);
+                    c.drawCircle(22 + o, 66, 16, 4, TRANSLUCENT_BORDER);
+                    c.fillRoundRect(46 + o, 48 + o, 36, 36, 18, FILL); // a circle by its radii
+                    c.save();
+                    c.clipRect(96.3f, 52.6f, 20, 14);
+                    c.fillCircle(106 + o, 66, 18, OPAQUE_FILL);
+                    c.restore();
+                    c.save();
+                    c.translate(170 + o, 66);
+                    c.scale(-1, 1.2f);
+                    c.fillCircle(0, o, 14, FILL);
+                    c.restore();
+                    c.save();
+                    c.translate(40, 108 + o);
+                    c.scale(1.4f, 0.7f);
+                    c.fillCircle(o, 0, 20, FILL);
+                    c.restore();
+                    c.save();
+                    c.translate(110, 108);
+                    c.rotate(0.3f); // not axis-aligned: the single quad
+                    c.fillCircle(o, 0, 20, OPAQUE_FILL);
+                    c.restore();
+                    c.fillCircle(160, 112, 2.5f, BORDER); // too small to split
+                }, "circles at " + s + "x, offset " + offset);
+            }
+        }
+
+        canvas.flatInteriors = true;
+        assertFlatInteriors(1, "a large solid circle on a software renderer",
+                c -> c.fillCircle(60, 40, 30, OPAQUE_FILL));
+        assertFlatInteriors(1, "a circle with a ramp across it", c -> c.fillCircle(60, 40, 30,
+                Gradient.linear(30, 10, 90, 70, OPAQUE_FILL, FILL)));
+        assertSamePixels(2, c -> {
+            c.fillCircle(60.3f, 40.6f, 30, OPAQUE_FILL);
+            c.fillCircle(130.5f, 70.25f, 34, FILL);
+            c.fillCircle(40.5f, 100.25f, 28, Gradient.linear(12, 72, 68, 128, OPAQUE_FILL, FILL));
+        }, "flat circle interiors");
     }
 
     // --------------------------------------------------------------- helpers

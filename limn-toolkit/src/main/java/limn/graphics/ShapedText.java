@@ -693,6 +693,207 @@ public final class ShapedText {
     // ----------------------------------------------------------------- paint seam
 
     /**
+     * The text as a shape: every glyph's outline, placed as {@code drawText(this, x, y, paint)} draws
+     * it with its baseline at {@code y} and its line starting at {@code x}, as one path filled under
+     * the non-zero rule. What it covers is what the text covers, so it can be stroked, dashed, filled
+     * with any paint, used as a clip (a picture seen through the letters) or asked whether it
+     * contains a point. A face drawn bold by thickening a regular one is thickened here as the PDF
+     * thickens it, by an outline a 24th of the size wide added to each glyph's.
+     *
+     * <p>The outlines are read from the running backend, as a printed page reads them; without one
+     * the path is empty. A cluster the shaper left without a glyph is outlined from the glyph the
+     * screen falls back to, where there is one. A glyph that is a picture and not an outline, a colour
+     * emoji, has nothing to give and is left out of the path.
+     *
+     * @return a new path, which the caller may change
+     */
+    public Path2D outline(float x, float y) {
+        limn.backend.spi.GlyphOutlines source = limn.print.internal.Outlines.current();
+        Path2D out = new Path2D();
+        float size = font.size();
+        for (Run run : runs()) {
+            int upem = source.unitsPerEm(run.faceId());
+            for (int g = run.glyphStart(); g < run.glyphEnd(); g++) {
+                float gx = glyphX(g);
+                float gy = glyphY(g);
+                if (glyphIds[g] == NO_GLYPH || upem <= 0) {
+                    outlineCluster(source, glyphCluster(g), x + gx, y + gy, out);
+                    continue;
+                }
+                outlineGlyph(source, run.faceId(), glyphIds[g], upem, x + gx, y + gy, out);
+            }
+        }
+        return out;
+    }
+
+    /** The pieces of a glyphless cluster: each fallback glyph one after another, a picture none. */
+    private void outlineCluster(limn.backend.spi.GlyphOutlines source, int from, float x, float y, Path2D out) {
+        int to = caretIndex(caretOrdinal(from) + 1);
+        if (to <= from || to > text.length()) {
+            return;
+        }
+        float pen = x;
+        for (limn.backend.spi.GlyphOutlines.Piece piece : source.cluster(text.substring(from, to), font)) {
+            if (piece instanceof limn.backend.spi.GlyphOutlines.Glyph drawn) {
+                int upem = source.unitsPerEm(drawn.faceId());
+                if (upem > 0) {
+                    outlineGlyph(source, drawn.faceId(), drawn.glyphId(), upem, pen, y, out);
+                }
+                pen += drawn.advance() * font.size();
+            } else if (piece instanceof limn.backend.spi.GlyphOutlines.Picture picture) {
+                pen += picture.advance() * font.size();
+            }
+        }
+    }
+
+    /** One glyph's outline, from the face's units, y up, to the line's, y down, at its pen. */
+    private void outlineGlyph(limn.backend.spi.GlyphOutlines source, int faceId, int glyphId, int upem, float x,
+                              float y, Path2D out) {
+        Path2D glyph = new Path2D();
+        source.outline(faceId, glyphId, new Path2D.Visitor() {
+            @Override
+            public void moveTo(float px, float py) {
+                glyph.moveTo(px, py);
+            }
+
+            @Override
+            public void lineTo(float px, float py) {
+                glyph.lineTo(px, py);
+            }
+
+            @Override
+            public void quadTo(float cx, float cy, float px, float py) {
+                glyph.quadTo(cx, cy, px, py);
+            }
+
+            @Override
+            public void cubicTo(float c1x, float c1y, float c2x, float c2y, float px, float py) {
+                glyph.cubicTo(c1x, c1y, c2x, c2y, px, py);
+            }
+
+            @Override
+            public void close() {
+                glyph.close();
+            }
+        });
+        if (glyph.isEmpty()) {
+            return;
+        }
+        float k = font.size() / upem;
+        Path2D placed = glyph.transformed(new limn.math.Affine2D(k, 0, 0, -k, x, y));
+        if (!source.isSyntheticBold(faceId)) {
+            out.addPath(placed);
+            return;
+        }
+        // A stroke's outline winds one way whatever the way of the path it outlines: added to a
+        // glyph wound the other way, the two cancelled in the band just inside every edge, filled
+        // under the non-zero rule, and the glyph came out hollow there. So the glyph goes in the
+        // ring's way. A face's contours are wound either way (TrueType's and CFF's differ).
+        Path2D ring = Stroke.of(font.size() / 24f).withJoin(Stroke.Join.ROUND).outline(placed);
+        out.addPath(signedArea(placed) * signedArea(ring) < 0 ? reversed(placed) : placed);
+        out.addPath(ring);
+    }
+
+    /** The area {@code path} encloses, signed by the way its contours wind; flattened, roughly. */
+    private static double signedArea(Path2D path) {
+        double[] sum = {0};
+        path.flatten(0.25f, new Path2D.Flattened() {
+            private float startX;
+            private float startY;
+            private float lastX;
+            private float lastY;
+
+            @Override
+            public void moveTo(float px, float py) {
+                closePath();
+                startX = px;
+                startY = py;
+                lastX = px;
+                lastY = py;
+            }
+
+            @Override
+            public void lineTo(float px, float py) {
+                sum[0] += (double) lastX * py - (double) px * lastY;
+                lastX = px;
+                lastY = py;
+            }
+
+            @Override
+            public void closePath() {
+                lineTo(startX, startY);
+            }
+        });
+        return sum[0] / 2;
+    }
+
+    /** {@code path} with every contour run the other way, each closed one closed again. */
+    private static Path2D reversed(Path2D path) {
+        java.util.List<java.util.List<float[]>> contours = new java.util.ArrayList<>();
+        java.util.List<Boolean> closed = new java.util.ArrayList<>();
+        path.forEach(new Path2D.Visitor() {
+            private java.util.List<float[]> contour;
+
+            @Override
+            public void moveTo(float px, float py) {
+                contour = new java.util.ArrayList<>();
+                contour.add(new float[] {px, py});
+                contours.add(contour);
+                closed.add(false);
+            }
+
+            @Override
+            public void lineTo(float px, float py) {
+                contour.add(new float[] {px, py});
+            }
+
+            @Override
+            public void quadTo(float cx, float cy, float px, float py) {
+                contour.add(new float[] {px, py, cx, cy});
+            }
+
+            @Override
+            public void cubicTo(float c1x, float c1y, float c2x, float c2y, float px, float py) {
+                contour.add(new float[] {px, py, c1x, c1y, c2x, c2y});
+            }
+
+            @Override
+            public void close() {
+                closed.set(closed.size() - 1, true);
+            }
+        });
+        Path2D out = new Path2D();
+        for (int c = 0; c < contours.size(); c++) {
+            java.util.List<float[]> points = contours.get(c);
+            if (closed.get(c)) {
+                // The closing line made explicit, so that reversed it is a segment like the rest.
+                float[] first = points.get(0);
+                float[] last = points.get(points.size() - 1);
+                if (first[0] != last[0] || first[1] != last[1]) {
+                    points.add(new float[] {first[0], first[1]});
+                }
+            }
+            float[] end = points.get(points.size() - 1);
+            out.moveTo(end[0], end[1]);
+            for (int i = points.size() - 1; i > 0; i--) {
+                float[] to = points.get(i - 1);
+                float[] segment = points.get(i);
+                if (segment.length == 4) {
+                    out.quadTo(segment[2], segment[3], to[0], to[1]);
+                } else if (segment.length == 6) {
+                    out.cubicTo(segment[4], segment[5], segment[2], segment[3], to[0], to[1]);
+                } else {
+                    out.lineTo(to[0], to[1]);
+                }
+            }
+            if (closed.get(c)) {
+                out.close();
+            }
+        }
+        return out;
+    }
+
+    /**
      * The runs, in <b>visual order, left to right</b>: what the backend iterates to paint, the unit
      * at which a face is resolved and a draw is batched, and one entry for almost every string the
      * toolkit draws.

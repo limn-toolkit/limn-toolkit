@@ -226,6 +226,11 @@ final class GlesGl implements GlApi {
     }
 
     @Override
+    public void glColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
+        GLES30.glColorMask(red, green, blue, alpha);
+    }
+
+    @Override
     public void glCompileShader(int shader) {
         GLES30.glCompileShader(shader);
     }
@@ -553,6 +558,21 @@ final class GlesGl implements GlApi {
     @Override
     public void glShaderSource(int shader, CharSequence string) {
         GLES30.glShaderSource(shader, string);
+    }
+
+    @Override
+    public void glStencilFunc(int func, int ref, int mask) {
+        GLES30.glStencilFunc(func, ref, mask);
+    }
+
+    @Override
+    public void glStencilMask(int mask) {
+        GLES30.glStencilMask(mask);
+    }
+
+    @Override
+    public void glStencilOpSeparate(int face, int sfail, int dpfail, int dppass) {
+        GLES30.glStencilOpSeparate(face, sfail, dpfail, dppass);
     }
 
     @Override

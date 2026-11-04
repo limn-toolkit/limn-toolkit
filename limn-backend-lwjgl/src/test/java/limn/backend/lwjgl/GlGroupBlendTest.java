@@ -138,12 +138,18 @@ class GlGroupBlendTest {
                 nestedInMode(c, mode);
                 c.restore();
             }), what + "a group composited over what the outer one drew");
-            // No group at 1: the mode blends with the window, as it always has.
-            assertPixel(over(PAGE, 1, blend(mode, SOURCE, 1, PAGE, 1)), render(canvas, c -> {
+            // A group at 1 too: the mode blends with the group's own picture, as below 1.
+            assertPixel(over(PAGE, 1, blend(mode, SOURCE, 1, null, 0)), render(canvas, c -> {
                 c.saveLayer(0, 0, SIZE, SIZE, 1f);
                 inMode(c, mode, SOURCE, 1);
                 c.restore();
-            }), what + "at 1, with the window");
+            }), what + "at 1, with the group's picture");
+            // And straight, with no group, the mode blends with the window, as it always has.
+            assertPixel(over(PAGE, 1, blend(mode, SOURCE, 1, PAGE, 1)), render(canvas, c -> {
+                c.save();
+                inMode(c, mode, SOURCE, 1);
+                c.restore();
+            }), what + "with no group, with the window");
         }
     }
 

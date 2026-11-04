@@ -148,6 +148,27 @@ class TableMirroringTest extends ComponentTestBase {
     }
 
     @Test
+    void aWidgetCellStandsWhereItsColumnsAlignmentPutsItsHeader() {
+        for (LayoutDirection direction : LayoutDirection.values()) {
+            boolean rtl = direction == LayoutDirection.RTL;
+            for (Column.Alignment alignment : Column.Alignment.values()) {
+                build(direction, 3, List.of(Column.text("Name", Person::name).width(COL),
+                        Column.<Person>widget("Open", p -> new SizedBox(20, 10)).width(COL).align(alignment)));
+                float padH = tokens().padH();
+                float cellStart = rtl ? BOX - 2 * COL : COL;
+                float free = COL - 2 * padH - 20;
+                float fromStart = switch (alignment) {
+                    case START -> 0;
+                    case CENTER -> free / 2;
+                    case END -> free;
+                };
+                float expected = rtl ? cellStart + COL - padH - 20 - fromStart : cellStart + padH + fromStart;
+                assertEquals(expected, widgetX(), EPS, direction + " " + alignment);
+            }
+        }
+    }
+
+    @Test
     void numbersAlignToTheEndWhichIsTheLeftReadingRightToLeft() {
         buildThree(LayoutDirection.RTL, 5);
         float padH = tokens().padH();

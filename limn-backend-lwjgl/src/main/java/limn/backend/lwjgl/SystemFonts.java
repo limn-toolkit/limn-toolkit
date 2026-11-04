@@ -28,9 +28,47 @@ final class SystemFonts {
 
     private static final System.Logger LOG = System.getLogger(SystemFonts.class.getName());
 
-    /** A single face discovered on disk: enough metadata to load it lazily. */
-    record Face(String family, String style, Path path, int index, boolean bold, boolean italic) {
+    /**
+     * A single face discovered on disk: enough metadata to load it lazily.
+     *
+     * <p>{@code weight} is the face's own {@code OS/2 usWeightClass} (100 thin to 900 black) and
+     * {@code width} its {@code usWidthClass} (5 normal, lower condensed, higher expanded), because a
+     * family of a dozen faces cannot be told apart by two booleans: "Medium", "Heavy" and "Ultra
+     * Light" are all neither bold nor italic, and picking among them by file order drew a
+     * family's Medium where its Regular was asked for. {@code bold} is {@code weight >= 600}.
+     *
+     * <p>A variable face covers a range of weights, {@code minWeight} to {@code maxWeight} from its
+     * {@code fvar} table's {@code wght} axis, and {@code weight} is its default instance; a static
+     * face's range is its one weight. {@code path} is {@code null} for a face the backend bundles,
+     * which is described here so one search picks among bundled and system faces alike.
+     */
+    record Face(String family, String style, Path path, int index, boolean bold, boolean italic,
+                int weight, int width, int minWeight, int maxWeight) {
+
+        /** A static face of a weight and a width. */
+        Face(String family, String style, Path path, int index, boolean bold, boolean italic,
+             int weight, int width) {
+            this(family, style, path, index, bold, italic, weight, width, weight, weight);
+        }
+
+        /** A face known only by its two flags: regular or bold weight, normal width. */
+        Face(String family, String style, Path path, int index, boolean bold, boolean italic) {
+            this(family, style, path, index, bold, italic, bold ? 700 : 400, NORMAL_WIDTH);
+        }
+
+        /** Whether this face is drawn at more than one weight. */
+        boolean variable() {
+            return minWeight < maxWeight;
+        }
+
+        /** The weight this face draws a request for {@code requested} at: within its range. */
+        int instanceWeight(int requested) {
+            return Math.max(minWeight, Math.min(maxWeight, requested));
+        }
     }
+
+    /** {@code usWidthClass} of a face that is neither condensed nor expanded. */
+    static final int NORMAL_WIDTH = 5;
 
     private SystemFonts() {
     }
@@ -41,6 +79,9 @@ final class SystemFonts {
     private static final int TAG_OTTO = 0x4F54544F; // 'OTTO' (CFF/OpenType)
     private static final int SFNT_1_0 = 0x00010000; // TrueType outlines
     private static final int TAG_NAME = 0x6E616D65; // 'name'
+    private static final int TAG_OS2 = 0x4F532F32;  // 'OS/2'
+    private static final int TAG_FVAR = 0x66766172; // 'fvar'
+    private static final int TAG_WGHT = 0x77676874; // 'wght'
 
     /** Scans the platform font directories. Slow (I/O): call off the UI thread; cache the result. */
     static List<Face> scan() {
@@ -131,13 +172,21 @@ final class SystemFonts {
         int numTables = file.readUnsignedShort();
         file.skipBytes(6); // searchRange + entrySelector + rangeShift
         long nameOffset = -1;
+        long os2Offset = -1;
+        long os2Length = 0;
+        long fvarOffset = -1;
         for (int i = 0; i < numTables; i++) {
             int tableTag = file.readInt();
             file.skipBytes(4); // checksum
             long offset = file.readInt() & 0xFFFFFFFFL;
-            file.skipBytes(4); // length (unused)
+            long length = file.readInt() & 0xFFFFFFFFL;
             if (tableTag == TAG_NAME) {
                 nameOffset = offset;
+            } else if (tableTag == TAG_OS2) {
+                os2Offset = offset;
+                os2Length = length;
+            } else if (tableTag == TAG_FVAR) {
+                fvarOffset = offset;
             }
         }
         if (nameOffset < 0) {
@@ -145,8 +194,114 @@ final class SystemFonts {
         }
         Face face = readName(file, nameOffset, path, index);
         if (face != null) {
-            out.add(face);
+            out.add(withWeightRange(file, fvarOffset, withClasses(file, os2Offset, os2Length, face)));
         }
+    }
+
+    /**
+     * {@code face} with the weight, width and italic flag its {@code OS/2} table declares, or with
+     * those read from its style name where the table is absent, too short or out of range. A
+     * broken {@code OS/2} costs the face its classes, never the face itself: the name already
+     * said what the family is called, and that is what the catalog lists.
+     */
+    private static Face withClasses(RandomAccessFile file, long os2Offset, long os2Length, Face face) {
+        String lower = face.style().toLowerCase(Locale.ROOT);
+        int weight = weightFromStyle(lower);
+        int width = NORMAL_WIDTH;
+        boolean italic = face.italic();
+        // usWeightClass at 4, usWidthClass at 6, fsSelection at 62: every version of the table
+        // has all three, and a table shorter than 64 bytes is not one any version defines.
+        if (os2Offset >= 0 && os2Length >= 64) {
+            try {
+                file.seek(os2Offset + 4);
+                int declaredWeight = file.readUnsignedShort();
+                int declaredWidth = file.readUnsignedShort();
+                file.seek(os2Offset + 62);
+                int fsSelection = file.readUnsignedShort();
+                if (declaredWeight >= 1 && declaredWeight <= 9) {
+                    declaredWeight *= 100; // a few old faces wrote the class as 1-9
+                }
+                if (declaredWeight >= 1 && declaredWeight <= 1000) {
+                    weight = declaredWeight;
+                }
+                if (declaredWidth >= 1 && declaredWidth <= 9) {
+                    width = declaredWidth;
+                }
+                italic |= (fsSelection & 0x0201) != 0; // ITALIC (bit 0) or OBLIQUE (bit 9)
+            } catch (IOException error) {
+                LOG.log(System.Logger.Level.TRACE, "unreadable OS/2 table in " + face.path(), error);
+            }
+        }
+        return new Face(face.family(), face.style(), face.path(), face.index(),
+                weight >= 600, italic, weight, width);
+    }
+
+    /**
+     * {@code face} with the range of its {@code fvar} table's {@code wght} axis, or as it is where
+     * the face has no such axis or the table cannot be read. The default instance's weight becomes
+     * the face's weight, since that is the instance its {@code OS/2} and its name describe.
+     */
+    private static Face withWeightRange(RandomAccessFile file, long fvarOffset, Face face) {
+        if (fvarOffset < 0) {
+            return face;
+        }
+        try {
+            file.seek(fvarOffset + 4); // majorVersion, minorVersion
+            int axesArrayOffset = file.readUnsignedShort();
+            file.skipBytes(2); // reserved
+            int axisCount = file.readUnsignedShort();
+            int axisSize = file.readUnsignedShort();
+            if (axisCount > 64 || axisSize < 20) {
+                return face;
+            }
+            for (int i = 0; i < axisCount; i++) {
+                file.seek(fvarOffset + axesArrayOffset + (long) i * axisSize);
+                if (file.readInt() != TAG_WGHT) {
+                    continue;
+                }
+                int min = Math.round(file.readInt() / 65536f);
+                int def = Math.round(file.readInt() / 65536f);
+                int max = Math.round(file.readInt() / 65536f);
+                if (min < 1 || max > 1000 || min > def || def > max || min == max) {
+                    return face;
+                }
+                return new Face(face.family(), face.style(), face.path(), face.index(), def >= 600,
+                        face.italic(), def, face.width(), min, max);
+            }
+        } catch (IOException error) {
+            LOG.log(System.Logger.Level.TRACE, "unreadable fvar table in " + face.path(), error);
+        }
+        return face;
+    }
+
+    /** The weight a style name says, for a face whose {@code OS/2} does not: "Semibold" is 600. */
+    static int weightFromStyle(String lowerStyle) {
+        String s = lowerStyle.replace(" ", "").replace("-", "");
+        if (s.contains("thin") || s.contains("hairline")) {
+            return 100;
+        }
+        if (s.contains("extralight") || s.contains("ultralight")) {
+            return 200;
+        }
+        if (s.contains("light")) {
+            return 300;
+        }
+        if (s.contains("semibold") || s.contains("demibold")) {
+            return 600;
+        }
+        if (s.contains("extrabold") || s.contains("ultrabold")) {
+            return 800;
+        }
+        if (s.contains("black") || s.contains("heavy")) {
+            return 900;
+        }
+        if (s.contains("bold")) {
+            return 700;
+        }
+        if (s.contains("medium")) {
+            return 500;
+        }
+        return 400;
     }
 
     /** Best decoded name plus the score of the record it came from (higher = more preferred). */

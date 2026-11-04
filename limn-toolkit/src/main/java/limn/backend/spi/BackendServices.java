@@ -29,12 +29,12 @@ import org.jspecify.annotations.Nullable;
  * as zero wide, with no error anywhere. A backend now builds this record in its constructor and calls
  * {@link #install()}; the record's constructor refuses a missing required service on the spot.
  *
- * <p>Five services are <b>required</b> — nothing draws without them. Five are <b>optional</b>, and
+ * <p>Five services are <b>required</b> — nothing draws without them. Six are <b>optional</b>, and
  * {@code null} is how a backend says it has none: a machine with no audio device, a backend without
- * 3D or without GPU video surfaces, one that cannot outline glyphs. The toolkit then reports the
- * capability as unavailable ({@code Sounds.isAvailable()}, {@code Graphics3D}, {@code VideoSurfaces})
- * or degrades (a printed document draws text it cannot outline from nothing, with a warning) rather
- * than failing.
+ * 3D or without GPU video surfaces, one that cannot outline glyphs or draw off a window. The toolkit
+ * then reports the capability as unavailable ({@code Sounds.isAvailable()}, {@code Graphics3D},
+ * {@code VideoSurfaces}) or degrades (a printed document draws text it cannot outline from nothing,
+ * and a layer under a Porter-Duff rule as normal painting, each with a warning) rather than failing.
  *
  * @param ui            the user-interface thread's runtime, bound to the thread that will run the loop
  * @param textRuler     measures and shapes text
@@ -49,12 +49,15 @@ import org.jspecify.annotations.Nullable;
  * @param audioDecoder  decodes sound files, or {@code null} when there is no audio at all
  * @param glyphOutlines the outlines of the glyphs the text ruler shapes, which a printed document
  *                      writes as text, or {@code null} for none
+ * @param offscreenPainter draws into a picture off any window, which a printed document asks for
+ *                      where PDF has no operator for what was drawn, or {@code null} for none
  */
 public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fontCatalog,
                               FontLoader fontLoader, ImageDecoder imageDecoder,
                               SvgRenderer svgRenderer, Graphics3D.@Nullable Provider graphics3d,
                               VideoSurfaces.@Nullable Provider videoSurfaces, @Nullable AudioEngine audioEngine,
-                              @Nullable AudioDecoder audioDecoder, @Nullable GlyphOutlines glyphOutlines) {
+                              @Nullable AudioDecoder audioDecoder, @Nullable GlyphOutlines glyphOutlines,
+                              @Nullable OffscreenPainter offscreenPainter) {
 
     public BackendServices {
         Objects.requireNonNull(ui, "ui: a backend must provide the user-interface runtime");
@@ -66,6 +69,19 @@ public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fon
     }
 
     /**
+     * The services of a backend that draws no picture off a window, as the record stood before the
+     * offscreen painter was added.
+     */
+    public BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fontCatalog,
+                           FontLoader fontLoader, ImageDecoder imageDecoder,
+                           SvgRenderer svgRenderer, Graphics3D.@Nullable Provider graphics3d,
+                           VideoSurfaces.@Nullable Provider videoSurfaces, @Nullable AudioEngine audioEngine,
+                           @Nullable AudioDecoder audioDecoder, @Nullable GlyphOutlines glyphOutlines) {
+        this(ui, textRuler, fontCatalog, fontLoader, imageDecoder, svgRenderer, graphics3d, videoSurfaces,
+                audioEngine, audioDecoder, glyphOutlines, null);
+    }
+
+    /**
      * The services of a backend that outlines no glyph, as the record stood before glyph outlines were added.
      */
     public BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fontCatalog,
@@ -74,7 +90,7 @@ public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fon
                            VideoSurfaces.@Nullable Provider videoSurfaces, @Nullable AudioEngine audioEngine,
                            @Nullable AudioDecoder audioDecoder) {
         this(ui, textRuler, fontCatalog, fontLoader, imageDecoder, svgRenderer, graphics3d, videoSurfaces,
-                audioEngine, audioDecoder, null);
+                audioEngine, audioDecoder, null, null);
     }
 
     /**
@@ -102,6 +118,9 @@ public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fon
         }
         if (glyphOutlines != null) {
             GlyphOutlines.install(glyphOutlines);
+        }
+        if (offscreenPainter != null) {
+            OffscreenPainter.install(offscreenPainter);
         }
     }
 }

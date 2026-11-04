@@ -52,6 +52,14 @@ final class GlRenderer implements GpuRenderer {
         this.fontStore = fontStore;
     }
 
+    /** @return this window's canvas, made with its context current if no frame has made it yet */
+    GlCanvas glCanvas() {
+        if (canvas == null) {
+            canvas = new GlCanvas(fontStore);
+        }
+        return canvas;
+    }
+
     void beginFrame(int framebufferWidth, int framebufferHeight, float contentScale, boolean rePresent) {
         this.fbWidth = framebufferWidth;
         this.fbHeight = framebufferHeight;

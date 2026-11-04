@@ -914,6 +914,21 @@ final class LwjglWindow implements WindowPeer {
     }
 
     /**
+     * Draws {@code painter} into a transparent picture of its own in this window's context
+     * ({@link GlOffscreen}), and answers it; null when this window cannot draw now or the device
+     * refuses the size. The window's next frame makes its context current again, as every frame does.
+     */
+    limn.graphics.@org.jspecify.annotations.Nullable Image paintOffscreen(int width, int height, float scale,
+            java.util.function.Consumer<limn.graphics.Canvas> painter) {
+        if (destroyed || contextGone || glCapabilities == null) {
+            return null;
+        }
+        makeContextCurrent();
+        Gl.api().setCapabilities(glCapabilities);
+        return GlOffscreen.paint(renderer.glCanvas().offscreen(), width, height, scale, painter);
+    }
+
+    /**
      * Whether this window's context still draws: a colour cleared into one pixel of the back buffer
      * reads back as that colour. The question is asked of the context the window has
      * had all along, whose answer a lost device was measured to make black; a whole frame is asked

@@ -428,6 +428,18 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
         Size content = child.measure(childConstraints(constraints.loosened()));
         float w = constraints.hasBoundedWidth() ? constraints.maxWidth() : content.width();
         float h = constraints.hasBoundedHeight() ? constraints.maxHeight() : content.height();
+        if (gutters.layout() == ScrollGutters.Layout.RESERVED) {
+            // A side this view takes from its content has to hold the strip the other axis's bar
+            // will reserve, or the layout carves the strip out of the content: a line of code too
+            // wide for its box, in a view scrolled sideways only, came out cut in half by its own
+            // bar's gutter.
+            if (!constraints.hasBoundedHeight() && horizontal) {
+                h += ScrollGutters.stripFor(hBar, content.width(), w);
+            }
+            if (!constraints.hasBoundedWidth() && vertical) {
+                w += ScrollGutters.stripFor(vBar, content.height(), h);
+            }
+        }
         return constraints.constrain(w, h);
     }
 

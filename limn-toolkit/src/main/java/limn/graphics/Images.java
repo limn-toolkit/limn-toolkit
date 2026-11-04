@@ -59,6 +59,61 @@ public final class Images {
     private Images() {
     }
 
+    /** The most pixels a picture drawn by {@link #render} may have: its RGBA bytes in one array. */
+    public static final long MAX_PIXELS = (Integer.MAX_VALUE - 8) / 4;
+
+    /**
+     * An image of what {@code painter} draws on a canvas {@code width} by {@code height} units of
+     * {@code scale} pixels each, transparent where it draws nothing: a thumbnail, a chart exported as
+     * a picture, a drawing kept to be shown again as an image. The canvas is the running backend's,
+     * so the image is what a window would show, its antialiasing, text and every paint and blend mode
+     * included. Inside a frame too: what the frame queued is drawn first, and the frame goes on. With
+     * no window open, and in a backend started without a display, a server's or a service's, the
+     * backend draws it with a context of its own, on the GPU where the system lets the process reach
+     * one and on the processor otherwise.
+     *
+     * <p>Each call waits for the device to finish the picture and reads it back, a cost of its own
+     * besides the drawing: on a Mac about 0.3 ms whatever the picture holds, most of it the wait.
+     *
+     * @param width   in units
+     * @param height  in units
+     * @param scale   pixels to a unit: the image is {@code ceil(width * scale)} by
+     *                {@code ceil(height * scale)} pixels
+     * @param painter draws it; the canvas is valid only during the call. It may be called a second
+     *                time, at most once while a backend runs: when its text needed a face the backend was
+     *                still loading in the background, the backend waits for it and draws again, so
+     *                that the picture does not keep the boxes drawn in the missing glyphs' place
+     * @return the image, straight alpha
+     * @throws IllegalArgumentException for a size or a scale not above 0, or not finite, or a picture
+     *                                  of more than {@link #MAX_PIXELS} pixels
+     * @throws IllegalStateException    off the UI thread, with no backend started, on a machine where
+     *                                  no OpenGL context can be had at all, or for a size the device
+     *                                  refuses
+     */
+    public static Image render(float width, float height, float scale, java.util.function.Consumer<Canvas> painter) {
+        java.util.Objects.requireNonNull(painter, "painter");
+        if (!(width > 0 && height > 0 && scale > 0) || !Float.isFinite(width * height * scale)) {
+            throw new IllegalArgumentException("an image needs a size and a scale above 0: " + width + " x " + height
+                    + " at " + scale);
+        }
+        double pixelsWide = Math.ceil((double) width * scale);
+        double pixelsHigh = Math.ceil((double) height * scale);
+        if (pixelsWide * pixelsHigh * 4 > Integer.MAX_VALUE - 8) {
+            // An image's pixels are one array of bytes: past this its size wraps round.
+            throw new IllegalArgumentException("an image of " + (long) pixelsWide + " x " + (long) pixelsHigh
+                    + " pixels does not fit in one array of RGBA bytes; at most " + MAX_PIXELS + " pixels");
+        }
+        limn.concurrent.Ui.checkUiThread();
+        int pw = (int) pixelsWide;
+        int ph = (int) pixelsHigh;
+        Image image = limn.graphics.internal.Offscreen.current().paint(pw, ph, scale, painter);
+        if (image == null) {
+            throw new IllegalStateException("no image of " + pw + " x " + ph + " pixels could be drawn: no backend "
+                    + "is running, this machine gives the process no OpenGL context, or the device refuses the size");
+        }
+        return image;
+    }
+
     /** Installs the backend decoder (called once at backend startup). */
     public static void installDecoder(ImageDecoder newDecoder) {
         DECODER.install(newDecoder);

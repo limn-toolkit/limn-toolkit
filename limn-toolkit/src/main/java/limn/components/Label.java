@@ -7,6 +7,8 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.ShapedText;
+import limn.graphics.StyledLayout;
+import limn.graphics.StyledText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18n;
@@ -123,6 +125,33 @@ public final class Label extends Widget<Label> {
     public enum VAlign { TOP, CENTER, BOTTOM }
 
     /**
+     * Where the icon stands against the text. {@link #START} and {@link #END} are logical, as
+     * {@link HAlign#START} is: the side reading starts on and the side it ends on, so they turn
+     * around with the paragraph. Beside the text the icon overhangs the line box (see the class
+     * note); above or below it, the label is as tall as the icon, the gap and the text together,
+     * and the icon sits across the width as {@link HAlign} puts the lines.
+     *
+     * <p>A 1.x minor release may add constants to this enum: a {@code switch} over it needs a
+     * {@code default} branch.
+     */
+    public enum IconPosition {
+        /** Before the text, on the side reading starts on: the default. */
+        START,
+        /** After the text, on the side reading ends on. */
+        END,
+        /** Above the text. */
+        TOP,
+        /** Below the text. */
+        BOTTOM
+    }
+
+    /**
+     * The base ink of a styled text: the label's own colour, which a paint answers with the
+     * colour, tone or muted text this label is set to, so a piece that sets no ink follows them.
+     */
+    private static final limn.graphics.Ink LABEL_INK = () -> Color.TRANSPARENT;
+
+    /**
      * Which typographic token the text is drawn with, orthogonal to the size step,
      * which decides how big that token is. The pair is a 3 × 5 grid, not a precedence
      * fight: {@code new Label(title).setRole(TITLE)} inside a LARGE dialog gets the
@@ -153,6 +182,30 @@ public final class Label extends Widget<Label> {
     private boolean wrap;
     /** The most lines the text breaks across; 1 leaves the label as {@link #setWrap} has it. */
     private int maxLines = 1;
+    private IconPosition iconPosition = IconPosition.START;
+
+    // Styled text, shown in place of `text` where set; `text` then holds what a reader hears (the
+    // plain text, a list item led by its marker), kept in step at each layout. The layout is held
+    // with what it was made from, and made again when any of that moves.
+    private @Nullable StyledText styled;
+    private @Nullable StyledLayout styledLayout;
+    private float styledWidth = Float.NaN;
+    private int styledLimit;
+    private boolean styledEllipsis;
+    private @Nullable StyledBase styledBase;
+    private long styledEpoch = -1;
+    // The unbroken layout a one-line label is measured with, held apart from the one it is laid
+    // out and painted with: in one slot the two would replace each other on every pass, and the
+    // text would be shaped twice per pass for nothing.
+    private @Nullable StyledLayout styledNatural;
+    private @Nullable StyledBase styledNaturalBase;
+    private long styledNaturalEpoch = -1;
+    // The styled text's plain text as a reader hears it, read once per language: reading it formats
+    // every translated pattern and counts the markers, which no paint should do.
+    private String styledReader = "";
+    private long styledReaderEpoch = -1;
+    private int styledNaturalLimit;
+    private boolean styledNaturalEllipsis;
 
     // Derived-font memo. Font.bold()/italic() allocate a fresh record every call and
     // FontStore.resolved is an IdentityHashMap, so a strong/italic Label re-derived per
@@ -196,6 +249,18 @@ public final class Label extends Widget<Label> {
 
     /** The boundaries between the lines of the last layout, from the top, for a page's cut. */
     private float[] lineCuts() {
+        if (styled != null) {
+            StyledLayout laid = styledLayout;
+            if (laid == null) {
+                return new float[0];
+            }
+            float top = styledTop(laid);
+            float[] cuts = laid.lineCuts();
+            for (int i = 0; i < cuts.length; i++) {
+                cuts[i] += top;
+            }
+            return cuts;
+        }
         if (lines.size() < 2) {
             return new float[0];
         }
@@ -232,13 +297,13 @@ public final class Label extends Widget<Label> {
      * "&amp;Name" reads "Name". Any other label shows its text as written, an ampersand included.
      */
     public String text() {
-        return shown().text();
+        return styled != null ? styled.text() : shown().text();
     }
 
     /** The text read for its access letter where it names a control, and as written otherwise. */
     private limn.i18n.internal.AccessMarks.Parsed shown() {
         String raw = text.get();
-        return labelFor != null ? marked.of(raw) : unmarked.of(raw);
+        return labelFor != null && styled == null ? marked.of(raw) : unmarked.of(raw);
     }
 
     /**
@@ -372,7 +437,7 @@ public final class Label extends Widget<Label> {
     @Override
     protected I18nString accessibleLabelText() {
         // The words a control takes as its name, its access letter's mark taken out.
-        return labelFor == null ? text : marked.shownAsText(shown(), text);
+        return labelFor == null || styled != null ? text : marked.shownAsText(shown(), text);
     }
 
     /**
@@ -435,7 +500,7 @@ public final class Label extends Widget<Label> {
         Objects.requireNonNull(newText, "newText");
         // Compared before wrapping: a status label re-set every frame must not allocate
         // a literal per update just to discover nothing changed.
-        if (text.isLiteral() && text.get().equals(newText)) {
+        if (styled == null && text.isLiteral() && text.get().equals(newText)) {
             return this;
         }
         return setText(I18nString.literal(newText));
@@ -445,8 +510,19 @@ public final class Label extends Widget<Label> {
     public Label setText(I18nString newText) {
         Ui.checkUiThread();
         Objects.requireNonNull(newText, "newText");
-        if (text.equals(newText)) {
+        if (styled == null && text.equals(newText)) {
             return this; // unchanged: no layout, no damage (status labels re-set often)
+        }
+        if (styled != null) {
+            // From styled text back to plain: the box is another's, so the fast path below, which
+            // compares plain widths, cannot speak for it.
+            styled = null;
+            styledLayout = null;
+            styledNatural = null;
+            this.text = newText;
+            markNeedsLayoutInPlace();
+            notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
+            return this;
         }
         // When the new text occupies exactly the same box, and line breaking cannot change (no
         // wrap), a local repaint is enough and no layout runs at all. Otherwise the layout below
@@ -487,6 +563,167 @@ public final class Label extends Widget<Label> {
     }
 
     /**
+     * Replaces the text with styled text: pieces in their own weight, colour, size or lines,
+     * paragraphs with their own alignment and indents, numbered and bulleted lists. UI thread only.
+     *
+     * <p>Everything the label does with plain text it does with this: the font, role, tone and
+     * colour are what a piece that sets none of its own is drawn in, and a piece styled in a
+     * {@link Tone} is drawn in the tone's colour in this label's palette; {@link #setWrap} and
+     * {@link #setMaxLines} break it, and the ellipsis ends what is cut; {@link HAlign} aligns a
+     * paragraph that sets no alignment of its own; a printed page is cut between its lines. A
+     * disabled label draws every piece in the disabled colour.
+     *
+     * <p>Without wrap or a line limit the label shows one line: its first paragraph, cut as
+     * {@link #setOverflow} says, as plain text holding a line break shows its first line. Lines
+     * kept whole, as a block of code wants them, are wrap on in a parent that sets no width limit,
+     * such as a {@link ScrollView} scrolled sideways: the label then breaks only where a paragraph
+     * ends.
+     *
+     * <p>A reader hears its plain text, each list item led by its marker; the styles are not read.
+     * {@link #text()} answers the plain text without markers. A text built from translated strings
+     * follows the language. An access letter is not read from styled text.
+     *
+     * @param newText the styled text
+     * @return this label, for chaining
+     */
+    public Label setText(StyledText newText) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(newText, "newText");
+        if (newText.equals(styled)) {
+            return this;
+        }
+        boolean wasStyled = styled != null;
+        styled = newText;
+        styledLayout = null;
+        styledNatural = null;
+        styledReaderEpoch = -1;
+        String read = styledReaderText(newText);
+        boolean renamed = !wasStyled || !read.equals(text.get());
+        this.text = I18nString.literal(read);
+        markNeedsLayoutInPlace();
+        // A change of style alone renames nothing: a reader is told of a new name only when what
+        // it hears moved. An ink of the application's own may have no value equality, so a status
+        // rebuilt with it is never equal.
+        if (renamed) {
+            notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
+        }
+        return this;
+    }
+
+    /** The styled text's reader text in the language now, read again only when the language moved. */
+    private String styledReaderText(StyledText value) {
+        long epoch = I18n.epoch();
+        if (styledReaderEpoch != epoch) {
+            styledReader = value.readerText();
+            styledReaderEpoch = epoch;
+        }
+        return styledReader;
+    }
+
+    /** @return the styled text this label shows, or {@code null} when it shows plain text */
+    public @Nullable StyledText styledText() {
+        return styled;
+    }
+
+    /**
+     * The styled text laid out at {@code width}, made again only when what it was made from moved:
+     * the width, the line limit, the ellipsis, the font, the alignment or the direction, the text
+     * as it reads in the language now, or the ruler's faces.
+     */
+    private StyledLayout styledLayout(StyledText value, Font f, float width, int limit, boolean ellipsis) {
+        StyledBase base = new StyledBase(f, styledAlignment(), neutralBase());
+        // The language's epoch stands for the text as it reads: a text built from translated
+        // strings reads anew only when it moves, and a new text drops both layouts.
+        long epoch = I18n.epoch();
+        TextRuler ruler = textRuler();
+        StyledLayout natural = styledNatural;
+        boolean naturalHolds = natural != null && limit == styledNaturalLimit
+                && ellipsis == styledNaturalEllipsis && base.equals(styledNaturalBase)
+                && epoch == styledNaturalEpoch && natural.isCurrent(ruler);
+        // A layout of this text over this base, shaped as the ruler shapes now: another width or
+        // limit breaks its lines again and keeps its shaping, most of a layout's cost.
+        StyledLayout shapedAlready = natural != null && base.equals(styledNaturalBase)
+                && epoch == styledNaturalEpoch && natural.isCurrent(ruler) ? natural
+                : styledLayout != null && base.equals(styledBase) && epoch == styledEpoch
+                        && styledLayout.isCurrent(ruler) ? styledLayout : null;
+        if (width == StyledLayout.UNBOUNDED) {
+            if (!naturalHolds) {
+                natural = shapedAlready != null ? shapedAlready.relaid(width, limit, ellipsis, ruler)
+                        : lay(value, base, width, limit, ellipsis, ruler);
+                styledNatural = natural;
+                styledNaturalLimit = limit;
+                styledNaturalEllipsis = ellipsis;
+                styledNaturalBase = base;
+                styledNaturalEpoch = epoch;
+            }
+            return natural;
+        }
+        // Laid out at least as wide as it measured unbroken, nothing would break or be cut that
+        // was not: the measure's layout serves, and the text is not shaped a second time.
+        if (naturalHolds && !natural.isTruncated() && natural.width() <= width) {
+            // Held as the laid-out layout too: the baseline, the page cuts and the paint read it.
+            styledLayout = natural;
+            styledWidth = width;
+            styledLimit = limit;
+            styledEllipsis = ellipsis;
+            styledBase = base;
+            styledEpoch = epoch;
+            return natural;
+        }
+        StyledLayout held = styledLayout;
+        if (held == null || Float.compare(width, styledWidth) != 0 || limit != styledLimit
+                || ellipsis != styledEllipsis || !base.equals(styledBase) || epoch != styledEpoch
+                || !held.isCurrent(ruler)) {
+            held = shapedAlready != null ? shapedAlready.relaid(width, limit, ellipsis, ruler)
+                    : lay(value, base, width, limit, ellipsis, ruler);
+            styledLayout = held;
+            styledWidth = width;
+            styledLimit = limit;
+            styledEllipsis = ellipsis;
+            styledBase = base;
+            styledEpoch = epoch;
+        }
+        return held;
+    }
+
+    /** What a styled layout is laid out over, besides the label's ink: a change of any part lays it out again. */
+    private record StyledBase(Font font, limn.graphics.ParagraphStyle.Alignment alignment,
+                              ShapedText.Direction whenNeutral) {
+    }
+
+    private static StyledLayout lay(StyledText value, StyledBase base, float width, int limit, boolean ellipsis,
+                                    TextRuler ruler) {
+        return StyledLayout.builder(value, base.font(), LABEL_INK).alignment(base.alignment())
+                .direction(base.whenNeutral()).maxWidth(width).maxLines(limit).ellipsis(ellipsis).build(ruler);
+    }
+
+    /** {@link #hAlign} as the base alignment of a styled paragraph, read in this label's direction. */
+    private limn.graphics.ParagraphStyle.Alignment styledAlignment() {
+        boolean rtl = isRightToLeft();
+        return switch (hAlign) {
+            case START -> limn.graphics.ParagraphStyle.Alignment.START;
+            case CENTER -> limn.graphics.ParagraphStyle.Alignment.CENTER;
+            case END -> limn.graphics.ParagraphStyle.Alignment.END;
+            case LEFT -> rtl ? limn.graphics.ParagraphStyle.Alignment.END : limn.graphics.ParagraphStyle.Alignment.START;
+            case RIGHT -> rtl ? limn.graphics.ParagraphStyle.Alignment.START : limn.graphics.ParagraphStyle.Alignment.END;
+        };
+    }
+
+    /** The top of the styled block, placed by {@link #vAlign} below an icon on top. */
+    private float styledTop(StyledLayout laid) {
+        SizeTokens t = Theme.of(this).tokensFor(this);
+        Font f = effectiveFont(t);
+        float above = iconAbove(t, f);
+        float content = laid.height() + above;
+        float top = switch (vAlign) {
+            case TOP -> 0;
+            case CENTER -> (height() - content) / 2;
+            case BOTTOM -> height() - content;
+        };
+        return top + (iconPosition == IconPosition.TOP ? above : 0);
+    }
+
+    /**
      * The paragraph as one shaped line: the value every geometry question here is asked of.
      * Re-shaped only when {@link ShapedText#matches} says the held one is no longer the answer,
      * which is the whole invalidation test — the text, the font, the paragraph direction, and the
@@ -508,7 +745,22 @@ public final class Label extends Widget<Label> {
 
     /** Room the text itself gets: the box less the icon and its gap. */
     private float textWidth(SizeTokens t, Font f) {
-        return Math.max(0, width() - (icon == null ? 0 : iconBox(t, f) + t.gapIcon()));
+        return Math.max(0, width() - iconAcross(t, f));
+    }
+
+    /** Whether the icon stands beside the text, at its start or its end, rather than above or below. */
+    private boolean iconBeside() {
+        return iconPosition == IconPosition.START || iconPosition == IconPosition.END;
+    }
+
+    /** The width the icon and its gap take from the text: none above or below it. */
+    private float iconAcross(SizeTokens t, Font f) {
+        return icon == null || !iconBeside() ? 0 : iconBox(t, f) + t.gapIcon();
+    }
+
+    /** The height the icon and its gap add to the text above or below it: none beside it. */
+    private float iconAbove(SizeTokens t, Font f) {
+        return icon == null || iconBeside() ? 0 : iconBox(t, f) + t.gapIcon();
     }
 
     /**
@@ -665,7 +917,8 @@ public final class Label extends Widget<Label> {
      * {@linkplain I18n#locale() UI language}, greedily; a run that offers no opportunity at all
      * — a word longer than the box, or a script this locale has no rule for — is cut at the last
      * cluster that fits. The measured height then depends on the width constraint. As many lines
-     * as the text needs, unless {@link #setMaxLines} sets a limit above one. UI thread only.
+     * as the text needs, unless {@link #setMaxLines} sets a limit above one. Without wrap the label
+     * shows one line, even when the text holds line breaks. UI thread only.
      */
     public Label setWrap(boolean newWrap) {
         Ui.checkUiThread();
@@ -757,6 +1010,29 @@ public final class Label extends Widget<Label> {
     }
 
     /**
+     * Where the icon stands against the text: before it (the default), after it, above or below.
+     * UI thread only.
+     *
+     * @param position where the icon stands
+     * @return this label, for chaining
+     */
+    public Label setIconPosition(IconPosition position) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(position, "position");
+        if (iconPosition == position) {
+            return this;
+        }
+        iconPosition = position;
+        markNeedsLayoutInPlace();
+        return this;
+    }
+
+    /** @return where the icon stands against the text */
+    public IconPosition iconPosition() {
+        return iconPosition;
+    }
+
+    /**
      * The font actually drawn with, {@code ==}-stable across passes so the backend's
      * identity-keyed glyph cache hits. Takes the row rather than resolving it so a
      * measure and the paint that follows can never disagree about the step.
@@ -803,17 +1079,23 @@ public final class Label extends Widget<Label> {
     private float textTop(float lineHeight) {
         // Before the first layout the list is empty; every later pass leaves at least one
         // line in it, so the clamp only guards a baseline read on an unlaid-out Label.
-        float contentHeight = Math.max(1, lines.size()) * lineHeight;
-        return switch (vAlign) {
+        SizeTokens t = Theme.of(this).tokensFor(this);
+        float above = iconAbove(t, effectiveFont(t));
+        float contentHeight = Math.max(1, lines.size()) * lineHeight + above;
+        float top = switch (vAlign) {
             case TOP -> 0;
             case CENTER -> (height() - contentHeight) / 2;
             case BOTTOM -> height() - contentHeight;
         };
+        return top + (iconPosition == IconPosition.TOP ? above : 0);
     }
 
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.of(this).tokensFor(this);
+        if (styled != null && styledLayout != null) {
+            return styledTop(styledLayout) + styledLayout.firstBaseline();
+        }
         TextMetrics metrics = textRuler().measure("Hg", effectiveFont(t));
         return textTop(metrics.lineHeight()) + metrics.ascent();
     }
@@ -850,21 +1132,33 @@ public final class Label extends Widget<Label> {
         TextRuler ruler = textRuler();
         Font f = effectiveFont(t);
         TextMetrics line = ruler.measure("Hg", f);
-        float iconSpace = icon == null ? 0 : iconBox(t, f) + t.gapIcon();
+        float iconSpace = iconAcross(t, f);
+        // Above or below the text, the icon's square and gap are part of the height, and the
+        // label is at least as wide as the square.
+        float above = iconAbove(t, f);
+        float iconWidth = above > 0 ? iconBox(t, f) : 0;
         // The row is the line box whether or not there is an icon. The icon square is
         // deliberately larger and overhangs (class note); letting it drive the height here is
         // what made a mixed form column ragged.
         int limit = lineLimit();
+        if (styled != null) {
+            float room = constraints.maxWidth();
+            float wrapAt = limit == 1 || room == Constraints.UNBOUNDED_LIMIT ? StyledLayout.UNBOUNDED
+                    : Math.max(1, room - iconSpace);
+            StyledLayout laid = styledLayout(styled, f, wrapAt, limit, overflow == Overflow.ELLIPSIS);
+            return constraints.constrain(Math.max(iconWidth, laid.width() + iconSpace), laid.height() + above);
+        }
         if (limit == 1) {
             float width = paragraph(ruler, f).metrics().width() + iconSpace;
-            return constraints.constrain(width, line.lineHeight());
+            return constraints.constrain(Math.max(iconWidth, width), line.lineHeight() + above);
         }
         List<ShapedText> wrapped = new ArrayList<>();
         float widest = wrapText(paragraph(ruler, f), constraints.maxWidth() - iconSpace,
                 ruler, wrapped, limit, overflow == Overflow.ELLIPSIS);
         // wrapText always emits at least one line (empty text included), so the line count is
         // the whole height: no floor, which is what kept the icon out of the wrap branch too.
-        return constraints.constrain(widest + iconSpace, wrapped.size() * line.lineHeight());
+        return constraints.constrain(Math.max(iconWidth, widest + iconSpace),
+                wrapped.size() * line.lineHeight() + above);
     }
 
     @Override
@@ -875,10 +1169,23 @@ public final class Label extends Widget<Label> {
         float iconBox = icon == null ? 0 : iconBox(t, f);
         // Recorded for paintOutset: the square is centred on height(), so it reaches this far
         // past both edges. Negative when the box fits (a stretched Label, or a wrapped one);
-        // clamped, since an outset is a distance and never shrinks the damage rect.
-        iconOverhang = Math.max(0, (iconBox - height()) / 2);
+        // clamped, since an outset is a distance and never shrinks the damage rect. Above or
+        // below the text the square is inside the box.
+        iconOverhang = iconBeside() ? Math.max(0, (iconBox - height()) / 2) : 0;
         float textWidth = textWidth(t, f);
         int limit = lineLimit();
+        if (styled != null) {
+            lines.clear();
+            styledLayout(styled, f, Math.max(1, textWidth), limit, overflow == Overflow.ELLIPSIS);
+            String read = styledReaderText(styled);
+            if (!read.equals(text.get())) {
+                // The language moved under a text built from translated strings: what a reader
+                // hears follows it.
+                text = I18nString.literal(read);
+                notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
+            }
+            return;
+        }
         if (limit > 1) {
             lines.clear();
             wrapText(paragraph(ruler, f), textWidth, ruler, lines, limit, overflow == Overflow.ELLIPSIS);
@@ -905,17 +1212,35 @@ public final class Label extends Widget<Label> {
         // resolutions that disagreed inside one paint would draw the text under the icon.
         boolean rtl = isRightToLeft();
         float iconBox = icon == null ? 0 : iconBox(t, f);
-        float iconSpace = icon == null ? 0 : iconBox + t.gapIcon();
-        // Physical left edge of the text region. The icon gutter is on the side reading starts
+        float iconSpace = iconAcross(t, f);
+        // Physical left edge of the text region. A START gutter is on the side reading starts
         // on, so left to right the text starts past it, and right to left the gutter is at the
-        // far end and the text region already begins at the box's own left edge. Only one of the
-        // two moves, and it is the icon.
-        float textLeft = rtl ? 0 : iconSpace;
+        // far end and the text region already begins at the box's own left edge; an END gutter
+        // is the other way round. Only one of the two moves, and it is the icon.
+        boolean iconAtLeft = iconPosition == IconPosition.START ? !rtl : iconPosition == IconPosition.END && rtl;
+        float textLeft = iconAtLeft ? iconSpace : 0;
         if (icon != null) {
-            float iconTop = (height() - iconBox) / 2; // negative: the bump overhangs
-            // The leading edge written as a coordinate: 0 reading left to right, and the far edge
-            // less the square reading right to left.
-            float iconLeft = rtl ? width() - iconBox : 0;
+            float iconTop;
+            float iconLeft;
+            if (iconBeside()) {
+                iconTop = (height() - iconBox) / 2; // negative: the bump overhangs
+                // The icon's edge written as a coordinate: the left edge or the far one less the square.
+                iconLeft = iconAtLeft ? 0 : width() - iconBox;
+            } else {
+                float textHeight = styled != null && styledLayout != null ? styledLayout.height()
+                        : Math.max(1, lines.size()) * lineHeight;
+                float textTopNow = styled != null && styledLayout != null ? styledTop(styledLayout) : top;
+                iconTop = iconPosition == IconPosition.TOP ? textTopNow - t.gapIcon() - iconBox
+                        : textTopNow + textHeight + t.gapIcon();
+                float free = width() - iconBox;
+                iconLeft = switch (hAlign) {
+                    case START -> rtl ? free : 0;
+                    case CENTER -> free / 2;
+                    case END -> rtl ? 0 : free;
+                    case LEFT -> 0;
+                    case RIGHT -> free;
+                };
+            }
             // Painted BEFORE the text clip is installed, under a clip of its own: the text clip
             // is the box, and nesting inside it would shave exactly the overhang paintOutset()
             // promises to repaint. The icon's clip is its own square: vertically it lets the
@@ -942,6 +1267,25 @@ public final class Label extends Widget<Label> {
         // A magnitude, not an x: the icon claims the same room from either end, so this is the
         // same number in both directions and only the edge it is measured from moved.
         float textWidth = Math.max(0, width() - iconSpace);
+        if (styled != null) {
+            StyledLayout laid = styledLayout(styled, f, Math.max(1, textWidth), lineLimit(),
+                    overflow == Overflow.ELLIPSIS);
+            boolean enabled = isEnabled();
+            Color own = ink;
+            // A piece's ink in this label's palette: the label's own colour where it set none, a
+            // tone as this label's theme has it, and when off every glyph in the disabled text
+            // colour over every background in the disabled fill, as a disabled button is drawn.
+            java.util.function.Function<limn.graphics.Ink, limn.graphics.Paint> palette = given ->
+                    given == LABEL_INK ? own
+                    : given instanceof Tone toned ? toned.colorIn(theme)
+                    : given.paint();
+            Color disabledFill = theme.disabledFill();
+            laid.paint(canvas, textLeft, styledTop(laid), textWidth,
+                    enabled ? palette : given -> own,
+                    enabled ? palette : given -> disabledFill);
+            canvas.restore();
+            return;
+        }
         float baseline = top + metrics.ascent();
         // The access letter's line and place in it: the lines are the shown text in order, wrapped
         // or not, so each is found after the one before. An ellipsized line is not found, and a

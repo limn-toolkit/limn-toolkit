@@ -101,7 +101,8 @@ import java.util.function.IntConsumer;
  * end: a detent that moves neither offset — the rows already at the top or the bottom, the
  * columns at either edge, or a table that fits — is left unconsumed and reaches the scroll
  * pane that holds it. Under an unbounded height the table prefers {@link #setVisibleRows} rows
- * of the step's seed height, plus its header and footer.
+ * of a row of text's height, plus its header and footer, so a table of that many one-line rows
+ * fits with nothing left under it.
  *
  * @param <T> the row type
  */
@@ -109,15 +110,17 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * Rows of intrinsic height when the height axis is unbounded, until {@link #setVisibleRows}
-     * says otherwise; a count, not a length: it multiplies the step's seed row height.
+     * says otherwise; a count, not a length: it multiplies the height of a row of text.
      */
     private static final int VISIBLE_ROWS_HINT = 8;
 
     /**
-     * How many seed rows tall the rows' viewport prefers to be under an unbounded height.
-     * Multiplied by the token's seed and never by the realized average: the average moves as rows
-     * of other heights scroll in, and a preference that moved with it re-laid out the parent on
-     * every such scroll and made a table inside a scroll pane jitter.
+     * How many rows of text tall the rows' viewport prefers to be under an unbounded height.
+     * Multiplied by the height of a row of text cells, worked out from the tokens, and never by
+     * the realized average: the average moves as rows of other heights scroll in, and a preference
+     * that moved with it re-laid out the parent on every such scroll and made a table inside a
+     * scroll pane jitter. Not the list's seed either, which is half as tall again as a row of
+     * text: a table of three rows asked for three seeds left a third of itself empty.
      */
     private int visibleRows = VISIBLE_ROWS_HINT;
     /** How far either side of a header divider a press starts a resize, in points. */
@@ -352,8 +355,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         @Override
         public float measure(Slot slot, int index) {
             SizeTokens t = tokens();
-            float lineBox = textRuler().measure("Hg", t.body()).height();
-            float h = Math.max(t.controlHeight(), lineBox + 2 * t.padV());
+            float h = textRowHeight(t);
             for (int s = 0; s < shownCount; s++) {
                 Widget<?> widget = slot.widgets[shownIndex[s]];
                 if (widget != null) {
@@ -1184,8 +1186,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         // Back to the start, and a reveal still waiting was asked of the old rows.
         unmountAllKeeping(hung, true);
         recomputeFooter();
-        // Contained: the rows change inside a box whose measure does not read them (the seed
-        // and the columns size it), so a filter that empties and refills the rows repaints
+        // Contained: the rows change inside a box whose measure does not read them (the height
+        // of a row of text and the columns size it), so a filter that empties and refills the rows repaints
         // the widget and never the window, its empty content coming and going included.
         markNeedsContainedLayout();
         invalidate();
@@ -1691,8 +1693,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         unmountAllKeeping(keep, false);
         textEpoch++;
         recomputeFooter();
-        // Contained: the rows change inside a box whose measure does not read them (the seed
-        // and the columns size it), so a filter that empties and refills the rows repaints
+        // Contained: the rows change inside a box whose measure does not read them (the height
+        // of a row of text and the columns size it), so a filter that empties and refills the rows repaints
         // the widget and never the window, its empty content coming and going included.
         markNeedsContainedLayout();
         invalidate();
@@ -2316,9 +2318,11 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     /**
      * Sets how many rows tall the rows' viewport prefers to be when the parent gives the table no
      * height — a table inside a {@link limn.components.ScrollView} or an unconstrained column — as
-     * a count of the step's seed rows (default 8); the header and the footer add their own strips.
-     * A bounded height from the parent always wins; this is the free-axis fallback only. The
-     * preference is the seed's and not the realized rows' on purpose: a preference that followed
+     * a count of rows of text (default 8), each the control height or a line of the body text and
+     * its padding, whichever is taller; the header and the footer add their own strips. A table of
+     * that many one-line rows fits with nothing under it, and taller rows scroll. A bounded height
+     * from the parent always wins; this is the free-axis fallback only. The preference is worked
+     * out from the tokens and not from the realized rows on purpose: a preference that followed
      * the measured average moved every time a row of another height scrolled in, and re-laid out
      * the parent with it. UI thread only.
      *
@@ -2338,7 +2342,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return this;
     }
 
-    /** How many seed rows tall the rows' viewport prefers to be under an unbounded height. */
+    /** How many rows of text tall the rows' viewport prefers to be under an unbounded height. */
     public int visibleRows() {
         return visibleRows;
     }
@@ -2448,6 +2452,17 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     private float estimatedOffset(SizeTokens t) {
         return engine.offset();
+    }
+
+    /**
+     * A row of text cells: the control height, or one line of the body text and its padding where
+     * that is taller. Every row is at least this tall, and a row of text is exactly this, so it is
+     * what the unbounded height counts in; it moves only with the step and the font, never with
+     * the rows measured.
+     */
+    private float textRowHeight(SizeTokens t) {
+        float lineBox = textRuler().measure("Hg", t.body()).height();
+        return Math.max(t.controlHeight(), lineBox + 2 * t.padV());
     }
 
     private float headerHeight(SizeTokens t) {
@@ -2573,13 +2588,14 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             }
         }
         float w = constraints.hasBoundedWidth() ? constraints.maxWidth() : preferred;
-        // The free-axis height is the SEED's and not avgRowHeight's (decision 44, 2026-09-14):
+        // The free-axis height counts rows of text and not avgRowHeight (decision 44, 2026-09-14):
         // the measured mean moves as rows of other heights scroll in, and a measured size that
         // moved under a contained layout re-laid out the parent on every such scroll
         // (Widget.markNeedsContainedLayout's contract), so a table in a scroll pane jittered.
-        // The seed is a token and stands still.
+        // A row of text is worked out from the tokens and stands still. It was the list's seed,
+        // half as tall again, which left a third of a short table empty (ADR 084, section 11).
         float h = constraints.hasBoundedHeight() ? constraints.maxHeight()
-                : headerHeight(t) + footerHeight(t) + visibleRows * t.listRowSeed();
+                : headerHeight(t) + footerHeight(t) + visibleRows * textRowHeight(t);
         return constraints.constrain(w, h);
     }
 
@@ -3043,9 +3059,17 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             }
             float inner = Math.max(0, colW[s] - 2 * t.padH());
             Size size = widget.measure(new Constraints(0, inner, 0, Constraints.UNBOUNDED_LIMIT));
-            float wx = columnLeft(s, rowX, w, rtl) + t.padH();
+            // Placed by the column's alignment, as its header and its text cells are: an END
+            // column's widgets stood at its start under a header at its end.
+            float free = Math.max(0, inner - size.width());
+            float along = switch (columns.get(c).alignment()) {
+                case START -> 0;
+                case CENTER -> free / 2;
+                case END -> free;
+            };
+            float wx = columnLeft(s, rowX, w, rtl) + t.padH() + along;
             if (rtl) {
-                wx = columnLeft(s, rowX, w, rtl) + colW[s] - t.padH() - size.width();
+                wx = columnLeft(s, rowX, w, rtl) + colW[s] - t.padH() - size.width() - along;
             }
             widget.layoutBox(wx, rowY + (rowH - size.height()) / 2, size.width(), size.height());
         }

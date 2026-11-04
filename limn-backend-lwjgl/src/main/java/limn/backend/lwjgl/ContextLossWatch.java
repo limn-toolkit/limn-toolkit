@@ -64,6 +64,20 @@ final class ContextLossWatch {
     private int attempts;
     private long lostAt;
 
+    /**
+     * Lets go of every context of the process's that is not a window's, the backend's own for
+     * pictures off screen: called at every sign that the machine was away, windows or none, since
+     * such a context is lost with theirs and is made again on its next use, and before every rebuild,
+     * since the system's OpenGL is unloaded from the process there and a context left holding it would
+     * keep it.
+     */
+    private Runnable forgetOthers = () -> { };
+
+    /** Sets what {@link #forgetOthers} runs. */
+    void forgetOthersWith(Runnable forget) {
+        forgetOthers = forget;
+    }
+
     /** Whether a rebuild is under way, so that the loop wakes for the next attempt rather than sleeping. */
     boolean rebuilding() {
         return rebuilding;
@@ -87,6 +101,9 @@ final class ContextLossWatch {
                     REBUILD_PROPERTY);
             rebuildNow(windows, false);
             return;
+        }
+        if (Math.abs(jump) > JUMP_MILLIS) {
+            forgetOthers.run();
         }
         if (!rebuilding) {
             boolean reported = false;
@@ -138,6 +155,7 @@ final class ContextLossWatch {
 
     private void attempt(List<LwjglWindow> windows) {
         attempts++;
+        forgetOthers.run();
         for (LwjglWindow window : windows) {
             window.forgetContext();
         }

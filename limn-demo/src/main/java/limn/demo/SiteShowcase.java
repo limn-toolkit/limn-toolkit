@@ -161,6 +161,16 @@ public final class SiteShowcase {
         entries.add(new Entry("layout", "A window laid out", Locale.ENGLISH, SiteShowcase::layout));
         entries.add(new Entry("control-size", "Every size step", Locale.ENGLISH,
                 SiteShowcase::controlSize));
+        // The drawing guide's four pictures: the canvas's own calls, drawn by the same methods
+        // the guide's code samples are cut from.
+        entries.add(new Entry("drawing-shapes", "Shapes, paths and lines", Locale.ENGLISH,
+                theme -> drawing(theme, limn.demo.site.DrawingExample::shapesScene)));
+        entries.add(new Entry("drawing-paints", "Gradients, patterns and transforms", Locale.ENGLISH,
+                theme -> drawing(theme, limn.demo.site.DrawingExample::paintsScene)));
+        entries.add(new Entry("drawing-clips", "Clips, layers and blend modes", Locale.ENGLISH,
+                theme -> drawing(theme, limn.demo.site.DrawingExample::clipsScene)));
+        entries.add(new Entry("drawing-text", "Text as a path and pictures", Locale.ENGLISH,
+                theme -> drawing(theme, limn.demo.site.DrawingExample::textScene)));
         // The one filmed screen (see Entry.filmed and Films.forShowcase).
         entries.add(new Entry("theme-editor", "The theme editor", Locale.ENGLISH, theme -> editor(theme))
                 .filmedFrom(SiteShowcase::editorRoot));
@@ -408,6 +418,12 @@ public final class SiteShowcase {
     private static Scene picker(Theme theme) {
         Theme.setCurrent(theme);
         return retheme(limn.demo.site.DragExample.scene(), theme);
+    }
+
+    /** One of the drawing guide's pictures, themed before it is built; see {@link #form}. */
+    private static Scene drawing(Theme theme, java.util.function.Supplier<Scene> scene) {
+        Theme.setCurrent(theme);
+        return retheme(scene.get(), theme);
     }
 
     private static Scene layout(Theme theme) {

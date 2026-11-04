@@ -52,6 +52,27 @@ final class ShaderProgram implements AutoCloseable {
         return fromSources(readResource(vertexResource), readResource(fragmentResource));
     }
 
+    /**
+     * {@link #fromResources(String, String)} with {@code defines} named for the fragment shader's
+     * preprocessor, each a {@code #define} line right after its {@code #version} line.
+     */
+    static ShaderProgram fromResources(String vertexResource, String fragmentResource, java.util.List<String> defines) {
+        return fromSources(readResource(vertexResource), withDefines(readResource(fragmentResource), defines));
+    }
+
+    /** {@code source} with a {@code #define} line for each name after its first line, the version's. */
+    static String withDefines(String source, java.util.List<String> defines) {
+        if (defines.isEmpty()) {
+            return source;
+        }
+        int lineEnd = source.indexOf('\n', source.indexOf("#version")) + 1;
+        StringBuilder lines = new StringBuilder();
+        for (String name : defines) {
+            lines.append("#define ").append(name).append('\n');
+        }
+        return source.substring(0, lineEnd) + lines + source.substring(lineEnd);
+    }
+
     /** Compiles + links from GLSL source strings (used by raw-GLSL materials). */
     static ShaderProgram fromSources(String vertexSource, String fragmentSource) {
         int vertex = compile(GL_VERTEX_SHADER, vertexSource, "vertex");

@@ -8,6 +8,7 @@ import static org.lwjgl.opengl.GL33C.GL_DST_COLOR;
 import static org.lwjgl.opengl.GL33C.GL_ONE;
 import static org.lwjgl.opengl.GL33C.GL_ONE_MINUS_DST_ALPHA;
 import static org.lwjgl.opengl.GL33C.GL_ONE_MINUS_SRC_ALPHA;
+import static org.lwjgl.opengl.GL33C.GL_ONE_MINUS_SRC_COLOR;
 import static org.lwjgl.opengl.GL33C.GL_ZERO;
 
 /**
@@ -39,6 +40,28 @@ final class GlBlend {
             new Factors(GL_ONE, GL_ONE, GL_ZERO, GL_ONE);
     private static final Factors MULTIPLY =
             new Factors(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+    /** Screen, {@code cs + cb·(1 − cs)} per channel; on the window the coverage is kept. */
+    private static final Factors SCREEN =
+            new Factors(GL_ONE, GL_ONE_MINUS_SRC_COLOR, GL_ZERO, GL_ONE);
+    /*
+     * The Porter-Duff rules whose fixed factors are exact at an antialiased edge, where a draw's
+     * coverage m is folded into its alpha: each weighs the destination by 1 or by 1 - as, and
+     * 1 - m·as is what weighing the rule's result against the destination by m gives there.
+     */
+    private static final Factors DESTINATION_OVER =
+            new Factors(GL_ONE_MINUS_DST_ALPHA, GL_ONE, GL_ONE_MINUS_DST_ALPHA, GL_ONE);
+    private static final Factors DESTINATION_OUT =
+            new Factors(GL_ZERO, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
+    private static final Factors SOURCE_ATOP =
+            new Factors(GL_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    private static final Factors XOR =
+            new Factors(GL_ONE_MINUS_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE_MINUS_DST_ALPHA,
+                    GL_ONE_MINUS_SRC_ALPHA);
+    /**
+     * The factors of a mode the canvas program computes itself ({@link #shaderRule}): its output is
+     * the pixel, which replaces the target's.
+     */
+    static final Factors REPLACE = new Factors(GL_ONE, GL_ZERO, GL_ONE, GL_ZERO);
 
     /**
      * How a mode draws into a group's picture: one pass, or two over the same geometry, the second
@@ -70,6 +93,13 @@ final class GlBlend {
      */
     private static final InGroup MULTIPLY_IN_GROUP = new InGroup(MULTIPLY,
             new Factors(GL_ONE_MINUS_DST_ALPHA, GL_ONE, GL_ONE_MINUS_DST_ALPHA, GL_ONE));
+    /**
+     * Screen in a group, the web's {@code co = cs + cb − cs·cb} with the coverage of an over:
+     * premultiplied, the screen of a source over a translucent backdrop needs no term of its own,
+     * so one pass gives it.
+     */
+    private static final InGroup SCREEN_IN_GROUP = new InGroup(
+            new Factors(GL_ONE, GL_ONE_MINUS_SRC_COLOR, GL_ONE, GL_ONE_MINUS_SRC_ALPHA), null);
 
     /**
      * A modal's veil ({@code limn.scene.internal.VeilCanvas}), which no {@link BlendMode} names: for
@@ -94,6 +124,57 @@ final class GlBlend {
             case NORMAL -> NORMAL;
             case ADDITIVE -> ADDITIVE;
             case MULTIPLY -> MULTIPLY;
+            case SCREEN -> SCREEN;
+            case DESTINATION_OVER -> DESTINATION_OVER;
+            case DESTINATION_OUT -> DESTINATION_OUT;
+            case SOURCE_ATOP -> SOURCE_ATOP;
+            case XOR -> XOR;
+            case DARKEN, LIGHTEN, CLEAR, SOURCE, SOURCE_IN, DESTINATION_IN, SOURCE_OUT, DESTINATION_ATOP ->
+                    REPLACE;
+        };
+    }
+
+    /*
+     * The rules the canvas program computes from a copy of the target, numbered as canvas.frag and
+     * canvas_composite_clip.frag number them. A rule that weighs the destination by 0 or by as
+     * leaves the destination at an antialiased edge more or less than the edge's coverage says when
+     * the coverage is folded into the source's alpha, which is all fixed factors can see; and the
+     * minimum and maximum equations take no factors at all, so darken and lighten by them darkened
+     * every antialiased edge toward black (a white shape's edge over grey: min(m, 0.5)). The
+     * program keeps the coverage apart and gives each pixel its rule's result weighed against the
+     * destination by the coverage.
+     */
+    static final int RULE_NONE = 0;
+    static final int RULE_CLEAR = 1;
+    static final int RULE_SOURCE = 2;
+    static final int RULE_SOURCE_IN = 3;
+    static final int RULE_DESTINATION_IN = 4;
+    static final int RULE_SOURCE_OUT = 5;
+    static final int RULE_DESTINATION_ATOP = 6;
+    /** Darken and lighten in a group, by the web's separable formula with an over's coverage. */
+    static final int RULE_DARKEN = 7;
+    static final int RULE_LIGHTEN = 8;
+    /** Darken and lighten on the window, whose coverage they leave as {@link #MULTIPLY} does. */
+    static final int RULE_DARKEN_KEEP = 9;
+    static final int RULE_LIGHTEN_KEEP = 10;
+
+    /**
+     * The rule the canvas program computes for {@code mode}, or {@link #RULE_NONE} when the fixed
+     * factors of {@link #of} or {@link #inGroup} draw it exactly; drawn under {@link #REPLACE}.
+     *
+     * @param inGroup whether the target is a group's picture rather than the window
+     */
+    static int shaderRule(BlendMode mode, boolean inGroup) {
+        return switch (mode) {
+            case CLEAR -> RULE_CLEAR;
+            case SOURCE -> RULE_SOURCE;
+            case SOURCE_IN -> RULE_SOURCE_IN;
+            case DESTINATION_IN -> RULE_DESTINATION_IN;
+            case SOURCE_OUT -> RULE_SOURCE_OUT;
+            case DESTINATION_ATOP -> RULE_DESTINATION_ATOP;
+            case DARKEN -> inGroup ? RULE_DARKEN : RULE_DARKEN_KEEP;
+            case LIGHTEN -> inGroup ? RULE_LIGHTEN : RULE_LIGHTEN_KEEP;
+            default -> RULE_NONE;
         };
     }
 
@@ -111,6 +192,21 @@ final class GlBlend {
             case NORMAL -> NORMAL_IN_GROUP;
             case ADDITIVE -> ADDITIVE_IN_GROUP;
             case MULTIPLY -> MULTIPLY_IN_GROUP;
+            case SCREEN -> SCREEN_IN_GROUP;
+            // The Porter-Duff rules are defined against the target's coverage, which in a picture
+            // is the group's own: the window's factors are the group's.
+            case DESTINATION_OVER -> DESTINATION_OVER_IN_GROUP;
+            case DESTINATION_OUT -> DESTINATION_OUT_IN_GROUP;
+            case SOURCE_ATOP -> SOURCE_ATOP_IN_GROUP;
+            case XOR -> XOR_IN_GROUP;
+            case DARKEN, LIGHTEN, CLEAR, SOURCE, SOURCE_IN, DESTINATION_IN, SOURCE_OUT, DESTINATION_ATOP ->
+                    REPLACE_IN_GROUP;
         };
     }
+
+    private static final InGroup DESTINATION_OVER_IN_GROUP = new InGroup(DESTINATION_OVER, null);
+    private static final InGroup DESTINATION_OUT_IN_GROUP = new InGroup(DESTINATION_OUT, null);
+    private static final InGroup SOURCE_ATOP_IN_GROUP = new InGroup(SOURCE_ATOP, null);
+    private static final InGroup XOR_IN_GROUP = new InGroup(XOR, null);
+    private static final InGroup REPLACE_IN_GROUP = new InGroup(REPLACE, null);
 }

@@ -56,6 +56,20 @@ final class Transform2D {
         m11 = n11;
     }
 
+    /** Post-multiplies {@code x' = a x + c y + e}, {@code y' = b x + d y + f}: that map first, then this one. */
+    void concat(double a, double b, double c, double d, double e, double f) {
+        float n00 = (float) (m00 * a + m01 * b);
+        float n10 = (float) (m10 * a + m11 * b);
+        float n01 = (float) (m00 * c + m01 * d);
+        float n11 = (float) (m10 * c + m11 * d);
+        tx = (float) (m00 * e + m01 * f + tx);
+        ty = (float) (m10 * e + m11 * f + ty);
+        m00 = n00;
+        m10 = n10;
+        m01 = n01;
+        m11 = n11;
+    }
+
     float x(float px, float py) {
         return m00 * px + m01 * py + tx;
     }

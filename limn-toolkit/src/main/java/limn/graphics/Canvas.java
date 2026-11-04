@@ -1,5 +1,7 @@
 package limn.graphics;
 
+import limn.math.Affine2D;
+import limn.math.Mat4;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -128,6 +130,84 @@ public interface Canvas {
     void rotate(float angleRadians);
 
     /**
+     * Rotates by {@code angleRadians} about the point {@code (cx, cy)}, which stays where it is:
+     * what a dial's needle or a turned label needs, without the translations around it.
+     *
+     * @param angleRadians the angle, positive clockwise with y growing down
+     * @param cx           the x of the point the turn is about, in current coordinates
+     * @param cy           its y
+     */
+    default void rotate(float angleRadians, float cx, float cy) {
+        translate(cx, cy);
+        rotate(angleRadians);
+        translate(-cx, -cy);
+    }
+
+    /**
+     * Shears: what is drawn at {@code (x, y)} after it lands where {@code (x + sx y, sy x + y)}
+     * landed before, as {@link Affine2D#shearing} says. Pixel snapping stops under a shear, as it
+     * does under a rotation.
+     *
+     * @param sx how far x moves per unit of y
+     * @param sy how far y moves per unit of x
+     */
+    default void shear(float sx, float sy) {
+        concat(Affine2D.shearing(sx, sy));
+    }
+
+    /**
+     * Draws through {@code matrix} inside the current transform: a point {@code p} drawn after it
+     * lands where {@code matrix} times {@code p} landed before. A translate, a scale, a rotate and
+     * a shear are each a concatenation of their own matrix.
+     *
+     * <p>The default composes it from {@link #translate}, {@link #rotate} and {@link #scale}, which
+     * is exact: any linear map of the plane is a turn, a scale along the axes and a second turn.
+     *
+     * @param matrix the map applied before the current transform
+     */
+    default void concat(Affine2D matrix) {
+        // The linear part, a x + c y and b x + d y, by its singular value decomposition: two
+        // rotations about a scale on the axes, which the three calls every canvas has can express
+        // where a skew alone could not.
+        double a = matrix.a();
+        double b = matrix.b();
+        double c = matrix.c();
+        double d = matrix.d();
+        translate((float) matrix.e(), (float) matrix.f());
+        double sum = (a + d) / 2.0;
+        double diff = (a - d) / 2.0;
+        double cross = (b + c) / 2.0;
+        double turn = (b - c) / 2.0;
+        double q = Math.hypot(sum, turn);
+        double r = Math.hypot(diff, cross);
+        double before = Math.atan2(cross, diff);
+        double after = Math.atan2(turn, sum);
+        rotate((float) ((after + before) / 2));
+        scale((float) (q + r), (float) (q - r));
+        rotate((float) ((after - before) / 2));
+    }
+
+    /**
+     * The current transform: the matrix from current coordinates to this canvas's own, which are
+     * logical points from the top-left corner of what it draws into. That is the window, or the
+     * page being printed, or the picture of a layer opened through a matrix
+     * ({@link #saveLayer(float, float, float, float, float, Mat4)}), whose own coordinates start
+     * again at its origin. A widget's paint sees the translations of its ancestors in it.
+     *
+     * <p>What it is for: keeping the matrix a drawing used, and {@linkplain Affine2D#invert
+     * inverting} it, to find where a point given in the canvas's coordinates falls in the
+     * drawing's; or concatenating it back after a {@link #restore()}. There is no setter: a
+     * canvas a widget paints on already carries its parent's transform, which a set matrix would
+     * throw away. {@link #concat} composes, and {@link #save()} with {@link #restore()} undoes.
+     *
+     * @return the current matrix, or {@code null} when this canvas does not track its transform,
+     *         which is what the default answers; the toolkit's canvases answer
+     */
+    default @Nullable Affine2D transform() {
+        return null;
+    }
+
+    /**
      * <b>Multiplies</b> the current state's opacity by {@code opacity}, clamped to [0..1]; every
      * subsequent paint's alpha is multiplied by the result. Restored by {@link #restore()}.
      *
@@ -184,9 +264,10 @@ public interface Canvas {
      * layer on a GPU and a percent or two of the frame on a software renderer; a window-sized one
      * costs 0.1 to 0.15 ms of GPU, and about 10% of a frame on a software renderer. A canvas keeps
      * the layer's memory, four bytes a device pixel, only while consecutive frames open layers.
-     * An opacity of 1 under {@link BlendMode#NORMAL} needs none, and a canvas opens none for it;
-     * under another mode it does, since the rule above holds at every opacity: drawing at 1
-     * blend by blend would not be the picture blended once, and a fade arriving at 1 would jump.
+     * A layer is opened at every opacity, 1 included, since what is drawn inside may blend with
+     * the layer's own picture, as a {@linkplain BlendMode Porter-Duff rule} does; a group faded to 1
+     * whose drawing needs no picture of its own is cheaper as a {@link #save()}, which is what the
+     * toolkit's own fades do at rest.
      *
      * <p><b>A canvas that cannot make layers</b> (a recording or measuring one) falls back to what
      * the default does: a {@link #save()} and a per-draw {@link #setOpacity}, which draws the same
@@ -235,7 +316,7 @@ public interface Canvas {
      *
      * <p><b>A canvas that cannot make layers</b> applies the transform's flat part, its x, y and w
      * rows and columns without the w row's tilt, straight to its own transform, through
-     * {@link #translate}, {@link #rotate} and {@link #scale}, and the opacity per draw: the same
+     * {@link #concat}, and the opacity per draw: the same
      * commands in nearly the same places, which is what counting them needs.
      *
      * @param x         the left edge of what the layer keeps, in the layer's own coordinates
@@ -246,29 +327,12 @@ public interface Canvas {
      * @param transform where the layer's space is drawn, applied after the canvas's own transform
      */
     default void saveLayer(float x, float y, float width, float height, float opacity,
-                           limn.math.Mat4 transform) {
+                           Mat4 transform) {
         save();
-        // The flat part, a x + c y + e and b x + d y + f, as a translation, a rotation, a scale on
-        // the axes and a second rotation: any linear map of the plane is two rotations about a
-        // scale, by its singular value decomposition, which the three calls every canvas has can
-        // express where a skew alone could not.
-        float w = transform.get(3, 3) != 0 ? transform.get(3, 3) : 1;
-        float a = transform.get(0, 0) / w;
-        float b = transform.get(1, 0) / w;
-        float c = transform.get(0, 1) / w;
-        float d = transform.get(1, 1) / w;
-        translate(transform.get(0, 3) / w, transform.get(1, 3) / w);
-        double sum = (a + d) / 2.0;
-        double diff = (a - d) / 2.0;
-        double cross = (b + c) / 2.0;
-        double turn = (b - c) / 2.0;
-        double q = Math.hypot(sum, turn);
-        double r = Math.hypot(diff, cross);
-        double before = Math.atan2(cross, diff);
-        double after = Math.atan2(turn, sum);
-        rotate((float) ((after + before) / 2));
-        scale((float) (q + r), (float) (q - r));
-        rotate((float) ((after - before) / 2));
+        // The flat part, a x + c y + e and b x + d y + f.
+        double w = transform.get(3, 3) != 0 ? transform.get(3, 3) : 1;
+        concat(new Affine2D(transform.get(0, 0) / w, transform.get(1, 0) / w, transform.get(0, 1) / w,
+                transform.get(1, 1) / w, transform.get(0, 3) / w, transform.get(1, 3) / w));
         setOpacity(opacity);
     }
 
@@ -320,13 +384,36 @@ public interface Canvas {
     }
 
     /**
-     * Intersects the clip with an axis-aligned rectangle (in current
-     * coordinates). V1 limitation: under a rotated transform the clip
-     * degrades to the device-space AABB of the transformed corners, a
-     * superset of the requested region (content may show in the AABB's
-     * corners). Axis-aligned transforms clip exactly.
+     * Intersects the clip with a rectangle in current coordinates. Under a transform that turns or
+     * leans the axes the toolkit's canvases clip by the turned rectangle, as {@link #clipPath}
+     * does; a canvas of an application's own may clip by the device box round the turned corners,
+     * a region that holds the rectangle and more, and {@link #clipBounds()} answers null there.
      */
     void clipRect(float x, float y, float width, float height);
+
+    /**
+     * Intersects the clip with the region {@code path} fills under its {@linkplain Path2D#fillRule()
+     * fill rule}, in current coordinates: what follows is drawn only inside it, antialiased at its
+     * edge as a fill is, and in whatever {@linkplain #setBlendMode blend mode} is in force, as
+     * without the clip. Restored by {@link #restore()}. A second path clip intersects the first.
+     *
+     * <p>Each path clip on the toolkit's OpenGL canvas is a picture of the region's coverage, the
+     * size of the region's device bounds cut to the clip in force, made with the path's fill and
+     * read by every draw until the restore: one fill and a draw call more where it is made, and
+     * none per draw after it. {@link #clipBounds()} answers the region's bounds.
+     *
+     * <p>The default intersects the clip with the path's {@linkplain Path2D#bounds() bounds}, a
+     * region that holds the path and more, for a canvas of an application's own that has no clip
+     * of another shape.
+     */
+    default void clipPath(Path2D path) {
+        Rect bounds = path.bounds();
+        if (bounds == null) {
+            clipRect(0, 0, 0, 0); // an empty path encloses nothing
+            return;
+        }
+        clipRect(bounds.x(), bounds.y(), bounds.width(), bounds.height());
+    }
 
     /** Intersects the clip with an axis-aligned rectangle (see {@link #clipRect(float, float, float, float)}). */
     default void clipRect(Rect rect) {
@@ -360,8 +447,9 @@ public interface Canvas {
      * outer one; where the two only overlap, every corner of the region they
      * leave is rounded by the inner radius, whichever rectangle it came from.
      * A rounded rect whose corners are all square clips like {@code clipRect}
-     * and leaves an earlier one's corners as they were. Rotation degrades to
-     * the AABB like {@code clipRect}.
+     * and leaves an earlier one's corners as they were. Under a transform that
+     * turns or leans the axes it is a path clip on the toolkit's canvases, as
+     * {@code clipRect} is.
      */
     void clipRoundRect(RoundRect roundRect);
 
@@ -582,17 +670,115 @@ public interface Canvas {
     void drawLine(float x1, float y1, float x2, float y2, float strokeWidth, Paint paint);
 
     /**
-     * Fills a path. Each closed subpath is filled independently (see
-     * {@link Path2D} for the v1 winding limitations).
+     * Fills a path under its {@linkplain Path2D#fillRule() fill rule}: every subpath together, so
+     * that one turning the other way inside another is a hole under the non-zero rule, and an
+     * outline crossing itself fills what the rule says. A subpath left open is filled as if closed.
      */
     void fillPath(Path2D path, Paint paint);
 
     /**
-     * Strokes a path with round caps and joins. V1 limitation: joins are
-     * overlapping round caps, so translucent paints double-blend slightly at
-     * each vertex.
+     * Strokes a path with round caps and joins, as {@link #drawPath(Path2D, Stroke, Paint)} does
+     * with a round {@link Stroke} of that width. The toolkit's canvases cover each pixel once, so a
+     * translucent stroke is no darker where its segments meet.
      */
     void drawPath(Path2D path, float strokeWidth, Paint paint);
+
+    /**
+     * Strokes a path with a {@link Stroke}: its width, ends, corners and dash pattern, in the
+     * current coordinates, so a scale widens the line as it widens everything else. Each pixel the
+     * line covers is painted once, so a translucent stroke is even where it crosses itself and
+     * where its dashes and corners overlap.
+     *
+     * <p>The default fills the stroke's {@linkplain Stroke#outline(Path2D, float) outline} under
+     * the non-zero rule, following curves to a quarter of a device pixel, which is exact on a
+     * canvas that fills by the rule.
+     *
+     * @param path   the path, in current coordinates
+     * @param stroke how the line is drawn
+     * @param paint  what it is painted with
+     */
+    default void drawPath(Path2D path, Stroke stroke, Paint paint) {
+        if (path.isEmpty() || stroke.width() <= 0) {
+            return;
+        }
+        fillPath(stroke.outline(path, strokeTolerance()), paint);
+    }
+
+    /**
+     * Strokes a line segment with a {@link Stroke}: its ends as the stroke says, butt by default,
+     * and dashed where it has a pattern.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawLine(float x1, float y1, float x2, float y2, Stroke stroke, Paint paint) {
+        drawPath(new Path2D().moveTo(x1, y1).lineTo(x2, y2), stroke, paint);
+    }
+
+    /**
+     * Strokes a rectangle's outline with a {@link Stroke}, centred on it, starting at its top-left
+     * corner and going clockwise, which is where a dash pattern starts. A size of zero or less draws
+     * nothing.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawRect(float x, float y, float width, float height, Stroke stroke, Paint paint) {
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        drawPath(new Path2D().addRect(x, y, width, height), stroke, paint);
+    }
+
+    /**
+     * Strokes a rounded rectangle's outline with a {@link Stroke}, centred on it, with the corners
+     * {@link #fillRoundRect(RoundRect, Paint)} draws.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawRoundRect(RoundRect roundRect, Stroke stroke, Paint paint) {
+        drawPath(new Path2D().addRoundRect(roundRect), stroke, paint);
+    }
+
+    /**
+     * Strokes a circle with a {@link Stroke}, centred on it, starting at its rightmost point and
+     * going clockwise.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawCircle(float cx, float cy, float radius, Stroke stroke, Paint paint) {
+        if (radius <= 0) {
+            return;
+        }
+        drawPath(new Path2D().addCircle(cx, cy, radius), stroke, paint);
+    }
+
+    /**
+     * Strokes an ellipse with a {@link Stroke}, centred on it, starting at its rightmost point and
+     * going clockwise.
+     *
+     * @see #drawPath(Path2D, Stroke, Paint)
+     */
+    default void drawEllipse(float cx, float cy, float radiusX, float radiusY, Stroke stroke, Paint paint) {
+        if (radiusX <= 0 || radiusY <= 0) {
+            return;
+        }
+        drawPath(new Path2D().addEllipse(cx, cy, radiusX, radiusY), stroke, paint);
+    }
+
+    /**
+     * How closely a stroke's outline follows curves for this canvas: a quarter of a device pixel,
+     * from the content scale and the current transform's area scale where the canvas answers one.
+     */
+    private float strokeTolerance() {
+        double scale = contentScale();
+        Affine2D t = transform();
+        if (t != null) {
+            scale *= Math.sqrt(Math.abs(t.determinant()));
+        }
+        if (!(scale > 0) || Double.isInfinite(scale)) {
+            return Stroke.DEFAULT_TOLERANCE;
+        }
+        return (float) Math.max(1e-4, 0.25 / scale);
+    }
 
     // ------------------------------------------------------------------ text
 
@@ -651,8 +837,9 @@ public interface Canvas {
      * value draws the right characters by the slower route rather than the wrong glyphs from
      * whichever face inherited the id.
      *
-     * <p>The whole run draws in one {@link Paint}. Text that changes colour partway is two runs
-     * today, and two runs shape independently.
+     * <p>The whole run draws in one {@link Paint}; {@link #drawText(ShapedText, int, int, float,
+     * float, Paint)} draws part of it, which is how a colour changed partway through a word keeps
+     * the word's shaping.
      *
      * <p>Default, not abstract, for two reasons that point the same way. {@code Canvas} is a
      * published interface, and an abstract method added to one breaks every implementation that
@@ -662,6 +849,77 @@ public interface Canvas {
      */
     default void drawText(ShapedText text, float x, float y, Paint paint) {
         drawText(text.text(), x, y, text.font(), paint);
+    }
+
+    /**
+     * Draws the glyphs of {@code text} whose clusters start in {@code [charStart, charEnd)}, each
+     * where {@link #drawText(ShapedText, float, float, Paint)} would draw it: one shaping painted in
+     * several paints, so a colour changed in the middle of a word leaves the word's glyphs exactly
+     * as they are without the change. A glyph belongs to the char its cluster starts at, so a
+     * ligature spanning the boundary takes the paint of its first character.
+     *
+     * <p>Default, for a canvas outside this repository: the whole line drawn once per box of the
+     * range's {@linkplain ShapedText#selection selection}, clipped to the box. That cuts a glyph
+     * that leans over the boundary (an italic) where a canvas that draws by glyph keeps it whole,
+     * which this repository's canvases do.
+     *
+     * @param text      the shaped line
+     * @param charStart the first char of the range, inclusive
+     * @param charEnd   the end of the range, exclusive
+     * @param x         the line's left edge, as for the whole line
+     * @param y         the line's baseline
+     * @param paint     what the range is drawn in
+     */
+    default void drawText(ShapedText text, int charStart, int charEnd, float x, float y, Paint paint) {
+        int length = text.text().length();
+        int start = Math.max(0, charStart);
+        int end = Math.min(length, charEnd);
+        if (start >= end) {
+            return;
+        }
+        if (start == 0 && end == length) {
+            drawText(text, x, y, paint);
+            return;
+        }
+        float reach = Math.max(text.font().size(), text.metrics().lineHeight()) * 2;
+        for (ShapedText.Span span : text.selection(start, end)) {
+            save();
+            clipRect(x + span.x0(), y - reach, span.width(), reach * 2);
+            drawText(text, x, y, paint);
+            restore();
+        }
+    }
+
+    /**
+     * Draws styled text laid out beforehand, with {@code (x, y)} at the top-left corner of its box:
+     * the width limit it was laid out at, or its widest line without one, which its paragraphs are
+     * aligned in. Every ink is asked for its paint now, a {@code Tone} in the application's palette.
+     * The form to hold when the text is drawn every frame, or when its size places what is around it.
+     *
+     * @param layout the laid-out text
+     * @param x      the box's left edge
+     * @param y      the box's top edge
+     */
+    default void drawText(StyledLayout layout, float x, float y) {
+        layout.paint(this, x, y, layout.boxWidth());
+    }
+
+    /**
+     * Lays styled text out and draws it, with {@code (x, y)} at the top-left corner of its box: a
+     * paragraph per line where {@code maxWidth} is {@link StyledLayout#UNBOUNDED}, broken to fit
+     * it otherwise and aligned in it. Shaped by the installed ruler, {@link TextRulers#get()}, and
+     * again on every call; a widget, or text drawn every frame, holds a {@link StyledLayout} instead.
+     *
+     * @param text     the text
+     * @param x        the box's left edge
+     * @param y        the box's top edge
+     * @param maxWidth the width lines break at, in logical points
+     * @param font     the font a piece that sets none of its own is drawn in
+     * @param ink      the ink a piece that sets none of its own is drawn in
+     * @throws IllegalArgumentException when {@code maxWidth} is negative or not a number
+     */
+    default void drawText(StyledText text, float x, float y, float maxWidth, Font font, Ink ink) {
+        drawText(StyledLayout.builder(text, font, ink).maxWidth(maxWidth).build(), x, y);
     }
 
     /**
@@ -685,6 +943,15 @@ public interface Canvas {
      * frame just ended drew is dropped.
      */
     void drawImage(Image image, float x, float y, float w, float h);
+
+    /**
+     * Draws a {@link Picture} in current coordinates, its origin at theirs: every call it recorded,
+     * replayed here, under this canvas's transform, clip, opacity and blend mode as they stand. The
+     * canvas's state is the same after it as before.
+     */
+    default void drawPicture(Picture picture) {
+        picture.draw(this);
+    }
 
     /** Draws {@code image} at its natural pixel size (1 pixel = 1 logical point). */
     default void drawImage(Image image, float x, float y) {

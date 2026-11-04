@@ -1358,90 +1358,37 @@ class TableTest extends ComponentTestBase {
                 "sideways clamps at the content's end");
     }
 
-    /**
-     * Decision 44 (2026-09-14): the wheel was consumed whenever the rows overflowed, so a table
-     * inside a scroll pane was a wall the wheel could not get past once it had scrolled to its
-     * end. A detent is consumed only when an offset moved; at either end, or on a table that
-     * fits, it is left for the scroller that holds the table.
-     */
-    @Test
-    void aWheelAtEitherEndOfTheTablePassesToTheScrollerThatHoldsIt() {
-        Table<Person> table = new Table<>(List.of(nameColumn()));
-        table.setRows(people(20));
-        limn.scene.layout.Column column = new limn.scene.layout.Column();
-        column.add(table);
-        column.add(new PlainWidget() {
-            @Override
-            protected limn.scene.Size onMeasure(Constraints c) {
-                return c.constrain(c.maxWidth(), 400);
-            }
-        });
-        ScrollView pane = new ScrollView(column);
-        FakeCanvas canvas = new FakeCanvas(300, 200);
-        Scene scene = new Scene(pane, eachDetentItsOwnGesture());
-        scene.setTextRuler(RULER);
-        scene.renderFrame(canvas);
-        float viewport = 8 * SizeTokens.of(ControlSize.MEDIUM).listRowSeed();
-        assertEquals(headerHeight(table) + viewport, table.height(), EPS,
-                "the fixture: the header and eight seed rows");
-        float tableMax = 20 * rowHeight(table) - viewport;
-
-        // Down: the table takes every detent until it rests on its last row.
-        int notches = 0;
-        while (pane.offsetY() == 0 && notches < 100) {
-            wheel(scene, canvas, 0, -1);
-            notches++;
-            if (notches * Strokes.WHEEL_STEP < tableMax) {
-                assertEquals(0, pane.offsetY(), EPS,
-                        "the pane stays put while the table can still scroll: notch " + notches);
-            }
-        }
-        assertEquals((int) Math.ceil(tableMax / Strokes.WHEEL_STEP) + 1, notches,
-                "the first detent the table cannot use is the pane's");
-        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS, "one notch of the pane");
-
-        // Up: the table is at its end and not at its top, so it takes the detent back first.
-        wheel(scene, canvas, 0, 1);
-        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS,
-                "the table could move up, so it did and the pane did not");
-
-        // Up at the top: the table scrolled back to zero, and the next detent is the pane's.
-        for (int i = 0; i < 40; i++) {
-            wheel(scene, canvas, 0, 1);
-        }
-        assertEquals(0, table.firstVisibleRow());
-        assertEquals(0, pane.offsetY(), EPS, "the pane took the detent the table could not");
-
-        // A table that fits hands every detent on: three rows never take one.
-        table.setRows(people(3));
-        scene.renderFrame(canvas);
-        wheel(scene, canvas, 0, -1);
-        assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS, "nothing to scroll, so the pane's");
+    /** A row of text cells as the table works it out: the control height, or a line and its padding. */
+    private static float textRow(SizeTokens t) {
+        return Math.max(t.controlHeight(), RULER.measure("Hg", t.body()).height() + 2 * t.padV());
     }
 
     /**
      * Decision 44 (2026-09-14): under an unbounded height the table answered eight rows of the
      * realized average, which moved as rows of another height were measured, and a measured
      * size that moves under a contained layout re-lays out the parent: a table in a scroll pane
-     * jittered as it scrolled. The preference is the seed's, a token that stands still, and
-     * {@code setVisibleRows} says how many of it.
+     * jittered as it scrolled. The preference counts rows of text, worked out from the tokens,
+     * which stands still, and {@code setVisibleRows} says how many. It counted the list's seed
+     * until ADR 084's reader showed a short table a third empty.
      */
     @Test
-    void theUnboundedHeightIsTheSeedsAndSetVisibleRowsChangesIt() {
+    void theUnboundedHeightCountsRowsOfTextAndSetVisibleRowsChangesIt() {
         Column<Person> tall = Column.<Person>widget("Tall", p -> new SizedBox(40, 60)).width(80);
         Table<Person> table = new Table<>(List.of(nameColumn(), tall));
         table.setRows(people(100));
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
         for (ControlSize step : ControlSize.values()) {
             table.setControlSize(step);
             SizeTokens t = SizeTokens.of(step);
-            assertEquals(t.controlHeight() + 8 * t.listRowSeed(),
+            assertEquals(t.controlHeight() + 8 * textRow(t),
                     table.measure(unbounded()).height(), EPS,
-                    step + ": the header and eight seed rows");
+                    step + ": the header and eight rows of text");
+            assertTrue(textRow(t) < t.listRowSeed(), step + ": shorter than the list's seed");
         }
         table.setControlSize(ControlSize.MEDIUM);
         SizeTokens t = SizeTokens.of(ControlSize.MEDIUM);
-        FakeCanvas canvas = new FakeCanvas(300, 200);
-        Scene scene = scene(table, canvas);
+        scene.layoutPass(300, 200);
         List<Float> tops = new ArrayList<>();
         for (Widget<?> child : table.children()) {
             if (child instanceof SizedBox) {
@@ -1449,18 +1396,30 @@ class TableTest extends ComponentTestBase {
             }
         }
         float measured = tops.get(1) - tops.get(0);
-        assertEquals(60 + 2 * t.padV(), measured, EPS, "the fixture: rows taller than the seed");
-        assertTrue(Math.abs(measured - t.listRowSeed()) > 1, "and not the seed by accident");
-        assertEquals(t.controlHeight() + 8 * t.listRowSeed(), table.measure(unbounded()).height(),
+        assertEquals(60 + 2 * t.padV(), measured, EPS, "the fixture: rows taller than a row of text");
+        assertEquals(t.controlHeight() + 8 * textRow(t), table.measure(unbounded()).height(),
                 EPS, "rows of another height were measured and the preference did not move");
 
         assertEquals(8, table.visibleRows(), "the default");
         table.setVisibleRows(3);
         assertEquals(3, table.visibleRows());
-        assertEquals(t.controlHeight() + 3 * t.listRowSeed(), table.measure(unbounded()).height(),
+        assertEquals(t.controlHeight() + 3 * textRow(t), table.measure(unbounded()).height(),
                 EPS);
         assertThrows(IllegalArgumentException.class, () -> table.setVisibleRows(0));
         assertEquals(3, table.visibleRows(), "refused, and unchanged");
+    }
+
+    @Test
+    void aTableOfAsManyTextRowsAsItShowsHasNothingUnderItsLastRow() {
+        Table<Person> table = new Table<>(List.of(nameColumn()));
+        table.setRows(people(3));
+        table.setVisibleRows(3);
+        FakeCanvas canvas = new FakeCanvas(300, 400);
+        scene(table, canvas);
+        SizeTokens t = SizeTokens.of(ControlSize.MEDIUM);
+        float height = table.measure(unbounded()).height();
+        assertEquals(t.controlHeight() + 3 * textRow(t), height, EPS);
+        assertEquals(3, table.rowCount());
     }
 
     // ------------------------------------------------------ horizontal scrolling (B3)

@@ -28,6 +28,7 @@ of this guide that says the rest.
 | `new Button(parent, SWT.PUSH)` | `new Button("…")`, added to its container |
 | `SWT.CHECK`, `SWT.RADIO`, `SWT.TOGGLE` | `Checkbox`, `RadioButton`, `Checkbox.Variant.SWITCH` |
 | `Label`, `Text`, `Text` with `SWT.PASSWORD`, `SWT.MULTI` | `Label`, `TextField`, `PasswordField`, `TextArea` |
+| a read-only `StyledText` with `StyleRange`s | `Label.setText(StyledText)`, built from styled pieces |
 | `Combo`, `CCombo` | `ComboBox`, editable or not |
 | `List`, `Table`, `Tree` | `ListView`, `Table`, `Tree` |
 | JFace `TableViewer`, `TreeViewer` and their providers | `Table` with a column per value, `Tree` with a `Tree.Model` |
@@ -388,8 +389,10 @@ to know before you plan a migration than in the middle of one.
 - **No mixing.** Limn does not host SWT controls, and a Limn scene cannot be put inside a
   `Shell`. Running both toolkits in one process is not something Limn supports or tests, so a
   migration moves an application, or a separate program of it, at a time.
-- **No browser and no styled text.** There is no `Browser` widget; `window.launcher()` opens a
-  page in the user's own. There is no `StyledText`: a `Label` wraps and a `TextArea` edits
-  plain text.
+- **No browser, and styled text only to show.** There is no `Browser` widget;
+  `window.launcher()` opens a page in the user's own. A `Label` shows styled text
+  (`Label.setText(StyledText)`: weights, colours, lines, raised text, aligned and indented
+  paragraphs, lists), which covers what a read-only `StyledText` shows; there is no editable
+  styled text, and a `TextArea` edits plain text.
 - **No form attachments.** There is no `FormLayout`; a layout of your own is a widget that places
   its children ([Your own widgets](/docs/custom-widgets/#a-layout-of-your-own)).

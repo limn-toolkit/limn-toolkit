@@ -4,12 +4,14 @@
 // PORTABILITY RULE (ADR 001): GLSL ES 3.00-compatible subset only.
 
 layout(location = 0) in vec2 a_pos;   // device px, y-down, origin top-left
-layout(location = 1) in vec4 a_color; // straight alpha, opacity already applied
+layout(location = 1) in vec4 a_color; // premultiplied, opacity already applied
 
 uniform vec2 u_viewport; // the target's size in device px: the window, or a layer
 uniform vec2 u_origin;   // the target's top-left in the window's device px; see canvas.vert
 
-flat out vec4 v_color;
+// Interpolated: a solid rectangle's corners are alike, and a linear gradient's colour is linear
+// in position wherever its two stops' ramp holds, so its corners' colours give every pixel's.
+out vec4 v_color;
 
 void main() {
     vec2 ndc = (a_pos - u_origin) / u_viewport * 2.0 - 1.0;

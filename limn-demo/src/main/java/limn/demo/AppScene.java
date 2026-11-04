@@ -238,7 +238,7 @@ final class AppScene {
                         .keywords("Chart, BarChart, bar chart, LineChart, line chart, PieChart, pie, donut, graph, dashboard, legend"),
                 new Place(ShowcaseStrings.NAV_TEXT, "docs/text-and-languages/",
                         () -> scrolling(BidiScene.tabContent())).icon("language")
-                        .keywords("Label, text, bidi, right to left, RTL, Arabic, Hebrew, CJK, Japanese, Chinese, Korean, font, typography, bold, italic, script"),
+                        .keywords("Label, text, bidi, right to left, RTL, Arabic, Hebrew, CJK, Japanese, Chinese, Korean, font, typography, bold, italic, script, StyledText, styled text, rich text, TextStyle, ParagraphStyle, underline, strikethrough, superscript, subscript, highlight, list"),
                 new Place(ShowcaseStrings.NAV_ICONS, "docs/images-and-media/#icons",
                         () -> beside(IconsScene.content())).icon("icons")
                         .keywords("Icon, Tabler, SvgIcon, SVG, BitmapIcon, glyph"),
@@ -275,7 +275,10 @@ final class AppScene {
                         .keywords("ImageView, image, picture, sprite, GIF, PNG, WebP, animated image, blend, pixel art"),
                 new Place(ShowcaseStrings.NAV_GLASS, "docs/theming/#glass",
                         () -> scrolling(GlassScene.content())).icon("blur")
-                        .keywords("BackdropPanel, backdrop, glass, blur, frosted, translucent, tint")).icon("movie");
+                        .keywords("BackdropPanel, backdrop, glass, blur, frosted, translucent, tint"),
+                new Place(ShowcaseStrings.NAV_DRAWING, "docs/custom-widgets/#measuring-and-painting",
+                        () -> scrolling(DrawingScene.content())).icon("vector-bezier")
+                        .keywords("Canvas, drawing, Graphics2D, Path2D, path, SVG path, fill rule, even-odd, non-zero, Stroke, stroke, dash, dashed, cap, join, miter, Affine2D, transform, shear, rotate, hit test, clip, clipPath, mask, eraser, BlendMode, blend mode, Porter-Duff, screen, darken, lighten, XOR, Gradient, gradient, stops, radial, focus, sweep, conic, repeat, reflect, ImagePaint, pattern, texture, text outline, glyph outline, Picture, record, replay, Images.render, off screen, thumbnail, StyledLayout, styled text")).icon("movie");
         return List.of(orders, components, media);
     }
 

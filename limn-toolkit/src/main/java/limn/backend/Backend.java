@@ -55,6 +55,15 @@ public sealed interface Backend extends AutoCloseable permits BackendPeer {
     NativeWindow createWindow(WindowConfig config);
 
     /**
+     * Whether {@link #createWindow} can open a window: false for a backend that started without a
+     * display, a server's or a service's, which draws pictures and documents and opens no window.
+     * Default: true.
+     */
+    default boolean canOpenWindows() {
+        return true;
+    }
+
+    /**
      * Runs the event/render loop on the calling (UI) thread. Returns when the
      * last window closes (under {@link LoopLifetime#UNTIL_LAST_WINDOW}), when a
      * {@link #requestQuit()} was agreed to and every window has closed, or when
