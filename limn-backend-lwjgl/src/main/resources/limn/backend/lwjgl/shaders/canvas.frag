@@ -195,20 +195,30 @@ vec4 gradientAt() {
     int row = int(v_colorA.x + 0.5);
     int n = int(texelFetch(u_stops, ivec2(0, row), 0).x + 0.5);
     float p0 = texelFetch(u_stops, ivec2(1, row), 0).x;
-    vec4 c0 = texelFetch(u_stops, ivec2(2, row), 0);
-    if (t <= p0) {
-        return c0 * v_colorA.w;
+    if (t <= p0 || n < 2) {
+        return texelFetch(u_stops, ivec2(2, row), 0) * v_colorA.w;
     }
-    for (int i = 1; i < n; i++) {
-        float p1 = texelFetch(u_stops, ivec2(1 + 2 * i, row), 0).x;
-        vec4 c1 = texelFetch(u_stops, ivec2(2 + 2 * i, row), 0);
-        if (t <= p1) {
-            return mix(c0, c1, p1 > p0 ? (t - p0) / (p1 - p0) : 1.0) * v_colorA.w;
+    // The first stop at or past t, found by halving: a scale of 256 stops read eight positions a
+    // pixel where walking them read up to 512 texels. Of stops at one position, the first, as the
+    // walk found it, so that two stops at one position stay a hard edge.
+    int lo = 1;
+    int hi = n - 1;
+    while (lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (t <= texelFetch(u_stops, ivec2(1 + 2 * mid, row), 0).x) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
         }
-        p0 = p1;
-        c0 = c1;
     }
-    return c0 * v_colorA.w;
+    float p1 = texelFetch(u_stops, ivec2(1 + 2 * lo, row), 0).x;
+    vec4 c1 = texelFetch(u_stops, ivec2(2 + 2 * lo, row), 0);
+    if (t > p1) {
+        return c1 * v_colorA.w; // past the last stop
+    }
+    float pa = texelFetch(u_stops, ivec2(1 + 2 * (lo - 1), row), 0).x;
+    vec4 ca = texelFetch(u_stops, ivec2(2 + 2 * (lo - 1), row), 0);
+    return mix(ca, c1, p1 > pa ? (t - pa) / (p1 - pa) : 1.0) * v_colorA.w;
 }
 
 // An ImagePaint's colour at the fragment, premultiplied: the picture at the local point mapped to
@@ -566,6 +576,14 @@ void main() {
     float coverage = clipCoverage;
 #ifdef LIMN_SHAPES
     if (kind < 1.5) {
+        if (kind < 0.5 && v_radii.x < 0.0) {
+            // A mitred frame, a rectangle's stroke with square corners outside as well as in (a
+            // radius below 0 says so): the outer rectangle less the inner, as a page strokes it.
+            float frame = max(sdRoundRect(v_local, v_halfSize + strokeHW, vec4(0.0)),
+                              -sdRoundRect(v_local, max(v_halfSize - strokeHW, vec2(0.0)), vec4(0.0)));
+            float aaFrame = fwidth(frame) * 0.5 + 1e-4;
+            coverage *= 1.0 - smoothstep(-aaFrame, aaFrame, frame);
+        } else {
         float d = (kind < 0.5) ? sdRoundRect(v_local, v_halfSize, v_radii)
                                : sdEllipse(v_local, v_halfSize);
         // AA width from the raw SDF gradient, BEFORE the stroke fold: fwidth
@@ -576,6 +594,7 @@ void main() {
             d = abs(d) - strokeHW;
         }
         coverage *= 1.0 - smoothstep(-aa, aa, d);
+        }
     } else
 #endif
 #ifdef LIMN_GLYPHS

@@ -235,63 +235,111 @@ public final class ParagraphStyle {
                 spaceAfter, lineSpacing, list, level, number, direction, style);
     }
 
-    /** @return the alignment set, or {@code null} for the base's */
-    @Nullable Alignment alignmentOrNull() {
+    /**
+     * The alignment this style sets.
+     *
+     * @return the alignment, or {@code null} for the one the text is drawn with
+     */
+    public @Nullable Alignment alignment() {
         return alignment;
     }
 
-    /** @return the start indent, in logical points */
-    float startIndent() {
+    /**
+     * The room before every line, on the side the paragraph's lines start.
+     *
+     * @return the indent in logical points
+     */
+    public float startIndent() {
         return startIndent;
     }
 
-    /** @return the end indent, in logical points */
-    float endIndent() {
+    /**
+     * The room after every line, on the side the paragraph's lines end.
+     *
+     * @return the indent in logical points
+     */
+    public float endIndent() {
         return endIndent;
     }
 
-    /** @return the first line's extra indent, in logical points */
-    float firstLineIndent() {
+    /**
+     * The first line's indent, on top of {@link #startIndent()}.
+     *
+     * @return the indent in logical points
+     */
+    public float firstLineIndent() {
         return firstLineIndent;
     }
 
-    /** @return the room above, in logical points */
-    float spaceBefore() {
+    /**
+     * The room above the paragraph.
+     *
+     * @return the room in logical points
+     */
+    public float spaceBefore() {
         return spaceBefore;
     }
 
-    /** @return the room below, in logical points */
-    float spaceAfter() {
+    /**
+     * The room below the paragraph.
+     *
+     * @return the room in logical points
+     */
+    public float spaceAfter() {
         return spaceAfter;
     }
 
-    /** @return the line spacing factor; 1 when not set */
-    float lineSpacingFactor() {
+    /**
+     * The factor the paragraph's line height is multiplied by.
+     *
+     * @return the factor; 1 where none is set
+     */
+    public float lineSpacing() {
         return Float.isNaN(lineSpacing) ? 1 : lineSpacing;
     }
 
-    /** @return the list marker, or {@code null} for a paragraph in no list */
-    @Nullable ListMarker listOrNull() {
+    /**
+     * The list the paragraph is an item of.
+     *
+     * @return the marker, or {@code null} for a paragraph in no list
+     */
+    public @Nullable ListMarker list() {
         return list;
     }
 
-    /** @return the list level, 0 the outermost */
-    int level() {
+    /**
+     * How deep in its list the paragraph is.
+     *
+     * @return the level, 0 the outermost
+     */
+    public int level() {
         return level;
     }
 
-    /** @return the item's own number, or 0 where it is counted */
-    int listNumber() {
+    /**
+     * The item's own number.
+     *
+     * @return the number, or 0 where it is counted from the items before it
+     */
+    public int listNumber() {
         return number;
     }
 
-    /** @return the direction set, or {@code null} where it is detected */
-    ShapedText.@Nullable Direction directionOrNull() {
+    /**
+     * The direction this style sets.
+     *
+     * @return the direction, or {@code null} where it is found from the paragraph's text
+     */
+    public ShapedText.@Nullable Direction direction() {
         return direction;
     }
 
-    /** @return the style the paragraph's text inherits */
-    TextStyle textStyle() {
+    /**
+     * The style the paragraph's text inherits, under its pieces' own.
+     *
+     * @return the style
+     */
+    public TextStyle textStyle() {
         return text;
     }
 
@@ -335,7 +383,7 @@ public final class ParagraphStyle {
     public String toString() {
         return "ParagraphStyle[alignment=" + alignment + ", indent=" + startIndent + "/" + endIndent
                 + ", firstLine=" + firstLineIndent + ", space=" + spaceBefore + "/" + spaceAfter
-                + ", lineSpacing=" + lineSpacingFactor() + ", list=" + list + "@" + level
+                + ", lineSpacing=" + lineSpacing() + ", list=" + list + "@" + level
                 + (number > 0 ? " #" + number : "") + ", direction=" + direction + ", text=" + text + "]";
     }
 }

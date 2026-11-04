@@ -37,7 +37,36 @@ final class GradientRamps implements AutoCloseable {
     static final int WIDTH = 1 + 2 * Gradient.MAX_STOPS;
 
     private int texture;
-    private final Map<Gradient, Integer> rows = new HashMap<>();
+    /**
+     * The rows, by what they hold: a gradient's stops, whatever its geometry, so that a bar per row
+     * of a table, each its own height, takes one row and not one each.
+     */
+    private final Map<Stops, Integer> rows = new HashMap<>();
+    /**
+     * The rows by gradient, for the next primitive drawn with the same one: no hash to make, and no
+     * copy of its stops. Let go of past {@link #MAX_SEEN}, a frame that makes a gradient per draw
+     * holding none of them for long.
+     */
+    private final Map<Gradient, Integer> seen = new java.util.IdentityHashMap<>();
+    private static final int MAX_SEEN = 1024;
+
+    /** A gradient's stops, compared by value. */
+    private record Stops(float[] positions, List<Color> colors, int hash) {
+        Stops(float[] positions, List<Color> colors) {
+            this(positions, colors, 31 * java.util.Arrays.hashCode(positions) + colors.hashCode());
+        }
+
+        @Override
+        public boolean equals(@org.jspecify.annotations.Nullable Object o) {
+            return o instanceof Stops other && hash == other.hash && java.util.Arrays.equals(positions, other.positions)
+                    && colors.equals(other.colors);
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
+    }
     private ByteBuffer upload;
 
     /** @return the texture, made on first use */
@@ -61,16 +90,25 @@ final class GradientRamps implements AutoCloseable {
      *         {@link #reset()}, and asks again
      */
     int rowFor(Gradient gradient) {
-        Integer row = rows.get(gradient);
+        Integer known = seen.get(gradient);
+        if (known != null) {
+            return known;
+        }
+        if (seen.size() >= MAX_SEEN) {
+            seen.clear();
+        }
+        float[] positions = gradient.positions();
+        List<Color> colors = gradient.colors();
+        Stops stops = new Stops(positions, colors);
+        Integer row = rows.get(stops);
         if (row != null) {
+            seen.put(gradient, row);
             return row;
         }
         if (rows.size() == ROWS) {
             return -1;
         }
         int at = rows.size();
-        float[] positions = gradient.positions();
-        List<Color> colors = gradient.colors();
         int texels = 1 + 2 * positions.length;
         if (upload == null) {
             upload = MemoryUtil.memAlloc(WIDTH * 4 * Float.BYTES);
@@ -88,19 +126,27 @@ final class GradientRamps implements AutoCloseable {
         Gl.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
         Gl.glTexSubImage2D(GL_TEXTURE_2D, 0, 0, at, texels, 1, GL_RGBA, GL_FLOAT, upload);
         Gl.glActiveTexture(GL_TEXTURE0);
-        rows.put(gradient, at);
+        rows.put(stops, at);
+        seen.put(gradient, at);
         return at;
+    }
+
+    /** @return how many rows hold stops now; for tests */
+    int rowsTaken() {
+        return rows.size();
     }
 
     /** Frees every row, for a canvas that has drawn everything that read them. */
     void reset() {
         rows.clear();
+        seen.clear();
     }
 
     /** Forgets the texture without a GL call, the context it lived in being gone. */
     void contextLost() {
         texture = 0;
         rows.clear();
+        seen.clear();
     }
 
     @Override
@@ -110,6 +156,7 @@ final class GradientRamps implements AutoCloseable {
             texture = 0;
         }
         rows.clear();
+        seen.clear();
         if (upload != null) {
             MemoryUtil.memFree(upload);
             upload = null;

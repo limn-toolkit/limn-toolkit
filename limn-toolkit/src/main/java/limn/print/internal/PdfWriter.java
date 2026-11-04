@@ -56,6 +56,14 @@ public final class PdfWriter {
     private final Map<Image, Map<Color, String>> tinted = new IdentityHashMap<>();
     private final Map<Image, Map<Color, String>> masks = new IdentityHashMap<>();
     private final Map<Paint, String> shadings = new HashMap<>();
+    /*
+     * A Gradient's shading, its pattern and its alpha's soft mask, each written once for what it
+     * holds: every primitive painted with a gradient wrote all three anew, and a repeated one's
+     * shading spans the whole page, so a hundred striped chips wrote a hundred page-wide shadings.
+     */
+    private final Map<List<Object>, Integer> gradientShadings = new HashMap<>();
+    private final Map<List<Object>, String> gradientPatterns = new HashMap<>();
+    private final Map<List<Object>, String> gradientMasks = new HashMap<>();
     private int counter;
 
     /**
@@ -188,7 +196,11 @@ public final class PdfWriter {
         boolean gray = space.equals("/DeviceGray");
         String c0 = gray ? Pdf.num(start.r()) : rgb(start);
         String c1 = gray ? Pdf.num(end.r()) : rgb(end);
-        String function = "<</FunctionType 2/Domain[0 1]/C0[" + c0 + "]/C1[" + c1 + "]/N 1>>";
+        // Colours run premultiplied, as on screen: a fade to a clear colour keeps the colour. The
+        // alpha mask is the grey one, linear as it is.
+        String function = gray || start.a() == end.a()
+                ? "<</FunctionType 2/Domain[0 1]/C0[" + c0 + "]/C1[" + c1 + "]/N 1>>"
+                : PdfGradients.twoColourFunction(start, end);
         String body;
         if (gradient instanceof LinearGradient l) {
             body = "<</ShadingType 2/ColorSpace" + space + "/Coords[" + Pdf.num(l.x0()) + " " + Pdf.num(l.y0())
@@ -227,9 +239,15 @@ public final class PdfWriter {
      */
     String gradientPattern(Gradient gradient, Affine2D matrix, double[] region) throws IOException {
         int shading = gradientShading(gradient, false, 1, region);
+        String placed = matrix(matrix);
+        List<Object> key = List.of(shading, placed);
+        String known = gradientPatterns.get(key);
+        if (known != null) {
+            return known;
+        }
         String name = "P" + (++counter);
-        resources.put(name, file.object("<</PatternType 2/Shading " + shading + " 0 R/Matrix[" + matrix(matrix)
-                + "]>>"));
+        resources.put(name, file.object("<</PatternType 2/Shading " + shading + " 0 R/Matrix[" + placed + "]>>"));
+        gradientPatterns.put(key, name);
         return name;
     }
 
@@ -242,6 +260,11 @@ public final class PdfWriter {
     String gradientMaskedState(Gradient gradient, float opacity, BlendMode blend, double[] region)
             throws IOException {
         int shading = gradientShading(gradient, true, opacity, region);
+        List<Object> key = List.of(shading, matrix(gradient.transform()), blendName(blend));
+        String known = gradientMasks.get(key);
+        if (known != null) {
+            return known;
+        }
         int group = file.stream("/Type/XObject/Subtype/Form/BBox[-100000 -100000 100000 100000]/Matrix["
                         + matrix(gradient.transform()) + "]/Group<</S/Transparency/CS/DeviceGray>>"
                         + "/Resources<</Shading<</Sh " + shading + " 0 R>>>>",
@@ -249,15 +272,22 @@ public final class PdfWriter {
         String name = "GS" + (++counter);
         resources.put(name, file.object("<</Type/ExtGState/BM" + blendName(blend) + "/SMask<</S/Luminosity/G "
                 + group + " 0 R>>>>"));
+        gradientMasks.put(key, name);
         return name;
     }
 
     private int gradientShading(Gradient gradient, boolean gray, float opacity, double[] region) throws IOException {
         PdfGradients.Shading shading = PdfGradients.shading(gradient, gray, opacity, region);
-        if (shading.mesh() == null) {
-            return file.object(shading.dictionary());
+        List<Object> key = List.of(shading.dictionary(),
+                shading.mesh() == null ? "" : java.nio.ByteBuffer.wrap(shading.mesh()));
+        Integer known = gradientShadings.get(key);
+        if (known != null) {
+            return known;
         }
-        return file.stream(shading.dictionary().substring(2), shading.mesh(), true);
+        int number = shading.mesh() == null ? file.object(shading.dictionary())
+                : file.stream(shading.dictionary().substring(2), shading.mesh(), true);
+        gradientShadings.put(key, number);
+        return number;
     }
 
     /**

@@ -181,15 +181,48 @@ class GlClipBlendTest {
 
     @Test
     void aPathClipCostsItsFillAndADrawAfterItCostsNothingMore() {
-        Path2D circle = new Path2D().addCircle(120, 80, 50);
+        Path2D triangle = new Path2D().moveTo(120, 20).lineTo(180, 140).lineTo(60, 140).close();
         render(PAGE, c -> {
             c.save();
-            c.clipPath(circle);
+            c.clipPath(triangle);
             c.fillRect(0, 0, W_PT, H_PT, INK);
             c.fillRect(10, 10, 50, 50, Color.rgb(0x00AA00));
             c.restore();
         });
-        assertEquals(2, canvas.drawCallsLastFrame(), "the circle's fill into the mask, then the frame's one draw");
+        assertEquals(2, canvas.drawCallsLastFrame(), "the triangle's fill into the mask, then the frame's one draw");
+    }
+
+    @Test
+    void aLoneCircleRectangleOrRoundedRectangleClipsWithNoMask() {
+        // The clip a rounded rectangle makes, with no mask drawn: one draw for the frame, where a
+        // mask costs a fill into it and a flush on each side of it.
+        for (Path2D shape : java.util.List.of(new Path2D().addCircle(120, 80, 50),
+                new Path2D().addRect(40, 30, 160, 100), new Path2D().addRoundRect(40, 30, 160, 100, 12))) {
+            byte[] byPath = render(PAGE, c -> {
+                c.save();
+                c.clipPath(shape);
+                c.fillRect(0, 0, W_PT, H_PT, INK);
+                c.restore();
+            });
+            assertEquals(1, canvas.drawCallsLastFrame(), shape.bounds() + ": the frame's one draw");
+            limn.graphics.RoundRect same = limn.backend.internal.PathShapes.shapeOf(shape);
+            byte[] byRoundRect = render(PAGE, c -> {
+                c.save();
+                c.clipRoundRect(same);
+                c.fillRect(0, 0, W_PT, H_PT, INK);
+                c.restore();
+            });
+            assertTrue(java.util.Arrays.equals(byRoundRect, byPath), shape.bounds() + ": the rounded rectangle's clip");
+        }
+        // Two shapes, a turn or a second rounded clip: the mask, as before.
+        Path2D two = new Path2D().addCircle(60, 80, 30).addCircle(180, 80, 30);
+        render(PAGE, c -> {
+            c.save();
+            c.clipPath(two);
+            c.fillRect(0, 0, W_PT, H_PT, INK);
+            c.restore();
+        });
+        assertEquals(2, canvas.drawCallsLastFrame(), "two circles: their fill into the mask, then the draw");
     }
 
     // ------------------------------------------------------------------ blend modes

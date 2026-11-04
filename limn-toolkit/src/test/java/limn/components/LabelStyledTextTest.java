@@ -142,6 +142,47 @@ class LabelStyledTextTest extends ComponentTestBase {
     }
 
     @Test
+    void aWrappingLabelMeasuredAtWidthAfterWidthShapesItsTextOnce() {
+        // A window being resized measures a wrapping label at a new width each frame: shaping does
+        // not depend on the width, so only the lines are broken again.
+        int[] shaped = {0};
+        limn.graphics.TextRuler counting = new limn.graphics.TextRuler() {
+            @Override
+            public limn.graphics.TextMetrics measure(String text, limn.graphics.Font font) {
+                return RULER.measure(text, font);
+            }
+
+            @Override
+            public ShapedText shape(String text, limn.graphics.Font font, ShapedText.Direction base) {
+                return RULER.shape(text, font, base);
+            }
+
+            @Override
+            public ShapedText shapeRun(String paragraph, int start, int end, limn.graphics.Font font,
+                                       ShapedText.Direction direction) {
+                shaped[0] += end - start;
+                return RULER.shapeRun(paragraph, start, end, font, direction);
+            }
+        };
+        StyledText text = StyledText.builder().append("aaa bbb ", TextStyle.of().bold())
+                .append("ccc ddd eee fff ggg hhh").build();
+        Label wrapped = new Label("").setText(text).setWrap(true);
+        new Scene(wrapped).setTextRuler(counting);
+        float previous = -1;
+        int once = -1;
+        for (float width = 60; width <= 200; width += 7) {
+            Size size = wrapped.measure(Constraints.loose(width, 500));
+            assertTrue(previous < 0 || size.height() <= previous, "fewer or as many lines as it widens");
+            previous = size.height();
+            if (once < 0) {
+                once = shaped[0];
+            }
+        }
+        assertTrue(once > 0, "the fixture shapes");
+        assertEquals(once, shaped[0], "each character shaped once over twenty widths");
+    }
+
+    @Test
     void wrapAndTheLineLimitBreakStyledTextAsTheyBreakPlainText() {
         Label wrapped = new Label("").setText(StyledText.of("aaa bbb ccc")).setWrap(true);
         new Scene(wrapped).setTextRuler(RULER);

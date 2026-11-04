@@ -208,6 +208,7 @@ public final class StyledLayout {
     private static final float MAX_LINE_HEIGHT = 1e6f;
 
     private final Base base;
+    private final Shaped shaped;
     private final List<ParagraphLayout> paragraphs;
     private final float width;
     private final float boxWidth;
@@ -216,9 +217,10 @@ public final class StyledLayout {
     private final boolean truncated;
     private final long epoch;
 
-    private StyledLayout(Base base, List<ParagraphLayout> paragraphs, float width, float boxWidth,
+    private StyledLayout(Shaped shaped, List<ParagraphLayout> paragraphs, float width, float boxWidth,
                          float height, int lineCount, boolean truncated, long epoch) {
-        this.base = base;
+        this.base = shaped.base;
+        this.shaped = shaped;
         this.paragraphs = paragraphs;
         this.width = width;
         this.boxWidth = boxWidth;
@@ -254,21 +256,28 @@ public final class StyledLayout {
         if (Float.isNaN(maxWidth) || maxWidth < 0) {
             throw new IllegalArgumentException("maxWidth must be 0 or more, or UNBOUNDED: " + maxWidth);
         }
+        return laidOut(new Shaped(text.paragraphs(), base, ruler), maxWidth, maxLines, ellipsis, ruler);
+    }
+
+    /**
+     * Breaks the lines of {@code shaped}'s paragraphs at {@code maxWidth}: the shaping done once
+     * for the text, the breaking for each width.
+     */
+    private static StyledLayout laidOut(Shaped shaped, float maxWidth, int maxLines, boolean ellipsis,
+                                        TextRuler ruler) {
         float limit = maxWidth;
-        List<StyledText.Paragraph> source = text.paragraphs();
-        float[] markerRoom = markerRoom(source, base, ruler);
-        Map<TextStyle, FontChoice> choices = new HashMap<>();
-        List<ParagraphLayout> laid = new ArrayList<>(source.size());
+        int count = shaped.source.size();
+        List<ParagraphLayout> laid = new ArrayList<>(count);
         float y = 0;
         float widest = 0;
         int lines = 0;
         boolean cut = false;
-        for (int i = 0; i < source.size() && lines < maxLines; i++) {
-            ParagraphLayout paragraph = new ParagraphLayout(source.get(i), base, ruler, markerRoom[i], choices);
+        for (int i = 0; i < count && lines < maxLines; i++) {
+            ParagraphLayout paragraph = new ParagraphLayout(shaped.paragraph(i, ruler));
             if (i > 0) {
                 y += paragraph.style.spaceBefore();
             }
-            boolean moreAfter = i < source.size() - 1;
+            boolean moreAfter = i < count - 1;
             y = paragraph.breakLines(limit, maxLines - lines, moreAfter, ellipsis, y, ruler);
             lines += paragraph.lines.size();
             widest = Math.max(widest, paragraph.naturalWidth());
@@ -280,8 +289,65 @@ public final class StyledLayout {
                 cut = true;
             }
         }
-        return new StyledLayout(base, List.copyOf(laid), widest, maxWidth == UNBOUNDED ? widest : maxWidth, y,
-                lines, cut, ruler.epoch());
+        return new StyledLayout(shaped, List.copyOf(laid), widest, maxWidth == UNBOUNDED ? widest : maxWidth, y,
+                lines, cut, shaped.epoch);
+    }
+
+    /**
+     * The same text laid out again at another width or line limit, with the shaping this layout
+     * already did: only the lines are broken again. Shaping, which does not depend on the width,
+     * is most of a layout's cost, so a widget whose width changes, a label in a window being
+     * resized, lays out with this. A ruler that has moved since ({@link #isCurrent}) shapes anew.
+     *
+     * @param maxWidth the width lines break at, in logical points; {@link #UNBOUNDED} breaks none
+     * @param maxLines the most lines, 1 or more; {@code Integer.MAX_VALUE} for no limit
+     * @param ellipsis whether a cut last line ends with an ellipsis
+     * @param ruler    the ruler that shapes it
+     * @return the layout
+     * @throws IllegalArgumentException when {@code maxLines} is below 1, or {@code maxWidth} is
+     *                                  negative or not a number
+     */
+    public StyledLayout relaid(float maxWidth, int maxLines, boolean ellipsis, TextRuler ruler) {
+        Objects.requireNonNull(ruler, "ruler");
+        if (maxLines < 1) {
+            throw new IllegalArgumentException("maxLines must be 1 or more: " + maxLines);
+        }
+        if (Float.isNaN(maxWidth) || maxWidth < 0) {
+            throw new IllegalArgumentException("maxWidth must be 0 or more, or UNBOUNDED: " + maxWidth);
+        }
+        Shaped from = isCurrent(ruler) ? shaped : new Shaped(shaped.source, base, ruler);
+        return laidOut(from, maxWidth, maxLines, ellipsis, ruler);
+    }
+
+    /**
+     * A text's paragraphs shaped over one base, each the first time a layout reaches it: what every
+     * width it is laid out at shares. Held by every layout made from it.
+     */
+    private static final class Shaped {
+        final List<StyledText.Paragraph> source;
+        final Base base;
+        final long epoch;
+        private final float[] markerRoom;
+        private final Map<TextStyle, FontChoice> choices = new HashMap<>();
+        private final ParagraphLayout[] paragraphs;
+
+        Shaped(List<StyledText.Paragraph> source, Base base, TextRuler ruler) {
+            this.source = source;
+            this.base = base;
+            this.epoch = ruler.epoch();
+            this.markerRoom = markerRoom(source, base, ruler);
+            this.paragraphs = new ParagraphLayout[source.size()];
+        }
+
+        /** Paragraph {@code i} shaped, its lines not broken; shaped now if no layout reached it yet. */
+        synchronized ParagraphLayout paragraph(int i, TextRuler ruler) {
+            ParagraphLayout p = paragraphs[i];
+            if (p == null) {
+                p = new ParagraphLayout(source.get(i), base, ruler, markerRoom[i], choices);
+                paragraphs[i] = p;
+            }
+            return p;
+        }
     }
 
     /**
@@ -296,7 +362,7 @@ public final class StyledLayout {
         float need = 0;
         for (int i = 0; i <= source.size(); i++) {
             StyledText.Paragraph p = i < source.size() ? source.get(i) : null;
-            if (p == null || p.style().listOrNull() == null) {
+            if (p == null || p.style().list() == null) {
                 Arrays.fill(room, from, i, need);
                 from = i + 1;
                 need = 0;
@@ -335,8 +401,13 @@ public final class StyledLayout {
         return width;
     }
 
-    /** @return the box {@link Canvas#drawText(StyledLayout, float, float)} aligns the lines in: the width limit, or the widest line without one */
-    float boxWidth() {
+    /**
+     * @return the width of the box {@link Canvas#drawText(StyledLayout, float, float)} aligns the
+     *         lines in: the width limit the layout was made at, or the widest line when it had
+     *         none. What the {@code paint} overloads that take a box width are given to draw as
+     *         {@code drawText} draws.
+     */
+    public float boxWidth() {
         return boxWidth;
     }
 
@@ -548,23 +619,40 @@ public final class StyledLayout {
         final float listIndent;
         boolean ellipsized;
 
+        /** {@code shaped}'s paragraph again, its shaping shared and its lines yet to be broken. */
+        ParagraphLayout(ParagraphLayout shaped) {
+            this.source = shaped.source;
+            this.style = shaped.style;
+            this.text = shaped.text;
+            this.direction = shaped.direction;
+            this.font = shaped.font;
+            this.ink = shaped.ink;
+            this.alignment = shaped.alignment;
+            this.alignedByParagraph = shaped.alignedByParagraph;
+            this.baseRtl = shaped.baseRtl;
+            this.marker = shaped.marker;
+            this.drawnBullet = shaped.drawnBullet;
+            this.listIndent = shaped.listIndent;
+            this.shapings.addAll(shaped.shapings);
+        }
+
         ParagraphLayout(StyledText.Paragraph source, Base base, TextRuler ruler, float markerRoom,
                         Map<TextStyle, FontChoice> choices) {
             this.source = source;
             this.style = source.style();
             this.text = source.text();
-            this.direction = style.directionOrNull() != null ? style.directionOrNull()
+            this.direction = style.direction() != null ? style.direction()
                     : ShapedText.Direction.of(text, base.whenNeutral());
             TextStyle own = style.textStyle();
             this.font = own.fontOver(base.font());
-            this.ink = own.inkOrNull() != null ? own.inkOrNull() : base.ink();
-            this.alignment = style.alignmentOrNull() != null ? style.alignmentOrNull() : base.alignment();
-            this.alignedByParagraph = style.alignmentOrNull() != null;
+            this.ink = own.ink() != null ? own.ink() : base.ink();
+            this.alignment = style.alignment() != null ? style.alignment() : base.alignment();
+            this.alignedByParagraph = style.alignment() != null;
             this.baseRtl = base.whenNeutral() == ShapedText.Direction.RTL;
             String markerText = source.marker();
             this.drawnBullet = isDrawnBullet(markerText) ? markerText.charAt(0) : 0;
             this.marker = markerText == null || drawnBullet != 0 ? null : ruler.shape(markerText, font, direction);
-            this.listIndent = style.listOrNull() == null ? 0
+            this.listIndent = style.list() == null ? 0
                     : (style.level() + 1) * ParagraphStyle.LIST_INDENT_EMS * font.size() + markerRoom;
             shape(base, ruler, choices);
         }
@@ -807,7 +895,7 @@ public final class StyledLayout {
             float natural = ascent + descent + gap;
             // Bounded, so that a spacing and a size each allowed alone never make a line, and
             // every line after it, infinitely tall.
-            float height = Math.min(natural * style.lineSpacingFactor(), MAX_LINE_HEIGHT);
+            float height = Math.min(natural * style.lineSpacing(), MAX_LINE_HEIGHT);
             line.ascent = ascent;
             line.descent = descent;
             line.top = top;
@@ -907,7 +995,7 @@ public final class StyledLayout {
             if (line.ellipsis != null) {
                 float ex = rtl ? left : left + line.width - line.ellipsis.metrics().width();
                 TextStyle s = line.ellipsisStyle != null ? line.ellipsisStyle : style.textStyle();
-                Ink ellipsisInk = s.inkOrNull() != null ? s.inkOrNull() : ink;
+                Ink ellipsisInk = s.ink() != null ? s.ink() : ink;
                 canvas.drawText(line.ellipsis, ex, baseline - line.ellipsisRaise, resolve.apply(ellipsisInk));
             }
         }
@@ -1069,9 +1157,9 @@ public final class StyledLayout {
                 }
                 boolean whole = a == chunk.start() && b == chunk.end();
                 TextStyle look = run.style();
-                Ink textInk = look.inkOrNull() != null ? look.inkOrNull() : ink;
+                Ink textInk = look.ink() != null ? look.ink() : ink;
                 if (backgrounds) {
-                    Ink behind = look.backgroundOrNull();
+                    Ink behind = look.background();
                     if (behind != null) {
                         TextMetrics m = s.shaped.metrics();
                         Paint paint = resolveBackground.apply(behind);
@@ -1090,8 +1178,9 @@ public final class StyledLayout {
                 }
                 Paint paint = resolve.apply(textInk);
                 canvas.drawText(s.shaped, a - s.start, b - s.start, x, y, paint);
-                TextStyle.Underline underline = look.underlineKind();
-                boolean struck = look.isStruckThrough();
+                TextStyle.Underline underline =
+                        Objects.requireNonNullElse(look.underlineKind(), TextStyle.Underline.NONE);
+                boolean struck = Boolean.TRUE.equals(look.isStruckThrough());
                 if (underline == TextStyle.Underline.NONE && !struck) {
                     continue;
                 }
@@ -1108,12 +1197,12 @@ public final class StyledLayout {
                     float x0 = x + s.boxes[2 * k];
                     float x1 = x + s.boxes[2 * k + 1];
                     if (underline != TextStyle.Underline.NONE) {
-                        Ink lineInk = look.underlineInkOrNull() != null ? look.underlineInkOrNull() : textInk;
+                        Ink lineInk = look.underlineInk() != null ? look.underlineInk() : textInk;
                         drawUnderline(canvas, underline, x0, x1, y + d.underlineOffset(),
                                 d.underlineThickness(), resolve.apply(lineInk));
                     }
                     if (struck) {
-                        Ink lineInk = look.strikethroughInkOrNull() != null ? look.strikethroughInkOrNull() : textInk;
+                        Ink lineInk = look.strikethroughInk() != null ? look.strikethroughInk() : textInk;
                         canvas.fillRect(x0, y - d.strikeoutOffset(), x1 - x0, d.strikeoutThickness(),
                                 resolve.apply(lineInk));
                     }
@@ -1179,7 +1268,7 @@ public final class StyledLayout {
         static FontChoice of(TextStyle style, Font base, TextRuler ruler) {
             Font font = style.fontOver(base);
             float raise = 0;
-            switch (style.baselineKind()) {
+            switch (Objects.requireNonNullElse(style.baseline(), TextStyle.Baseline.NORMAL)) {
                 case SUPERSCRIPT -> {
                     TextDecorations face = ruler.decorations(font);
                     raise = within(face.superscriptOffset(), -font.size(), font.size(), 0);
@@ -1194,7 +1283,8 @@ public final class StyledLayout {
                 }
                 default -> { }
             }
-            return new FontChoice(font, raise, style.trackingEms(), ruler.decorations(font));
+            float tracking = Float.isNaN(style.tracking()) ? 0 : style.tracking();
+            return new FontChoice(font, raise, tracking, ruler.decorations(font));
         }
 
         /**

@@ -62,6 +62,16 @@ public final class Path2D {
     private static final float CONTAINS_TOLERANCE = 1e-3f;
 
     private byte[] verbs = new byte[16];
+    /**
+     * The one rectangle, rounded rectangle or circle this path is, when an empty path was given one
+     * by {@link #addRect}, {@link #addRoundRect} or {@link #addCircle} and nothing since; null
+     * otherwise. A canvas clips by such a shape without drawing the path.
+     */
+    private @Nullable RoundRect shape;
+
+    static {
+        limn.backend.internal.PathShapes.install(path -> path.shape);
+    }
     private float[] coords = new float[64];
     private int verbCount;
     private int coordCount;
@@ -84,7 +94,11 @@ public final class Path2D {
         return this;
     }
 
-    /** Extends the current subpath; a no-op before the first {@link #moveTo}. */
+    /**
+     * Extends the current subpath with a straight line to a point, in logical points.
+     *
+     * @throws IllegalStateException before the first {@link #moveTo}
+     */
     public Path2D lineTo(float x, float y) {
         requireCurrentPoint();
         addVerb(LINE);
@@ -94,7 +108,11 @@ public final class Path2D {
         return this;
     }
 
-    /** Quadratic Bézier to {@code (x,y)} with control point {@code (cx,cy)}. */
+    /**
+     * Quadratic Bézier to {@code (x,y)} with control point {@code (cx,cy)}.
+     *
+     * @throws IllegalStateException before the first {@link #moveTo}
+     */
     public Path2D quadTo(float cx, float cy, float x, float y) {
         requireCurrentPoint();
         addVerb(QUAD);
@@ -105,7 +123,11 @@ public final class Path2D {
         return this;
     }
 
-    /** Cubic Bézier to {@code (x,y)} with control points {@code (c1x,c1y)} and {@code (c2x,c2y)}. */
+    /**
+     * Cubic Bézier to {@code (x,y)} with control points {@code (c1x,c1y)} and {@code (c2x,c2y)}.
+     *
+     * @throws IllegalStateException before the first {@link #moveTo}
+     */
     public Path2D cubicTo(float c1x, float c1y, float c2x, float c2y, float x, float y) {
         requireCurrentPoint();
         addVerb(CUBIC);
@@ -117,7 +139,11 @@ public final class Path2D {
         return this;
     }
 
-    /** Closes the current subpath (straight line back to its starting point). */
+    /**
+     * Closes the current subpath (straight line back to its starting point).
+     *
+     * @throws IllegalStateException before the first {@link #moveTo}
+     */
     public Path2D close() {
         requireCurrentPoint();
         addVerb(CLOSE);
@@ -307,7 +333,12 @@ public final class Path2D {
      * @return this path
      */
     public Path2D addRect(float x, float y, float width, float height) {
-        return moveTo(x, y).lineTo(x + width, y).lineTo(x + width, y + height).lineTo(x, y + height).close();
+        boolean alone = verbCount == 0;
+        moveTo(x, y).lineTo(x + width, y).lineTo(x + width, y + height).lineTo(x, y + height).close();
+        if (alone && width > 0 && height > 0) {
+            shape = RoundRect.of(x, y, width, height, 0);
+        }
+        return this;
     }
 
     /**
@@ -318,6 +349,7 @@ public final class Path2D {
      * @return this path
      */
     public Path2D addRoundRect(RoundRect roundRect) {
+        boolean alone = verbCount == 0;
         RoundRect r = roundRect.normalized();
         float cap = Math.min(r.width(), r.height()) / 2;
         float tl = Math.min(r.topLeft(), cap);
@@ -346,7 +378,11 @@ public final class Path2D {
         if (tl > 0) {
             appendArc(x + tl, y + tl, tl, tl, 0, Math.PI, quarter, x + tl, y);
         }
-        return close();
+        close();
+        if (alone && r.width() > 0 && r.height() > 0) {
+            shape = new RoundRect(x, y, r.width(), r.height(), tl, tr, br, bl);
+        }
+        return this;
     }
 
     /**
@@ -377,7 +413,12 @@ public final class Path2D {
      * @return this path
      */
     public Path2D addCircle(float cx, float cy, float radius) {
-        return addEllipse(cx, cy, radius, radius);
+        boolean alone = verbCount == 0;
+        addEllipse(cx, cy, radius, radius);
+        if (alone && radius > 0) {
+            shape = RoundRect.of(cx - radius, cy - radius, 2 * radius, 2 * radius, radius);
+        }
+        return this;
     }
 
     /**
@@ -550,6 +591,7 @@ public final class Path2D {
         verbCount = 0;
         coordCount = 0;
         hasCurrentPoint = false;
+        shape = null;
     }
 
     /**
@@ -584,6 +626,7 @@ public final class Path2D {
         copy.coords = Arrays.copyOf(coords, Math.max(64, coordCount));
         copy.verbCount = verbCount;
         copy.coordCount = coordCount;
+        copy.shape = shape;
         copy.lastX = lastX;
         copy.lastY = lastY;
         copy.startX = startX;
@@ -890,6 +933,7 @@ public final class Path2D {
     }
 
     private void addVerb(byte verb) {
+        shape = null;
         if (verbCount == verbs.length) {
             verbs = Arrays.copyOf(verbs, verbs.length * 2);
         }

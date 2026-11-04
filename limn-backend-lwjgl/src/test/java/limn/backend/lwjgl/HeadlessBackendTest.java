@@ -75,7 +75,10 @@ class HeadlessBackendTest {
         if (!finished) {
             child.destroyForcibly().waitFor();
         }
-        String output = Files.readString(log);
+        // The child writes its log in the system's own encoding, not UTF-8: on a Windows in another
+        // language than English its log lines (INFORMAÇÕES) would not read as UTF-8.
+        String output = new String(Files.readAllBytes(log), java.nio.charset.Charset.forName(
+                System.getProperty("native.encoding", java.nio.charset.Charset.defaultCharset().name())));
         assertTrue(finished, "the child never finished:\n" + output);
         Assumptions.assumeFalse(output.contains("no picture can be drawn off screen"),
                 () -> "no context can be had here:\n" + output);

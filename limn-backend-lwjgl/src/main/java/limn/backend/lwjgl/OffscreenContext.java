@@ -45,6 +45,8 @@ final class OffscreenContext {
     private long cglContext;
     private long window;
     private @Nullable EglContext eglContext;
+    /** On Windows, the hidden window's context: the backend's own, as its windows' are. */
+    private @Nullable WglContext wglContext;
     private Object capabilities;
     private @Nullable GlCanvas canvas;
     private boolean attempted;
@@ -99,7 +101,8 @@ final class OffscreenContext {
         }
         attempted = true;
         boolean made = switch (Platform.get()) {
-            case MACOSX -> cgl(false) || cgl(true);
+            // Once the process draws with ANGLE it has no desktop binding to reach CGL through.
+            case MACOSX -> Gl.api() == GlesGl.INSTANCE ? angle() : cgl(false) || cgl(true);
             case WINDOWS -> (headless || AngleFallback.taken() || AngleFallback.forced()) ? angle()
                     : hiddenWindow() || angle();
             default -> hiddenWindow();
@@ -107,8 +110,15 @@ final class OffscreenContext {
         if (!made) {
             return false;
         }
-        capabilities = Gl.api().createCapabilities();
         profile = Gl.api();
+        try {
+            capabilities = Gl.api().createCapabilities();
+        } catch (RuntimeException refused) {
+            failure = "the context made gave no capabilities: " + refused;
+            forget(); // the context made goes with the capabilities it could not give
+            attempted = true;
+            return false;
+        }
         System.getLogger(OffscreenContext.class.getName()).log(System.Logger.Level.INFO,
                 "pictures off screen are drawn with {0}", describe());
         return true;
@@ -156,11 +166,30 @@ final class OffscreenContext {
         if (GLFW.glfwGetPlatform() == GLFW.GLFW_PLATFORM_NULL) {
             GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_CREATION_API, GLFW.GLFW_EGL_CONTEXT_API);
         }
+        boolean windows = Platform.get() == Platform.WINDOWS;
+        if (windows) {
+            // The window from the windowing library, the context from the backend, as the
+            // application's windows have theirs: one the library made holds pointers into the
+            // driver's library, which a rebuild after a lost device unloads.
+            GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_NO_API);
+        }
         long made = GLFW.glfwCreateWindow(16, 16, "", 0L, 0L);
         GLFW.glfwDefaultWindowHints();
         if (made == 0L) {
             failure = "no hidden window with an OpenGL 3.3 context: " + GraphicsProbe.lastError();
             return false;
+        }
+        if (windows) {
+            WglContext context = WglContext.create(org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(made));
+            if (context == null) {
+                failure = "no OpenGL 3.3 context on a hidden window: " + WglContext.lastFailure();
+                GLFW.glfwDestroyWindow(made);
+                return false;
+            }
+            wglContext = context;
+            window = made;
+            context.makeCurrent();
+            return true;
         }
         window = made;
         GLFW.glfwMakeContextCurrent(window);
@@ -188,6 +217,8 @@ final class OffscreenContext {
             CGL.CGLSetCurrentContext(cglContext);
         } else if (eglContext != null) {
             eglContext.makeCurrent();
+        } else if (wglContext != null) {
+            wglContext.makeCurrent();
         } else {
             GLFW.glfwMakeContextCurrent(window);
         }
@@ -216,15 +247,32 @@ final class OffscreenContext {
                 "the context pictures off screen are drawn with is made again at its next use");
     }
 
-    /** Forgets the context and its canvas without a GL call, their binding being gone. */
+    /**
+     * Forgets the context and its canvas without a GL call, their binding being gone, and destroys
+     * the context itself by the calls that make no GL call: the window's, CGL's or EGL's. Dropped
+     * without them, every sign that the machine was away (a sleep, a step of the clock) left one
+     * whole context behind, with its atlas and its pictures, on macOS and on ANGLE.
+     */
     private void forget() {
         if (canvas != null) {
             canvas.contextLost();
             canvas = null;
         }
+        if (wglContext != null) {
+            wglContext.dispose(); // WGL's calls alone, as a window lets its lost context go
+            wglContext = null;
+        }
         if (window != 0L) {
             GLFW.glfwDestroyWindow(window);
             window = 0L;
+        }
+        if (cglContext != 0L && profile == Gl.api()) {
+            // CGL is reached through the desktop binding, gone once the process moved onto ANGLE.
+            CGL.CGLSetCurrentContext(0L);
+            CGL.CGLDestroyContext(cglContext);
+        }
+        if (eglContext != null) {
+            eglContext.dispose(); // EGL's calls alone, answered with an error on a display reset since
         }
         cglContext = 0L;
         eglContext = null;
@@ -236,6 +284,10 @@ final class OffscreenContext {
     /** Lets go of the context and its canvas, at the backend's stop. */
     void dispose() {
         if (capabilities == null) {
+            return;
+        }
+        if (profile != Gl.api()) {
+            forget(); // of a binding that went: let go of without a call to it
             return;
         }
         makeCurrent();
@@ -250,6 +302,11 @@ final class OffscreenContext {
         } else if (eglContext != null) {
             eglContext.dispose();
             eglContext = null;
+        } else if (wglContext != null) {
+            wglContext.dispose();
+            wglContext = null;
+            GLFW.glfwDestroyWindow(window);
+            window = 0L;
         } else if (window != 0L) {
             GLFW.glfwMakeContextCurrent(0L);
             GLFW.glfwDestroyWindow(window);

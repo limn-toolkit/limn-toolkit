@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A path filled under its rule on a real device: a hole turning the other way is empty under
@@ -90,6 +91,30 @@ class GlFillRuleTest {
             }
         }
         return path.close();
+    }
+
+    @Test
+    void aSegmentAfterACloseStartsASubpathOfItsOwnAsContainsReadsIt() {
+        // Two triangles sharing a corner, the second drawn on from the first's close without a move:
+        // a new subpath from where the closed one began, as Path2D.contains reads it. Collected
+        // onto the closed one, the two made one pentagon, and its middle was filled.
+        Path2D two = new Path2D().moveTo(60, 20).lineTo(100, 20).lineTo(100, 60).close()
+                .lineTo(20, 60).lineTo(20, 20).close();
+        assertTrue(two.contains(90, 30) && two.contains(25, 40), "the fixture: each triangle");
+        assertTrue(!two.contains(60, 52), "and the fixture: not between them");
+        byte[] image = render(c -> c.fillPath(two, INK));
+        assertColor(INK, image, 90, 30, "the first triangle");
+        assertColor(INK, image, 25, 40, "the second");
+        assertColor(PAGE, image, 60, 52, "nothing between them");
+    }
+
+    @Test
+    void aSubpathThatIsOnlyAMoveDrawsNoDot() {
+        // The stroker and the page draw nothing for it; the capsule path drew a dot there.
+        Path2D path = new Path2D().moveTo(30, 30).moveTo(60, 80).lineTo(110, 80);
+        byte[] image = render(c -> c.drawPath(path, 8, INK));
+        assertColor(PAGE, image, 30, 30, "no dot at the lone move");
+        assertColor(INK, image, 85, 80, "the line drawn");
     }
 
     @Test

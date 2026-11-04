@@ -188,6 +188,67 @@ class GlPaintTest {
 
     // ------------------------------------------------------------------ oracle
 
+    @Test
+    void aGradientOfManyStopsFindsEachStretchItsPixelsLieIn() {
+        // The shader finds a pixel's stretch by halving the stops, where it walked them: the same
+        // stretch, the first of two stops at one position included, so a hard edge stays hard.
+        int n = 64;
+        float[] positions = new float[n];
+        Color[] colors = new Color[n];
+        for (int i = 0; i < n; i++) {
+            positions[i] = i < 2 ? 0.05f * i : Math.min(1, positions[i - 1] + (i % 7 == 0 ? 0 : 0.0153f * (1 + i % 3)));
+            colors[i] = Color.rgb(((i * 53) % 256) << 16 | ((i * 97) % 256) << 8 | (i * 151) % 256);
+        }
+        positions[n - 1] = 1;
+        byte[] image = render(PAGE, c -> c.fillRect(0, 0, W_PT, H_PT,
+                Gradient.linear(0, 0, W_PT, 0, positions, colors)));
+        for (int k = 1; k < 40; k++) {
+            float x = k * W_PT / 40f + 0.25f;
+            float t = ((float) Math.floor(x * SCALE) + 0.5f) / SCALE / W_PT; // the pixel's centre
+            Color expected = colors[n - 1];
+            if (t <= positions[0]) {
+                expected = colors[0];
+            } else {
+                for (int i = 1; i < n; i++) {
+                    if (t <= positions[i]) {
+                        float span = positions[i] - positions[i - 1];
+                        expected = mix(colors[i - 1], colors[i], span > 0 ? (t - positions[i - 1]) / span : 1);
+                        break;
+                    }
+                }
+            }
+            assertColor(expected, pixel(image, x, 40), "at t " + t);
+        }
+    }
+
+    @Test
+    void gradientsOfTheSameStopsShareOneRowWhateverTheirGeometry() {
+        // A bar per row of a chart, each with a gradient of its own height: the same colours, the
+        // stops the row holds. Keyed by the whole gradient they took a row each, and past 64 the
+        // frame broke to start the rows again.
+        int[] rows = {0};
+        render(PAGE, c -> {
+            for (int i = 0; i < 100; i++) {
+                float top = 10 + i;
+                c.fillRect(i * 2, top, 2, 150 - top, Gradient.linear(0, top, 0, 150, RED, BLUE));
+            }
+            rows[0] = c.gradientRowsTaken();
+        });
+        assertEquals(1, rows[0], "rows taken by a hundred gradients of two stops alike");
+    }
+
+    @Test
+    void anImagePaintLeavesNoSamplerOnItsUnitForWhatDrawsAfter() {
+        // A sampler bound to a unit overrides every texture read there: a 3D surface's second
+        // texture sits on the paint's unit, 4, and read through the paint's sampler, made for a
+        // picture with mipmaps, a texture without them read black.
+        render(PAGE, c -> c.fillRect(0, 0, W_PT, H_PT, ImagePaint.of(quad())));
+        Gl.glActiveTexture(org.lwjgl.opengl.GL33C.GL_TEXTURE4);
+        int bound = Gl.glGetInteger(org.lwjgl.opengl.GL33C.GL_SAMPLER_BINDING);
+        Gl.glActiveTexture(org.lwjgl.opengl.GL33C.GL_TEXTURE0);
+        assertEquals(0, bound, "the sampler on unit 4 after the frame");
+    }
+
     private static Color mix(Color a, Color b, float t) {
         return new Color(a.r() + (b.r() - a.r()) * t, a.g() + (b.g() - a.g()) * t, a.b() + (b.b() - a.b()) * t, 1);
     }

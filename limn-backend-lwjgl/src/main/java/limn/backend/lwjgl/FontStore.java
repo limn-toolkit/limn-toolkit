@@ -245,6 +245,11 @@ final class FontStore implements AutoCloseable {
     private java.util.concurrent.CompletableFuture<Void> heavyFallbacksDone;
     /** The worker's parse of the heavy fallbacks, completed off the UI thread; null until asked for. */
     private java.util.concurrent.CompletableFuture<HeavyFallbacks> heavyFallbacksParsed;
+    /** Whether the parse was claimed, by the worker or by {@link #settleNow}; and the parse itself. */
+    private java.util.concurrent.atomic.AtomicBoolean heavyFallbacksClaimed;
+    private Runnable heavyFallbacksParse;
+    /** While the fallbacks are being folded in, on the UI thread: a second landing is refused. */
+    private boolean landingHeavyFallbacks;
     private boolean systemScanRequested;
     // Re-installs the backend's catalog after a background fold-in, so Fonts
     // listeners (scene relayout, font pickers) observe the change.
@@ -435,22 +440,34 @@ final class FontStore implements AutoCloseable {
         // can wait for it in settleNow without waiting on itself.
         java.util.concurrent.CompletableFuture<HeavyFallbacks> parsed = new java.util.concurrent.CompletableFuture<>();
         heavyFallbacksParsed = parsed;
-        limn.concurrent.Ui.async(() -> {
+        // The parse is run by whichever claims it first: the worker, or the UI thread in settleNow
+        // when the worker has not started it, as when every worker is busy waiting on the UI thread
+        // (a document recording on it), which would wait on them for ever.
+        java.util.concurrent.atomic.AtomicBoolean claimed = new java.util.concurrent.atomic.AtomicBoolean();
+        Runnable parse = () -> {
             try {
-                HeavyFallbacks loaded = parseHeavyFallbacks();
-                parsed.complete(loaded);
-                return loaded;
+                parsed.complete(parseHeavyFallbacks());
             } catch (RuntimeException | Error e) {
                 parsed.completeExceptionally(e);
-                throw e;
             }
+        };
+        heavyFallbacksClaimed = claimed;
+        heavyFallbacksParse = parse;
+        limn.concurrent.Ui.async(() -> {
+            if (claimed.compareAndSet(false, true)) {
+                parse.run();
+            }
+            return parsed.join();
         }).whenComplete((loaded, failed) -> {
-            if (done.isDone()) {
-                return; // settleNow folded them in already
+            if (done.isDone() || landingHeavyFallbacks) {
+                return; // settleNow folded them in already, or is folding them in
             }
+            landingHeavyFallbacks = true;
             try {
-                landHeavyFallbacks(loaded, failed);
+                landHeavyFallbacks(loaded, failed instanceof java.util.concurrent.CompletionException
+                        && failed.getCause() != null ? failed.getCause() : failed);
             } finally {
+                landingHeavyFallbacks = false;
                 done.complete(null);
             }
         });
@@ -476,8 +493,13 @@ final class FontStore implements AutoCloseable {
     boolean settleNow() {
         java.util.concurrent.CompletableFuture<Void> done = heavyFallbacksDone;
         java.util.concurrent.CompletableFuture<HeavyFallbacks> parsed = heavyFallbacksParsed;
-        if (done == null || done.isDone() || parsed == null) {
+        if (done == null || done.isDone() || parsed == null || landingHeavyFallbacks) {
+            // Asked again from inside the landing, by a listener the catalog's change notified that
+            // draws a picture: the faces are in already, and landing them twice would notify again.
             return false;
+        }
+        if (heavyFallbacksClaimed.compareAndSet(false, true)) {
+            heavyFallbacksParse.run(); // no worker has started it: parsed here, not waited for
         }
         HeavyFallbacks loaded = null;
         Throwable failed = null;
@@ -486,9 +508,11 @@ final class FontStore implements AutoCloseable {
         } catch (java.util.concurrent.CompletionException e) {
             failed = e.getCause();
         }
+        landingHeavyFallbacks = true;
         try {
             landHeavyFallbacks(loaded, failed);
         } finally {
+            landingHeavyFallbacks = false;
             done.complete(null);
         }
         return failed == null;

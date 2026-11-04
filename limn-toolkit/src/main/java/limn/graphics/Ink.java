@@ -27,13 +27,14 @@ public interface Ink {
 
     /**
      * An ink that is always {@code paint}: a gradient, or a colour by the same route as
-     * {@code Color} itself.
+     * {@code Color} itself. Two inks of equal paints are equal.
      *
      * @param paint the paint to draw with
      * @return the ink
      */
     static Ink of(Paint paint) {
         Objects.requireNonNull(paint, "paint");
-        return paint instanceof Color color ? color : () -> paint;
+        return paint instanceof Color color ? color : new FixedInk(paint);
     }
+
 }

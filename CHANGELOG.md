@@ -26,6 +26,19 @@ Maven Central say which number that was.
   `canvas.drawText(styledText, x, y, maxWidth, font, ink)` lays it out and draws it, and
   `StyledLayout.builder(text, font, ink)` lays it out once to be measured and drawn as often as it
   shows (ADR 083).
+- A style reads back what it sets, and nothing where it inherits: `TextStyle.family()`, `size()`,
+  `scale()`, `weight()`, `isItalic()`, `ink()`, `background()`, `underlineKind()`,
+  `underlineInk()`, `isStruckThrough()`, `strikethroughInk()`, `baseline()` and `tracking()`
+  (null, or `NaN` for a number, where the text keeps what is around it); `ParagraphStyle`'s
+  `alignment()`, indents, spaces, `lineSpacing()`, `list()`, `level()`, `listNumber()`,
+  `direction()` and `textStyle()`; a `StyledText.Span`'s `text()` and `style()`.
+  `StyledLayout.boxWidth()` answers the width the `paint` overloads that take a box width are
+  given. `Ink.of(paint)` of equal paints are equal inks, so styles built alike with a gradient
+  compare equal, and a label given styled text equal to its own keeps its layout.
+- A wrapping styled label measured at width after width, as a window being resized measures it
+  each frame, shapes its text once and only breaks its lines again; the twenty widths of a test
+  shaped 651 characters and now shape 31. `StyledLayout.relaid(maxWidth, maxLines, ellipsis,
+  ruler)` lays a layout out again at another width with the shaping it already has.
 - `Font` carries a weight from 1 to 1000 (`withWeight`, `Font.REGULAR`, `Font.BOLD`), drawn by the
   family's face nearest it in the order a style sheet searches. A variable face is drawn at the
   weight itself, to the nearest ten, anywhere in its range: shaped and rasterized by HarfBuzz at
@@ -136,6 +149,17 @@ Maven Central say which number that was.
   512-pixel picture took 1.28 ms on a GPU and takes 0.94. The framebuffer kept holds 8 bytes a
   pixel, up to 2048 by 2048 (32 MB); `-Dlimn.backend.keptPicturePixels=<pixels>` sets the largest
   picture kept, and 0 keeps none.
+- On screen a solid stroke on a rectangle with mitred or round corners, on a rounded rectangle or
+  on a circle is drawn as its outline in the frame's one draw, where it took three through the
+  stencil and four flushes: 500 outlined rectangles were some 1,500 draws a frame. A path clip that
+  is a lone rectangle, rounded rectangle or circle clips as `clipRoundRect` does, with no mask and
+  no flush. Gradients of the same stops share one row of the frame's ramp texture whatever their
+  geometry, and a pixel finds its stretch of a gradient of many stops by halves, where it walked
+  them all. A printed document writes a gradient painted over and over once, its shading, its
+  pattern and its soft mask, where it wrote them again for every primitive.
+- `Images.MAX_PIXELS`, the most pixels a picture `Images.render` draws may have, its bytes in one
+  array: a larger one is refused before anything is drawn, where it overflowed the size of its
+  buffer.
 - `ShapedText.outline(x, y)`: the text as a `Path2D`, every glyph's outline where `drawText` draws
   it, read from the backend as a printed page reads them, so text can be stroked, dashed, filled
   with any paint, used as a clip or tested for a hit; a colour emoji, a picture, is left out (ADR
@@ -186,6 +210,12 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A segment drawn after `close()` starts a subpath of its own at the closed one's start, on screen
+  as `Path2D.contains`, a stroke and a printed page read it. The screen glued it onto the closed
+  subpath, so two triangles sharing a corner were filled as one pentagon.
+- On a renderer with no GPU a frame no longer fails with a buffer overflow when a rounded rectangle
+  drawn in pieces lands near the end of the frame's vertex buffer: its pieces took fourteen quads
+  after reserving room for eleven.
 - A looping video's soundtrack plays every pass as cleanly as the first. From the second pass on
   it clicked, with a short gap after every fifth of a second, and on some machines it got worse
   with each repeat. The track runs out a little before the pictures rewind the file, and every

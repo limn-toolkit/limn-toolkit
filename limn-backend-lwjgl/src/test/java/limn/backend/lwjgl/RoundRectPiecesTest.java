@@ -182,6 +182,36 @@ class RoundRectPiecesTest {
     }
 
     @Test
+    void noFlatInteriorUnderAPathClipOrARuleTheShaderComputes() {
+        // The flat program reads no mask and computes no rule: under either, a large solid
+        // interior stays the main program's, or it painted past the clip and over the rule.
+        canvas.flatInteriors = true;
+        Consumer<GlCanvas> clipped = c -> {
+            c.clipPath(new limn.graphics.Path2D().addCircle(100, 70, 60));
+            c.fillRoundRect(4, 4, 190, 130, 8, OPAQUE_FILL);
+        };
+        Consumer<GlCanvas> ruled = c -> {
+            c.setBlendMode(limn.graphics.BlendMode.SOURCE_IN);
+            c.fillRoundRect(4, 4, 190, 130, 8, FILL);
+        };
+        assertFlatInteriors(0, "under a path clip", clipped);
+        assertFlatInteriors(0, "under a rule", ruled);
+        for (Consumer<GlCanvas> scene : List.of(clipped, ruled)) {
+            byte[] flatOn = render(2, scene);
+            canvas.flatInteriors = false;
+            byte[] flatOff = render(2, scene);
+            canvas.flatInteriors = true;
+            int differ = 0;
+            for (int i = 0; i < flatOn.length; i++) {
+                if (Math.abs((flatOn[i] & 0xFF) - (flatOff[i] & 0xFF)) > 1) {
+                    differ++;
+                }
+            }
+            assertEquals(0, differ, "bytes that differ from the frame drawn with no flat interiors");
+        }
+    }
+
+    @Test
     void aDenseFormIsOneDrawCallOnAGpuAndFlatInteriorsOnASoftwareRenderer() {
         // The canvas reads its device when it is built, by the same rule this suite reads it by.
         assertEquals(HeadlessGl.isSoftware(), canvas.flatInteriors,

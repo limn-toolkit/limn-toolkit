@@ -59,6 +59,9 @@ public final class Images {
     private Images() {
     }
 
+    /** The most pixels a picture drawn by {@link #render} may have: its RGBA bytes in one array. */
+    public static final long MAX_PIXELS = (Integer.MAX_VALUE - 8) / 4;
+
     /**
      * An image of what {@code painter} draws on a canvas {@code width} by {@code height} units of
      * {@code scale} pixels each, transparent where it draws nothing: a thumbnail, a chart exported as
@@ -78,7 +81,8 @@ public final class Images {
      *                still loading in the background, the backend waits for it and draws again, so
      *                that the picture does not keep the boxes drawn in the missing glyphs' place
      * @return the image, straight alpha
-     * @throws IllegalArgumentException for a size or a scale not above 0, or not finite
+     * @throws IllegalArgumentException for a size or a scale not above 0, or not finite, or a picture
+     *                                  of more than {@link #MAX_PIXELS} pixels
      * @throws IllegalStateException    off the UI thread, with no backend started, on a machine where
      *                                  no OpenGL context can be had at all, or for a size the device
      *                                  refuses
@@ -89,9 +93,16 @@ public final class Images {
             throw new IllegalArgumentException("an image needs a size and a scale above 0: " + width + " x " + height
                     + " at " + scale);
         }
+        double pixelsWide = Math.ceil((double) width * scale);
+        double pixelsHigh = Math.ceil((double) height * scale);
+        if (pixelsWide * pixelsHigh * 4 > Integer.MAX_VALUE - 8) {
+            // An image's pixels are one array of bytes: past this its size wraps round.
+            throw new IllegalArgumentException("an image of " + (long) pixelsWide + " x " + (long) pixelsHigh
+                    + " pixels does not fit in one array of RGBA bytes; at most " + MAX_PIXELS + " pixels");
+        }
         limn.concurrent.Ui.checkUiThread();
-        int pw = (int) Math.ceil(width * scale);
-        int ph = (int) Math.ceil(height * scale);
+        int pw = (int) pixelsWide;
+        int ph = (int) pixelsHigh;
         Image image = limn.graphics.internal.Offscreen.current().paint(pw, ph, scale, painter);
         if (image == null) {
             throw new IllegalStateException("no image of " + pw + " x " + ph + " pixels could be drawn: no backend "

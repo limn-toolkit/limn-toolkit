@@ -33,8 +33,9 @@ final class PdfGradients {
     static Shading shading(Gradient g, boolean gray, float opacity, double[] region) {
         float[] q = g.geometry();
         String space = gray ? "/DeviceGray" : "/DeviceRGB";
-        float[] positions = g.positions();
-        double[][] colors = components(g.colors(), gray, opacity);
+        Stops stops = premultiplied(g.positions(), g.colors());
+        float[] positions = stops.positions();
+        double[][] colors = components(stops.colors(), gray, opacity);
         switch (g.kind()) {
             case LINEAR -> {
                 double dx = q[2] - q[0];
@@ -126,6 +127,95 @@ final class PdfGradients {
         double b = ffx * dx + ffy * dy;
         double c = ffx * ffx + ffy * ffy - 1;
         return a / Math.max(-b + Math.sqrt(Math.max(b * b - a * c, 0)), 1e-12);
+    }
+
+    /** Stops, their positions in order, two at one position allowed. */
+    record Stops(float[] positions, List<Color> colors) {
+    }
+
+    /**
+     * How many straight stretches stand for one between two stops whose alphas differ, both above 0.
+     * The colour the canvas mixes there is premultiplied: straight, it is a ratio of two straight
+     * runs, curved where the alpha is low, and sixteen chords keep it within a level or two of 255.
+     */
+    private static final int PREMULTIPLIED_STEPS = 16;
+
+    /**
+     * Stops whose colours, run straight between them as PDF runs them (the alpha apart, in a soft
+     * mask), give the colours the canvas gives running them premultiplied, as {@link Gradient}
+     * promises: a fade to {@link Color#TRANSPARENT} keeps its colour rather than darkening. Where two
+     * neighbouring stops are equally opaque the two runs agree and the stretch is kept; where one is
+     * clear the colour is the other's all along; between two partly opaque ones the stretch is cut
+     * into chords. A stop between two cut stretches is given twice, one colour for each side.
+     */
+    static Stops premultiplied(float[] positions, List<Color> colors) {
+        int n = positions.length;
+        boolean same = true;
+        for (int i = 0; i + 1 < n && same; i++) {
+            same = colors.get(i).a() == colors.get(i + 1).a();
+        }
+        if (same) {
+            return new Stops(positions, colors);
+        }
+        List<Float> outPositions = new ArrayList<>();
+        List<Color> outColors = new ArrayList<>();
+        outPositions.add(positions[0]);
+        outColors.add(straight(colors.get(0), colors.get(Math.min(1, n - 1)), 0));
+        for (int i = 0; i + 1 < n; i++) {
+            Color a = colors.get(i);
+            Color b = colors.get(i + 1);
+            int steps = a.a() == b.a() || a.a() == 0 || b.a() == 0 ? 1 : PREMULTIPLIED_STEPS;
+            // The stretch's own first colour, at the stop it starts from: another than the one the
+            // stretch before ended with when the alphas say so.
+            Color start = straight(a, b, 0);
+            if (!start.equals(outColors.get(outColors.size() - 1))) {
+                outPositions.add(positions[i]);
+                outColors.add(start);
+            }
+            for (int k = 1; k <= steps; k++) {
+                float t = (float) k / steps;
+                outPositions.add(positions[i] + (positions[i + 1] - positions[i]) * t);
+                outColors.add(straight(a, b, t));
+            }
+        }
+        float[] cut = new float[outPositions.size()];
+        for (int i = 0; i < cut.length; i++) {
+            cut[i] = outPositions.get(i);
+        }
+        return new Stops(cut, outColors);
+    }
+
+    /**
+     * The straight colour at {@code t} of the premultiplied run from {@code a} to {@code b}: the mix
+     * of the two premultiplied, over the mix of the alphas; where that alpha is 0, the colour of the
+     * end that is not clear.
+     */
+    private static Color straight(Color a, Color b, float t) {
+        float alpha = a.a() + (b.a() - a.a()) * t;
+        if (alpha <= 0) {
+            Color seen = a.a() > 0 ? a : b;
+            return new Color(seen.r(), seen.g(), seen.b(), 0);
+        }
+        float wa = a.a() * (1 - t);
+        float wb = b.a() * t;
+        return new Color(unit((a.r() * wa + b.r() * wb) / alpha), unit((a.g() * wa + b.g() * wb) / alpha),
+                unit((a.b() * wa + b.b() * wb) / alpha), unit(alpha));
+    }
+
+    /** {@code v} within [0, 1], where rounding took a mix of two channels a hair past it. */
+    private static float unit(float v) {
+        return Math.max(0, Math.min(1, v));
+    }
+
+    /**
+     * A function from 0 to 1 over the straight colour components of a ramp between two colours run
+     * premultiplied, as {@link #premultiplied} cuts it: one straight run when the two are equally
+     * opaque.
+     */
+    static String twoColourFunction(Color start, Color end) {
+        Stops stops = premultiplied(new float[] {0, 1}, List.of(start, end));
+        return function(stops.positions(), components(stops.colors(), false, 1), Gradient.Spread.PAD,
+                new double[] {0, 1});
     }
 
     /** Each stop's colour components: RGB, or the alpha times the opacity as grey. */

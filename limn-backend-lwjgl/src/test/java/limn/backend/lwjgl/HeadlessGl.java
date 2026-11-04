@@ -221,6 +221,11 @@ final class HeadlessGl {
         }
     }
 
+    /** For a test that made another context current: this class's again, with its capabilities. */
+    static void restoreCurrent() {
+        makeCurrent();
+    }
+
     /** Makes this class's context current again on the calling thread, with its capabilities. */
     private static void makeCurrent() {
         if (cglContext != 0L) {

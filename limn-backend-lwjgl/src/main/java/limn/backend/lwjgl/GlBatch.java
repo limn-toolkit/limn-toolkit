@@ -1493,6 +1493,12 @@ final class GlBatch implements AutoCloseable {
             drawCalls++;
         }
         glBindVertexArray(0);
+        if (paintTexture != 0) {
+            // A sampler bound to a unit overrides the parameters of every texture read there: left on
+            // unit 4 it went on reading a 3D surface's second texture, which sits there, without the
+            // mipmaps it asked for.
+            glBindSampler(4, 0);
+        }
 
         vertices.clear();
         indices.clear();
@@ -1584,6 +1590,17 @@ final class GlBatch implements AutoCloseable {
     /** @return draw calls issued since {@link #beginFrame} (debug/perf stat) */
     int drawCalls() {
         return drawCalls;
+    }
+
+    /**
+     * Lets go of the memory this batch holds outside the GL, with no GL call: for a context lost
+     * with its device, whose GL objects went with it. The batch is not used again.
+     */
+    void releaseHostMemory() {
+        MemoryUtil.memFree(compositeVertices);
+        MemoryUtil.memFree(vertices);
+        MemoryUtil.memFree(indices);
+        MemoryUtil.memFree(flatVertices);
     }
 
     @Override

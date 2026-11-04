@@ -332,6 +332,9 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             offscreen.contextLost();
         }
         offscreenTarget = null; // its names went with the context
+        if (batch != null) {
+            batch.releaseHostMemory(); // its buffers in the GL went with the context; these did not
+        }
         batch = null;
         atlas.contextLost();
         imageTextures.contextLost();
@@ -440,6 +443,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
     private GlCanvas offscreen;
     /** The framebuffer the last picture off screen was drawn into, kept for the next of its size. */
     GlOffscreen.@org.jspecify.annotations.Nullable Target offscreenTarget;
+
+    /** @return how many rows of gradient stops the canvas holds now; for tests */
+    int gradientRowsTaken() {
+        return ramps.rowsTaken();
+    }
 
     /** Lets go of the programs with fewer parts idle for {@code idle} nanoseconds at {@code now}; for tests. */
     void letIdleProgramsGo(long now, long idle) {
@@ -1690,6 +1698,16 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             return;
         }
         Transform2D t = s.transform;
+        // A lone rectangle, rounded rectangle or circle, upright, is the clip a rounded rectangle
+        // makes: no mask to draw, which costs two flushes, a change of target and a clear. One
+        // radius only, and under no rounded clip already: the analytic clip holds one.
+        RoundRect simple = limn.backend.internal.PathShapes.shapeOf(path);
+        if (simple != null && t.m01 == 0 && t.m10 == 0 && s.clip.radius <= 0
+                && simple.topLeft() == simple.topRight() && simple.topLeft() == simple.bottomRight()
+                && simple.topLeft() == simple.bottomLeft()) {
+            clipRoundRect(simple);
+            return;
+        }
         collectPath(path, t);
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
@@ -1806,6 +1824,55 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             return;
         }
         emitRoundRect(x, y, width, height, 0, 0, 0, 0, strokeWidth, paint);
+    }
+
+    /*
+     * A Stroke on a rectangle, a rounded rectangle or a circle, solid, is the ring the canvas draws
+     * for a width: one primitive of the frame's one draw, translucent or not, since the ring never
+     * overlaps itself, where the stroke's outline filled through the stencil took three draws and
+     * four flushes a shape. Drawn at the stroke's own edges and width, unsnapped, as its outline
+     * was. A dash, or a join the ring cannot make, takes the outline still.
+     */
+
+    /** The square root of 2: the miter of a right angle, which a limit below it bevels. */
+    private static final float RIGHT_ANGLE_MITER = 1.4142135f;
+
+    @Override
+    public void drawRect(float x, float y, float width, float height, limn.graphics.Stroke stroke, Paint paint) {
+        if (width > 0 && height > 0 && stroke.dashes().length == 0) {
+            if (stroke.join() == limn.graphics.Stroke.Join.MITER && stroke.miterLimit() >= RIGHT_ANGLE_MITER) {
+                // Square corners: the frame mode, a radius below 0 (canvas.frag).
+                emitRoundRect(x, y, width, height, -1, -1, -1, -1, stroke.width(), 0, paint);
+                return;
+            }
+            if (stroke.join() == limn.graphics.Stroke.Join.ROUND) {
+                emitRoundRect(x, y, width, height, 0, 0, 0, 0, stroke.width(), 0, paint);
+                return;
+            }
+        }
+        Canvas.super.drawRect(x, y, width, height, stroke, paint);
+    }
+
+    @Override
+    public void drawRoundRect(RoundRect roundRect, limn.graphics.Stroke stroke, Paint paint) {
+        RoundRect r = roundRect.normalized();
+        boolean noCorner = r.topLeft() > 0 && r.topRight() > 0 && r.bottomRight() > 0 && r.bottomLeft() > 0;
+        if (r.width() > 0 && r.height() > 0 && stroke.dashes().length == 0
+                && (noCorner || stroke.join() == limn.graphics.Stroke.Join.ROUND)) {
+            emitRoundRect(r.x(), r.y(), r.width(), r.height(), r.topLeft(), r.topRight(), r.bottomRight(),
+                    r.bottomLeft(), stroke.width(), 0, paint);
+            return;
+        }
+        Canvas.super.drawRoundRect(roundRect, stroke, paint);
+    }
+
+    @Override
+    public void drawCircle(float cx, float cy, float radius, limn.graphics.Stroke stroke, Paint paint) {
+        if (radius > 0 && stroke.dashes().length == 0) {
+            drawCircle(cx, cy, radius, stroke.width(), paint);
+            return;
+        }
+        Canvas.super.drawCircle(cx, cy, radius, stroke, paint);
     }
 
     /**
@@ -1974,6 +2041,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         // A layer's target, so no damage scissor: the copy is not the window.
         batch.setTarget(true, 0, 0, fbWidth, fbHeight);
         GlBlend.Factors normal = GlBlend.of(limn.graphics.BlendMode.NORMAL);
+        // The layers are laid into the copy as they are: under no path clip and no rule, which the
+        // last draw may have left in the batch, its mask picture perhaps given back to the pool.
+        batch.requireMask(0, 0, 0, 0, 0);
+        batch.requireRule(GlBlend.RULE_NONE);
         batch.requireBlend(normal.srcRgb(), normal.dstRgb(), normal.srcAlpha(), normal.dstAlpha());
         for (int i = 1; i <= depth; i++) {
             State layer = states.get(i);
@@ -2086,6 +2157,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         // A layer's target, so no damage scissor: the copy is not the window.
         batch.setTarget(true, 0, 0, fbWidth, fbHeight);
         GlBlend.Factors normal = GlBlend.of(limn.graphics.BlendMode.NORMAL);
+        // The layers are laid into the copy as they are: under no path clip and no rule, which the
+        // last draw may have left in the batch, its mask picture perhaps given back to the pool.
+        batch.requireMask(0, 0, 0, 0, 0);
+        batch.requireRule(GlBlend.RULE_NONE);
         batch.requireBlend(normal.srcRgb(), normal.dstRgb(), normal.srcAlpha(), normal.dstAlpha());
         // What an earlier glass left in the region goes: the root of a backdrop reads from nothing.
         Gl.glEnable(org.lwjgl.opengl.GL33C.GL_SCISSOR_TEST);
@@ -2516,7 +2591,11 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
             int start = pathCollector.contourStart(c);
             int count = pathCollector.contourLength(c);
             if (count == 1) {
-                fillCircle(pathCollector.xs[start], pathCollector.ys[start], halfWidth, paint);
+                // A subpath that is only a move draws nothing, as the stroker and the page have it;
+                // a closed one that never left its point is a dot, as the stroker draws it.
+                if (pathCollector.contourClosed(c)) {
+                    fillCircle(pathCollector.xs[start], pathCollector.ys[start], halfWidth, paint);
+                }
                 continue;
             }
             for (int i = 0; i < count - 1; i++) {
@@ -3186,7 +3265,7 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
         batch.setShape(halfW, halfH, tl, tr, br, bl, strokeHalfWidth, KIND_ROUND_RECT, paintType);
         batch.setClip(clip);
         batch.shapeInsetForNext(AA_PAD_DEVICE); // as emitSdfQuad's quad
-        batch.ensure(4 * 11, 6 * 11);
+        batch.ensure(4 * 14, 6 * 14); // 8 pieces round the interior; 3 more, or 6 round a flat one
 
         float reach = stroke + (1 + RING_MARGIN_DEVICE) / t.minScale() + 1e-4f;
         // Each axis's two inner boundaries: where the band's inner edge and where the corner
@@ -3291,8 +3370,10 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
      */
     private boolean emitFlatInterior(State s, Paint paint) {
         DeviceClip clip = s.clip;
-        if (!flatInteriors || clip.radius > 0 || !(paint instanceof Color || linearRamp(paint))) {
-            return false;
+        if (!flatInteriors || clip.radius > 0 || s.mask != null
+                || GlBlend.shaderRule(s.blendMode, openLayers > 0) != GlBlend.RULE_NONE
+                || !(paint instanceof Color || linearRamp(paint))) {
+            return false; // the flat program reads no mask and computes no rule
         }
         // The column between the corner squares, or the row between the side bands: the larger.
         float colArea = Math.abs((pieceDevX[3] - pieceDevX[2]) * (pieceDevY[4] - pieceDevY[1]));
@@ -4046,6 +4127,13 @@ final class GlCanvas implements Canvas, limn.scene.internal.VeilCanvas {
 
         @Override
         public void lineTo(float x, float y) {
+            if (contours > 0 && closed[contours - 1]) {
+                // A segment after a close starts a subpath of its own from where the closed one
+                // began, as Path2D.contains, the stroker and the page read it; added to the closed
+                // one, it made one polygon of the two.
+                int start = starts[contours - 1];
+                moveTo(xs[start], ys[start]);
+            }
             add(x, y);
         }
 

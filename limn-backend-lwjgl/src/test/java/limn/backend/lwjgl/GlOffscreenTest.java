@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * {@link Images#render} through the backend's canvas on a real device: the image is what the canvas
@@ -107,6 +108,19 @@ class GlOffscreenTest {
             GlOffscreen.keptPixels = allowed;
             canvas.dispose();
         }
+    }
+
+    @Test
+    void aPictureWhoseBytesWouldNotFitInOneArrayIsRefusedBeforeAnythingIsDrawn() {
+        // 32768 by 32768, a size a GPU allows, is 4 GiB of RGBA: its size in an int wrapped round to
+        // 0, and the device was asked to read 4 GiB into nothing.
+        boolean[] painted = {false};
+        IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> Images.render(32768, 32768, 1, c -> painted[0] = true));
+        assertTrue(refused.getMessage().contains("32768 x 32768"), refused.getMessage());
+        assertTrue(!painted[0], "nothing drawn");
+        Image justUnder = Images.render(1, 1, 1, c -> c.fillRect(0, 0, 1, 1, Color.WHITE));
+        assertEquals(1, justUnder.width(), "a small one still drawn");
     }
 
     @Test

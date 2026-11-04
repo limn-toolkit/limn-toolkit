@@ -356,7 +356,7 @@ class StyledLayoutTest {
         assertEquals("Serif", font.family());
         assertEquals(700, font.weight());
         assertEquals(30, font.size(), 1e-3, "scales multiply");
-        assertEquals(RED, both.inkOrNull());
+        assertEquals(RED, both.ink());
     }
 
     @Test
@@ -604,6 +604,42 @@ class StyledLayoutTest {
     }
 
     @Test
+    void laidOutAgainAtAnotherWidthItKeepsItsShapingAndBreaksAsAFreshLayout() {
+        StyledText text = StyledText.builder().append("one two ", TextStyle.of().bold())
+                .append("three four five six seven eight nine ten").paragraph(ParagraphStyle.of())
+                .append("a second paragraph, long enough to break as well").build();
+        CountingRuler ruler = new CountingRuler();
+        StyledLayout natural = StyledLayout.of(text, BASE, StyledLayout.UNBOUNDED, Integer.MAX_VALUE, true, ruler);
+        int shapedOnce = ruler.shaped;
+        assertTrue(shapedOnce > 0, "the fixture shapes");
+        for (float width : new float[] {40, 75, 120, 300, StyledLayout.UNBOUNDED}) {
+            for (int limit : new int[] {Integer.MAX_VALUE, 2}) {
+                StyledLayout again = natural.relaid(width, limit, true, ruler);
+                StyledLayout fresh = StyledLayout.of(text, BASE, width, limit, true, RULER);
+                assertEquals(fresh.lineCount(), again.lineCount(), width + "/" + limit + ": lines");
+                assertEquals(fresh.width(), again.width(), 1e-4, width + "/" + limit + ": width");
+                assertEquals(fresh.height(), again.height(), 1e-4, width + "/" + limit + ": height");
+                assertEquals(fresh.isTruncated(), again.isTruncated(), width + "/" + limit + ": cut");
+                assertTrue(java.util.Arrays.equals(fresh.lineCuts(), again.lineCuts()), width + "/" + limit + ": cuts");
+            }
+        }
+        assertEquals(shapedOnce, ruler.shaped, "no character shaped again: only the lines were broken");
+    }
+
+    @Test
+    void aLayoutCutShortByItsLimitShapesTheRestWhenLaidOutWithMore() {
+        StyledText text = StyledText.builder().append("first").paragraph(ParagraphStyle.of()).append("second")
+                .paragraph(ParagraphStyle.of()).append("third").build();
+        CountingRuler ruler = new CountingRuler();
+        StyledLayout one = StyledLayout.of(text, BASE, StyledLayout.UNBOUNDED, 1, false, ruler);
+        assertEquals(1, one.lineCount());
+        assertEquals("first".length(), ruler.shaped, "only the paragraph reached is shaped");
+        StyledLayout all = one.relaid(StyledLayout.UNBOUNDED, Integer.MAX_VALUE, false, ruler);
+        assertEquals(3, all.lineCount());
+        assertEquals("firstsecondthird".length(), ruler.shaped, "the rest shaped once, when reached");
+    }
+
+    @Test
     void aParagraphOfManyColoursInOneFontIsShapedOnce() {
         StyledText.Builder builder = StyledText.builder();
         Color[] inks = {INK, RED, new Color(0, 0, 1, 1)};
@@ -752,7 +788,7 @@ class StyledLayoutTest {
         assertEquals(700, TextStyle.of().bold().over(TextStyle.of().weight(300)).fontOver(black).weight());
         assertEquals(500, TextStyle.of().weight(500).fontOver(black).weight(), "a weight is exact");
         assertTrue(TextStyle.of().bold().isAtLeastBold());
-        assertEquals(700, TextStyle.of().bold().weightOrZero());
+        assertEquals(700, TextStyle.of().bold().weight());
         assertFalse(TextStyle.of().bold().equals(TextStyle.of().weight(700)), "two different requests");
     }
 

@@ -20,13 +20,15 @@ class ShapedTextOutlineTest {
 
     private static final int FACE = 7;
     private static final int BOLD_FACE = 8;
+    /** Drawn bold by thickening too, its contours wound the other way, as a face may wind them. */
+    private static final int REVERSED_BOLD_FACE = 9;
     private static final Font FONT = new Font("Squares", 10, false, false);
 
     /** Every glyph a square of 600 by 700 units at 50 from the pen; a picture for "P", glyphs for "G". */
     private static final GlyphOutlines SQUARES = new GlyphOutlines() {
         @Override
         public int unitsPerEm(int faceId) {
-            return faceId == FACE || faceId == BOLD_FACE ? 1000 : 0;
+            return faceId == FACE || faceId == BOLD_FACE || faceId == REVERSED_BOLD_FACE ? 1000 : 0;
         }
 
         @Override
@@ -36,15 +38,21 @@ class ShapedTextOutlineTest {
 
         @Override
         public boolean isSyntheticBold(int faceId) {
-            return faceId == BOLD_FACE;
+            return faceId == BOLD_FACE || faceId == REVERSED_BOLD_FACE;
         }
 
         @Override
         public boolean outline(int faceId, int glyphId, Path2D.Visitor out) {
             out.moveTo(50, 0);
-            out.lineTo(650, 0);
-            out.lineTo(650, 700);
-            out.lineTo(50, 700);
+            if (faceId == REVERSED_BOLD_FACE) {
+                out.lineTo(50, 700);
+                out.lineTo(650, 700);
+                out.lineTo(650, 0);
+            } else {
+                out.lineTo(650, 0);
+                out.lineTo(650, 700);
+                out.lineTo(50, 700);
+            }
             out.close();
             return true;
         }
@@ -97,6 +105,22 @@ class ShapedTextOutlineTest {
         Rect bold = line(BOLD_FACE, 4).outline(0, 50).bounds();
         // An outline a 24th of the size wide: half of it, 10 / 48, past each edge.
         assertEquals(plain.width() + 10 / 24f, bold.width(), 1e-3);
+    }
+
+    @Test
+    void aThickenedGlyphIsFilledToItsEdgeWhicheverWayItsContoursWind() {
+        // The thickening, an outline a 24th of the size wide, winds one way whatever the glyph's
+        // way: added to a glyph wound the other way, the band just inside each edge cancelled to
+        // nothing, and the glyph came out hollow there.
+        for (int face : new int[] {BOLD_FACE, REVERSED_BOLD_FACE}) {
+            Path2D outline = line(face, 4).outline(0, 50);
+            String which = face == BOLD_FACE ? "one way" : "the other way";
+            // The glyph's left edge stands at 0.5; the thickening reaches 10 / 48 either side of it.
+            assertTrue(outline.contains(0.6f, 46), which + ": just inside the edge");
+            assertTrue(outline.contains(3, 46), which + ": deep inside");
+            assertTrue(outline.contains(0.4f, 46), which + ": just outside, in the thickening");
+            assertTrue(!outline.contains(0.2f, 46), which + ": past the thickening");
+        }
     }
 
     @Test

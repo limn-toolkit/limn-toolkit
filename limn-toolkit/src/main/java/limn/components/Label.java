@@ -602,7 +602,8 @@ public final class Label extends Widget<Label> {
         this.text = I18nString.literal(read);
         markNeedsLayoutInPlace();
         // A change of style alone renames nothing: a reader is told of a new name only when what
-        // it hears moved. An ink has no value equality, so a status rebuilt alike is never equal.
+        // it hears moved. An ink of the application's own may have no value equality, so a status
+        // rebuilt with it is never equal.
         if (renamed) {
             notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         }
@@ -639,9 +640,16 @@ public final class Label extends Widget<Label> {
         boolean naturalHolds = natural != null && limit == styledNaturalLimit
                 && ellipsis == styledNaturalEllipsis && base.equals(styledNaturalBase)
                 && epoch == styledNaturalEpoch && natural.isCurrent(ruler);
+        // A layout of this text over this base, shaped as the ruler shapes now: another width or
+        // limit breaks its lines again and keeps its shaping, most of a layout's cost.
+        StyledLayout shapedAlready = natural != null && base.equals(styledNaturalBase)
+                && epoch == styledNaturalEpoch && natural.isCurrent(ruler) ? natural
+                : styledLayout != null && base.equals(styledBase) && epoch == styledEpoch
+                        && styledLayout.isCurrent(ruler) ? styledLayout : null;
         if (width == StyledLayout.UNBOUNDED) {
             if (!naturalHolds) {
-                natural = lay(value, base, width, limit, ellipsis, ruler);
+                natural = shapedAlready != null ? shapedAlready.relaid(width, limit, ellipsis, ruler)
+                        : lay(value, base, width, limit, ellipsis, ruler);
                 styledNatural = natural;
                 styledNaturalLimit = limit;
                 styledNaturalEllipsis = ellipsis;
@@ -666,7 +674,8 @@ public final class Label extends Widget<Label> {
         if (held == null || Float.compare(width, styledWidth) != 0 || limit != styledLimit
                 || ellipsis != styledEllipsis || !base.equals(styledBase) || epoch != styledEpoch
                 || !held.isCurrent(ruler)) {
-            held = lay(value, base, width, limit, ellipsis, ruler);
+            held = shapedAlready != null ? shapedAlready.relaid(width, limit, ellipsis, ruler)
+                    : lay(value, base, width, limit, ellipsis, ruler);
             styledLayout = held;
             styledWidth = width;
             styledLimit = limit;

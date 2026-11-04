@@ -69,6 +69,19 @@ class PictureTest {
         public void drawSurface(GpuSurface surface, float x, float y, float w, float h) {
             calls.add("drawSurface");
         }
+
+        @Override
+        public void saveLayer(float x, float y, float width, float height, float opacity,
+                              limn.math.Mat4 transform) {
+            save();
+            calls.add("saveLayer3D " + (int) width + "x" + (int) height + " at " + opacity);
+        }
+
+        @Override
+        public void saveLayer(float x, float y, float width, float height, float opacity) {
+            save();
+            calls.add("saveLayer " + (int) width + "x" + (int) height + " at " + opacity);
+        }
     }
 
     @Test
@@ -81,6 +94,22 @@ class PictureTest {
         assertEquals(List.of("fillRect 102,53", "fillRect 102,53"), canvas.calls);
         assertEquals(0, canvas.saveCount(), "the canvas's state as it was");
         assertEquals(20, square.width());
+    }
+
+    @Test
+    void aLayerSeenThroughA3DMatrixIsReplayedAsThatLayer() {
+        // Recorded as the canvas's default, a save, a concat and an opacity, it came back as no
+        // layer at all: each draw faded on its own, nothing cut to the layer's bounds.
+        limn.math.Mat4 turned = limn.math.Mat4.identity();
+        Picture p = Picture.record(100, 100, c -> {
+            c.saveLayer(0, 0, 50, 40, 0.5f, turned);
+            c.fillRect(0, 0, 40, 40, Color.BLACK);
+            c.restore();
+        });
+        Keeping canvas = new Keeping();
+        p.draw(canvas);
+        assertEquals(List.of("saveLayer3D 50x40 at 0.5", "fillRect 0,0"), canvas.calls);
+        assertEquals(0, canvas.saveCount(), "and closed by its restore");
     }
 
     @Test

@@ -390,62 +390,133 @@ public final class TextStyle {
         return font;
     }
 
-    /** @return the family set, or {@code null} for inherited */
-    @Nullable String familyOrNull() {
+    /**
+     * The family this style sets.
+     *
+     * @return the family, or {@code null} where the text keeps the one around it
+     */
+    public @Nullable String family() {
         return family;
     }
 
     /**
-     * @return the weight set exactly, {@value Font#BOLD} for {@link #bold()} (which is at least
-     *         that, see {@link #isAtLeastBold()}), or {@code 0} for inherited
+     * The size this style sets.
+     *
+     * @return the size in points, or {@link Float#NaN} where the text keeps the one around it
      */
-    int weightOrZero() {
+    public float size() {
+        return size;
+    }
+
+    /**
+     * The factor this style scales the size by.
+     *
+     * @return the factor, or {@link Float#NaN} where the text keeps the one around it
+     */
+    public float scale() {
+        return scale;
+    }
+
+    /**
+     * The weight this style sets.
+     *
+     * @return the weight; {@value Font#BOLD} for {@link #bold()}, which is at least that (see
+     *         {@link #isAtLeastBold()}); {@code 0} where the text keeps the one around it
+     */
+    public int weight() {
         return weight == AT_LEAST_BOLD ? Font.BOLD : weight;
     }
 
-    /** @return whether this style is {@link #bold()}: bold, or the inherited weight if heavier */
-    boolean isAtLeastBold() {
+    /**
+     * Whether this style is {@link #bold()}: bold, or the weight around it where that is heavier.
+     *
+     * @return whether it is
+     */
+    public boolean isAtLeastBold() {
         return weight == AT_LEAST_BOLD;
     }
 
-    /** @return the ink set, or {@code null} for inherited */
-    @Nullable Ink inkOrNull() {
+    /**
+     * Whether this style sets the text italic or upright.
+     *
+     * @return {@code true} for italic, {@code false} for upright, or {@code null} where the text
+     *         keeps the slant around it
+     */
+    public @Nullable Boolean isItalic() {
+        return italic;
+    }
+
+    /**
+     * The ink this style draws its text in.
+     *
+     * @return the ink, or {@code null} where the text keeps the one around it
+     */
+    public @Nullable Ink ink() {
         return ink;
     }
 
-    /** @return the background set, or {@code null} for none */
-    @Nullable Ink backgroundOrNull() {
+    /**
+     * The ink this style fills behind its text with.
+     *
+     * @return the ink, or {@code null} where the text keeps the one around it
+     */
+    public @Nullable Ink background() {
         return background;
     }
 
-    /** @return the underline set, {@link Underline#NONE} when none is */
-    Underline underlineKind() {
-        return underline != null ? underline : Underline.NONE;
+    /**
+     * The underline this style sets; {@link Underline#NONE} takes away one the text around it has.
+     *
+     * @return the underline, or {@code null} where the text keeps the one around it
+     */
+    public @Nullable Underline underlineKind() {
+        return underline;
     }
 
-    /** @return the underline's own ink, or {@code null} for the text's */
-    @Nullable Ink underlineInkOrNull() {
+    /**
+     * The underline's own ink.
+     *
+     * @return the ink, or {@code null} where the line keeps the one around it, at last the text's
+     */
+    public @Nullable Ink underlineInk() {
         return underlineInk;
     }
 
-    /** @return whether struck through */
-    boolean isStruckThrough() {
-        return strikethrough != null && strikethrough;
+    /**
+     * Whether this style strikes its text through.
+     *
+     * @return {@code true} for struck through, {@code false} for not, or {@code null} where the
+     *         text keeps what the text around it does
+     */
+    public @Nullable Boolean isStruckThrough() {
+        return strikethrough;
     }
 
-    /** @return the strike-through's own ink, or {@code null} for the text's */
-    @Nullable Ink strikethroughInkOrNull() {
+    /**
+     * The strike-through's own ink.
+     *
+     * @return the ink, or {@code null} where the line keeps the one around it, at last the text's
+     */
+    public @Nullable Ink strikethroughInk() {
         return strikethroughInk;
     }
 
-    /** @return where the text sits; {@link Baseline#NORMAL} when not set */
-    Baseline baselineKind() {
-        return baseline != null ? baseline : Baseline.NORMAL;
+    /**
+     * Where this style sets its text against the line.
+     *
+     * @return where, or {@code null} where the text keeps the place around it
+     */
+    public @Nullable Baseline baseline() {
+        return baseline;
     }
 
-    /** @return the tracking in ems; 0 when not set */
-    float trackingEms() {
-        return Float.isNaN(tracking) ? 0 : tracking;
+    /**
+     * The space this style adds between letters.
+     *
+     * @return the tracking in ems, or {@link Float#NaN} where the text keeps the one around it
+     */
+    public float tracking() {
+        return tracking;
     }
 
     @Override

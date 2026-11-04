@@ -781,10 +781,116 @@ public final class ShapedText {
         }
         float k = font.size() / upem;
         Path2D placed = glyph.transformed(new limn.math.Affine2D(k, 0, 0, -k, x, y));
-        out.addPath(placed);
-        if (source.isSyntheticBold(faceId)) {
-            out.addPath(Stroke.of(font.size() / 24f).outline(placed));
+        if (!source.isSyntheticBold(faceId)) {
+            out.addPath(placed);
+            return;
         }
+        // A stroke's outline winds one way whatever the way of the path it outlines: added to a
+        // glyph wound the other way, the two cancelled in the band just inside every edge, filled
+        // under the non-zero rule, and the glyph came out hollow there. So the glyph goes in the
+        // ring's way. A face's contours are wound either way (TrueType's and CFF's differ).
+        Path2D ring = Stroke.of(font.size() / 24f).withJoin(Stroke.Join.ROUND).outline(placed);
+        out.addPath(signedArea(placed) * signedArea(ring) < 0 ? reversed(placed) : placed);
+        out.addPath(ring);
+    }
+
+    /** The area {@code path} encloses, signed by the way its contours wind; flattened, roughly. */
+    private static double signedArea(Path2D path) {
+        double[] sum = {0};
+        path.flatten(0.25f, new Path2D.Flattened() {
+            private float startX;
+            private float startY;
+            private float lastX;
+            private float lastY;
+
+            @Override
+            public void moveTo(float px, float py) {
+                closePath();
+                startX = px;
+                startY = py;
+                lastX = px;
+                lastY = py;
+            }
+
+            @Override
+            public void lineTo(float px, float py) {
+                sum[0] += (double) lastX * py - (double) px * lastY;
+                lastX = px;
+                lastY = py;
+            }
+
+            @Override
+            public void closePath() {
+                lineTo(startX, startY);
+            }
+        });
+        return sum[0] / 2;
+    }
+
+    /** {@code path} with every contour run the other way, each closed one closed again. */
+    private static Path2D reversed(Path2D path) {
+        java.util.List<java.util.List<float[]>> contours = new java.util.ArrayList<>();
+        java.util.List<Boolean> closed = new java.util.ArrayList<>();
+        path.forEach(new Path2D.Visitor() {
+            private java.util.List<float[]> contour;
+
+            @Override
+            public void moveTo(float px, float py) {
+                contour = new java.util.ArrayList<>();
+                contour.add(new float[] {px, py});
+                contours.add(contour);
+                closed.add(false);
+            }
+
+            @Override
+            public void lineTo(float px, float py) {
+                contour.add(new float[] {px, py});
+            }
+
+            @Override
+            public void quadTo(float cx, float cy, float px, float py) {
+                contour.add(new float[] {px, py, cx, cy});
+            }
+
+            @Override
+            public void cubicTo(float c1x, float c1y, float c2x, float c2y, float px, float py) {
+                contour.add(new float[] {px, py, c1x, c1y, c2x, c2y});
+            }
+
+            @Override
+            public void close() {
+                closed.set(closed.size() - 1, true);
+            }
+        });
+        Path2D out = new Path2D();
+        for (int c = 0; c < contours.size(); c++) {
+            java.util.List<float[]> points = contours.get(c);
+            if (closed.get(c)) {
+                // The closing line made explicit, so that reversed it is a segment like the rest.
+                float[] first = points.get(0);
+                float[] last = points.get(points.size() - 1);
+                if (first[0] != last[0] || first[1] != last[1]) {
+                    points.add(new float[] {first[0], first[1]});
+                }
+            }
+            float[] end = points.get(points.size() - 1);
+            out.moveTo(end[0], end[1]);
+            for (int i = points.size() - 1; i > 0; i--) {
+                float[] to = points.get(i - 1);
+                float[] segment = points.get(i);
+                if (segment.length == 4) {
+                    out.quadTo(segment[2], segment[3], to[0], to[1]);
+                } else if (segment.length == 6) {
+                    out.cubicTo(segment[4], segment[5], segment[2], segment[3], to[0], to[1]);
+                } else {
+                    out.lineTo(to[0], to[1]);
+                }
+            }
+            if (closed.get(c)) {
+                out.close();
+            }
+        }
+        return out;
     }
 
     /**

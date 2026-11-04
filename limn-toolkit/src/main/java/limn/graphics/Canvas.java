@@ -944,7 +944,6 @@ public interface Canvas {
      */
     void drawImage(Image image, float x, float y, float w, float h);
 
-    /** Draws {@code image} at its natural pixel size (1 pixel = 1 logical point). */
     /**
      * Draws a {@link Picture} in current coordinates, its origin at theirs: every call it recorded,
      * replayed here, under this canvas's transform, clip, opacity and blend mode as they stand. The
@@ -954,6 +953,7 @@ public interface Canvas {
         picture.draw(this);
     }
 
+    /** Draws {@code image} at its natural pixel size (1 pixel = 1 logical point). */
     default void drawImage(Image image, float x, float y) {
         drawImage(image, x, y, image.width(), image.height());
     }

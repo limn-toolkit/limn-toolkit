@@ -52,6 +52,67 @@ class PdfPaintTest {
     }
 
     @Test
+    void aGradientPaintedOverAndOverIsWrittenOnce() throws IOException {
+        // A hundred striped chips: each wrote its shading, its pattern and its alpha's mask anew,
+        // and a repeated gradient's shading spans the page, a function per stripe.
+        Gradient stripes = Gradient.linear(0, 0, 4, 0, new float[] {0, 0.5f, 0.5f, 1},
+                RED, RED, Color.rgba(0x0000FF, 0.5f), Color.rgba(0x0000FF, 0.5f))
+                .withSpread(Gradient.Spread.REPEAT);
+        GlyphBank bank = new GlyphBank(PdfWriterTest.SQUARES);
+        RecordingCanvas canvas = new RecordingCanvas(794, 1123, 1, bank);
+        for (int i = 0; i < 100; i++) {
+            canvas.fillRect(10 + (i % 10) * 70, 10 + (i / 10) * 30, 60, 20, stripes);
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(out, bank, "Chips", Locale.ROOT, 1);
+        writer.page(canvas.finish(), 595.28f, 841.89f);
+        writer.finish();
+        String pdf = out.toString(StandardCharsets.ISO_8859_1);
+        assertEquals(2, count(pdf, "/ShadingType 2"), "one shading of the colours and one of the alpha");
+        assertEquals(1, count(pdf, "/PatternType 2"), "one pattern");
+        assertEquals(1, count(pdf, "/S/Luminosity"), "one soft mask");
+        assertTrue(pdf.length() < 200_000, "the file: " + pdf.length() + " bytes");
+    }
+
+    @Test
+    void aFadeToClearKeepsItsColourOnThePageAsOnScreen() throws IOException {
+        // The canvas runs a gradient's colours premultiplied, so red fading to clear stays red as it
+        // thins. PDF runs its colours straight, the alpha in a soft mask: the stops were written as
+        // they are and the fade went through dark red to black.
+        for (Paint fade : List.<Paint>of(Gradient.linear(0, 0, 100, 0, RED, Color.TRANSPARENT),
+                new limn.graphics.LinearGradient(0, 0, 100, 0, RED, Color.TRANSPARENT))) {
+            String pdf = file(fade);
+            Matcher rgb = Pattern.compile("/C0\\[([0-9.]+) ([0-9.]+) ([0-9.]+)\\]/C1\\[([0-9.]+) ([0-9.]+) ([0-9.]+)\\]")
+                    .matcher(pdf);
+            int runs = 0;
+            while (rgb.find()) {
+                runs++;
+                for (int g = 1; g <= 6; g++) {
+                    float expected = g == 1 || g == 4 ? 1 : 0;
+                    assertEquals(expected, Float.parseFloat(rgb.group(g)), 1e-6, fade + ": every colour red, " + rgb.group());
+                }
+            }
+            assertTrue(runs > 0, fade + ": an RGB run written");
+        }
+    }
+
+    @Test
+    void betweenTwoPartlyOpaqueStopsTheColourIsThePremultipliedMix() {
+        // Red at alpha 1 to blue at alpha 0.25: at the middle the canvas mixes 0.5 of red's
+        // weight 1 with 0.5 of blue's 0.25, so 0.8 red and 0.2 blue, at alpha 0.625.
+        PdfGradients.Stops stops = PdfGradients.premultiplied(new float[] {0, 1},
+                List.of(RED, Color.rgba(0x0000FF, 0.25f)));
+        assertEquals(17, stops.positions().length, "the stretch cut into chords");
+        Color middle = stops.colors().get(8);
+        assertEquals(0.5f, stops.positions()[8], 1e-6);
+        assertEquals(0.8f, middle.r(), 1e-5);
+        assertEquals(0.2f, middle.b(), 1e-5);
+        assertEquals(0.625f, middle.a(), 1e-5);
+        PdfGradients.Stops even = PdfGradients.premultiplied(new float[] {0, 1}, List.of(RED, BLUE));
+        assertEquals(2, even.positions().length, "equally opaque stops kept as they are");
+    }
+
+    @Test
     void aLinearGradientIsAnAxialShadingStitchedFromItsStops() throws IOException {
         String pdf = file(Gradient.linear(0, 0, 100, 0, new float[] {0, 0.25f, 1}, RED, GREEN, BLUE));
         assertTrue(pdf.contains("/ShadingType 2"), "axial");

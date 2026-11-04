@@ -170,6 +170,44 @@ class GlStrokeTest {
         assertEquals(3, canvas.drawCallsLastFrame(), "translucent: the outline through the stencil");
     }
 
+    @Test
+    void aSolidStrokeOnARectangleRoundedRectangleOrCircleIsItsOutlineInTheOneDraw() {
+        // The ring the canvas draws for a width, at the stroke's own edges: square corners outside
+        // and in for a mitred rectangle, round ones for a round join. Through the stencil each
+        // shape took three draws and four flushes; a diagram of outlined boxes paid that per box.
+        Color translucent = Color.rgba(0x2050C0, 0.5f);
+        for (Stroke stroke : new Stroke[] {Stroke.of(1), Stroke.of(9),
+                Stroke.of(9).withJoin(Stroke.Join.ROUND)}) {
+            for (Color ink : new Color[] {INK, translucent}) {
+                Path2D rect = new Path2D().addRect(30.3f, 30.6f, 70, 50);
+                byte[] image = render(c -> c.drawRect(30.3f, 30.6f, 70, 50, stroke, ink));
+                assertEquals(1, canvas.drawCallsLastFrame(), stroke + " rectangle: the one draw");
+                if (ink == INK) {
+                    compare(image, stroke.outline(rect), stroke + " rectangle");
+                }
+                limn.graphics.RoundRect rr = limn.graphics.RoundRect.of(120.4f, 30.2f, 80, 60, 12);
+                image = render(c -> c.drawRoundRect(rr, stroke, ink));
+                assertEquals(1, canvas.drawCallsLastFrame(), stroke + " rounded rectangle: the one draw");
+                if (ink == INK) {
+                    compare(image, stroke.outline(new Path2D().addRoundRect(rr)), stroke + " rounded rectangle");
+                }
+                image = render(c -> c.drawCircle(70.5f, 120.25f, 25, stroke, ink));
+                assertEquals(1, canvas.drawCallsLastFrame(), stroke + " circle: the one draw");
+                if (ink == INK) {
+                    compare(image, stroke.outline(new Path2D().addCircle(70.5f, 120.25f, 25)), stroke + " circle");
+                }
+            }
+        }
+        render(c -> {
+            for (int i = 0; i < 100; i++) {
+                c.drawRect(5 + (i % 10) * 22, 5 + (i / 10) * 15, 18, 11, Stroke.of(1), INK);
+            }
+        });
+        assertEquals(1, canvas.drawCallsLastFrame(), "a hundred outlined boxes: the one draw");
+        render(c -> c.drawRect(30, 30, 70, 50, Stroke.of(4).withDash(6, 3), INK));
+        assertEquals(3, canvas.drawCallsLastFrame(), "a dashed one: its outline through the stencil");
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /** Asserts the image against the outline; returns how many points were inside and outside. */

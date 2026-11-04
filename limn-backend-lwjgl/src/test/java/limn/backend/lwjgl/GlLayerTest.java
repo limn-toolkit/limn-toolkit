@@ -503,6 +503,33 @@ class GlLayerTest {
         assertAtMost(4, glassOverPage, glassInLayerOverPage, "a glass over the page inside a group");
     }
 
+    @Test
+    void aGlassAfterAPathClippedDrawReadsTheWholeLayerUnderIt() {
+        // The capture lays the open layers into the glass's copy under the batch's state: the
+        // last draw's path clip, restored since, cut the layer's content down to that clip.
+        java.util.function.Consumer<GlCanvas> content = c -> {
+            c.fillRect(40, 40, 200, 200, Color.rgb(0x204020));
+            c.save();
+            c.clipPath(new limn.graphics.Path2D().addCircle(140, 140, 30));
+            c.fillRect(100, 100, 80, 80, Color.rgb(0xC03030));
+            c.restore();
+        };
+        byte[] bare = render(c -> {
+            bands(c);
+            content.accept(c);
+            c.fillBackdropRoundRect(60, 60, 160, 160, 12, FROST);
+        });
+        freshCanvas();
+        byte[] inLayer = render(c -> {
+            bands(c);
+            c.saveLayer(39, 39, 202, 202, 0.99f);
+            content.accept(c);
+            c.fillBackdropRoundRect(60, 60, 160, 160, 12, FROST);
+            c.restore();
+        });
+        assertAtMost(4, bare, inLayer, "a glass after a clipped draw, in a group at 0.99 against no group");
+    }
+
     // ------------------------------------------------------------------ plumbing
 
     /** A canvas with nothing kept from earlier frames: no backdrop copy, no pictures. */

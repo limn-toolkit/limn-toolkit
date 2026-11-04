@@ -355,6 +355,30 @@ public final class RecordingCanvas implements Canvas {
         out.add(c -> c.saveLayer(x, y, width, height, opacity));
     }
 
+    /**
+     * A layer seen through a 3D matrix. Recorded as a picture, which replays on a canvas that draws
+     * such a layer, it is the call itself, the layer opened there as the matrix asks; recorded for
+     * a page, which has no such layer, it is the flat part of the matrix, as the canvas's default.
+     */
+    @Override
+    public void saveLayer(float x, float y, float width, float height, float opacity, limn.math.Mat4 transform) {
+        Objects.requireNonNull(transform, "transform");
+        if (!keepsSurfaces) {
+            Canvas.super.saveLayer(x, y, width, height, opacity, transform);
+            return;
+        }
+        double w = transform.get(3, 3) != 0 ? transform.get(3, 3) : 1;
+        Affine2D flat = new Affine2D(transform.get(0, 0) / w, transform.get(1, 0) / w, transform.get(0, 1) / w,
+                transform.get(1, 1) / w, transform.get(0, 3) / w, transform.get(1, 3) / w);
+        Affine2D t = state.transform.concat(flat);
+        float stretch = (float) Math.sqrt(Math.abs(t.a() * t.d() - t.b() * t.c()));
+        layers.push(new Layer(out.size(), x, y, Math.max(0, width), Math.max(0, height),
+                Math.max(0, Math.min(1, opacity)), contentScale * Math.max(stretch, 1e-3f)));
+        saved.push(state);
+        state = new State(t, state.clip, 1, BlendMode.NORMAL, state.sampling, state.snap);
+        out.add(c -> c.saveLayer(x, y, width, height, opacity, transform));
+    }
+
     @Override
     public void setBlendMode(BlendMode mode) {
         Objects.requireNonNull(mode, "mode");

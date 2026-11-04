@@ -54,13 +54,22 @@ public final class StyledText {
             this.style = style;
         }
 
-        /** @return the style the piece differs by */
-        TextStyle style() {
+        /**
+         * The style the piece differs by from the text around it.
+         *
+         * @return the style
+         */
+        public TextStyle style() {
             return style;
         }
 
-        /** @return the piece's text as it reads now */
-        String text() {
+        /**
+         * The piece's text as it reads now: a translated piece in the language in effect, a
+         * number as {@link I18nString#format} writes one.
+         *
+         * @return the text
+         */
+        public String text() {
             return read(text);
         }
 
@@ -378,7 +387,7 @@ public final class StyledText {
                 ParagraphStyle style = i > 0 && block.style().listNumber() > 0
                         ? block.style().listNumber(0) : block.style();
                 // An empty line in a list, a trailing line break's, is no item: no marker, no count.
-                String marker = texts.get(i).isEmpty() && style.listOrNull() != null ? null
+                String marker = texts.get(i).isEmpty() && style.list() != null ? null
                         : marker(style, counts, kinds);
                 out.add(new Paragraph(style, texts.get(i).toString(), List.copyOf(runs.get(i)), marker));
             }
@@ -511,7 +520,7 @@ public final class StyledText {
 
     /** The marker of a paragraph in a list, counting it; {@code null} out of a list, which ends every count. */
     private static @Nullable String marker(ParagraphStyle style, int[] counts, ParagraphStyle.ListMarker[] kinds) {
-        ParagraphStyle.ListMarker kind = style.listOrNull();
+        ParagraphStyle.ListMarker kind = style.list();
         if (kind == null) {
             Arrays.fill(counts, 0);
             Arrays.fill(kinds, null);

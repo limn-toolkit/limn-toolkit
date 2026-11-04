@@ -71,6 +71,8 @@ public final class Gradient implements Paint {
     private final Color[] colors;
     private final Spread spread;
     private final Affine2D transform;
+    /** {@link #hashCode()}, once made; 0 until then. A race makes it twice, alike. */
+    private int hash;
 
     private Gradient(Kind kind, float[] geometry, float[] positions, Color[] colors, Spread spread,
                      Affine2D transform) {
@@ -244,8 +246,14 @@ public final class Gradient implements Paint {
 
     @Override
     public int hashCode() {
-        return Objects.hash(kind, spread, Arrays.hashCode(geometry), Arrays.hashCode(positions),
-                Arrays.hashCode(colors), transform);
+        int h = hash;
+        if (h == 0) {
+            // Kept: a gradient is looked up by value for every primitive painted with it.
+            h = Objects.hash(kind, spread, Arrays.hashCode(geometry), Arrays.hashCode(positions),
+                    Arrays.hashCode(colors), transform);
+            hash = h;
+        }
+        return h;
     }
 
     @Override

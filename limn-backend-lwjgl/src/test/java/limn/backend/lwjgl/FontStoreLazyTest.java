@@ -9,10 +9,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -65,6 +67,49 @@ class FontStoreLazyTest {
             assertTrue(store.families().contains("Noto Sans CJK"));
             // CJK text now measures through the fallback chain (glyphs found).
             assertTrue(store.measure(Font.of(14), "你好").width() > 0);
+        }
+    }
+
+    @Test
+    void settlingWhenNoWorkerHasStartedTheParseParsesItHereInsteadOfWaitingForEver() {
+        Assumptions.assumeTrue(FontStore.parseHeavyFallbacks().cjk() != null, "Noto CJK not bundled on this machine");
+        // Every worker busy, as when each waits on the UI thread for a document to record: the
+        // parse queued behind them would never start, and the UI thread waited for it for ever.
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        ui.workers().submit(() -> {
+            release.await();
+            return null;
+        });
+        try (FontStore store = new FontStore()) {
+            store.measure(Font.of(14), "\u4f60\u597d"); // a glyph the default face lacks: the parse is asked for
+            assertTimeoutPreemptively(java.time.Duration.ofSeconds(30), () -> {
+                // On another thread here only for the time limit; settleNow touches no UI state.
+                assertTrue(store.settleNow(), "folded in");
+            });
+            assertTrue(store.families().contains("Noto Sans CJK"));
+        } finally {
+            release.countDown();
+        }
+    }
+
+    @Test
+    void aPictureDrawnFromInsideTheLandingDoesNotLandTheFacesAgain() {
+        Assumptions.assumeTrue(FontStore.parseHeavyFallbacks().cjk() != null, "Noto CJK not bundled on this machine");
+        try (FontStore store = new FontStore()) {
+            int[] notified = {0};
+            boolean[] again = {true};
+            // A listener of the catalog's change that draws a picture, whose drawing settles the
+            // fonts: inside the landing, which notified it.
+            store.setCatalogChangedNotifier(() -> {
+                notified[0]++;
+                if (notified[0] < 10) {
+                    again[0] &= !store.settleNow();
+                }
+            });
+            store.measure(Font.of(14), "\u4f60\u597d");
+            assertTrue(store.settleNow(), "folded in");
+            assertEquals(1, notified[0], "the catalog changed once, not once per picture drawn inside it");
+            assertTrue(again[0], "the settling asked from inside the landing landed nothing");
         }
     }
 
