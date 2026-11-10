@@ -47,7 +47,7 @@ limn-angle-natives = "2.1.8078.0"
 # the 17 the artifacts target compiles against it; the Feature API it uses has not changed since
 # 22.3, and an image built with any GraalVM for JDK 25 runs it. Kept at the release publish.yml
 # installs for its native-image job.
-graalvm-nativeimage = "25.4.4.1.1"
+graalvm-nativeimage = "25.5.5.0.3"
 
 [libraries]
 lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
